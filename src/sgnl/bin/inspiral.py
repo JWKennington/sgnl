@@ -6,12 +6,15 @@ from typing import List
 import torch
 
 from sgn.apps import Pipeline
+from sgn.sinks import NullSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
 from sgnligo.base.utils import parse_list_to_dict
-from sgnligo.sinks import ImpulseSink, KafkaSink, StrikeSink
+from sgnligo.sinks import ImpulseSink, KafkaSink
 from sgnligo.sources import datasource
-from sgnligo.transforms import Itacacac, Latency, condition, lloid
-from sgnts.sinks import FakeSeriesSink
+from sgnligo.transforms import Latency, condition, lloid
+
+from sgnl.transforms import Itacacac
+from sgnl.sinks import StillSuitSink
 
 
 def parse_command_line():
@@ -208,12 +211,14 @@ def parse_command_line():
     group.add_option(
         "--trigger-output",
         metavar="filename",
-        action="append",
-        default=[],
-        help="Set the name of the LIGO light-weight XML output file *.{xml,xml.gz} "
-        "or an SQLite database *.sqlite (required).  Can be given multiple times.  "
-        "Exactly as many output files must be specified as svd-bank files will be "
-        "processed (see --svd-bank).",
+        action="store",
+        help="Set the name of the sqlite output file *.sqlite",
+    )
+    group.add_option(
+        "--event-config",
+        metavar="filename",
+        action="store",
+        help="Set the name of the config yaml file for event buffers",
     )
     parser.add_option_group(group)
 
@@ -266,7 +271,7 @@ def parse_command_line():
         "--graph-name", metavar="filename", help="Plot pipieline graph to graph_name."
     )
     group.add_option(
-        "--fake-sink", action="store_true", help="Connect to a FakeSeriesSink"
+        "--fake-sink", action="store_true", help="Connect to a NullSink"
     )
     parser.add_option_group(group)
 
@@ -303,6 +308,7 @@ def inspiral(
     verbose=None,
     analysis_tag=None,
     trigger_output=None,
+    event_config=None,
 
     output_kafka_server=None,
     graph_name=None,
@@ -453,6 +459,7 @@ def inspiral(
             whitening_method=whitening_method,
             reference_psd=reference_psd,
             ht_gate_threshold=ht_gate_threshold,
+            event_config=event_config,
         )
     else:
         horizon_out_links = None
@@ -510,6 +517,7 @@ def inspiral(
                 end_times=sorted_bank.end_times,
                 kafka=data_source == "devshm",
                 device=torch_device,
+                event_config=event_config,
             ),
         )
         for ifo in ifos:
@@ -532,10 +540,9 @@ def inspiral(
         # Connect sink
         if fake_sink:
             pipeline.insert(
-                FakeSeriesSink(
+                NullSink(
                     name="Sink",
                     sink_pad_names=("sink",),
-                    verbose=verbose,
                 ),
                 link_map={"Sink:sink:sink": "itacacac:src:trigs"},
             )
@@ -581,31 +588,51 @@ def inspiral(
                         + "_whiten_latency": whiten_latency_out_links[ifo],
                     }
                 )
-        else:
+        elif event_config is not None:
             pipeline.insert(
-                StrikeSink(
-                    name="StrikeSnk",
+                StillSuitSink(
+                    name="StillSuitSnk",
                     sink_pad_names=("trigs",)
                     + tuple(["horizon_" + ifo for ifo in ifos]),
-                    ifos=ifos,
-                    verbose=verbose,
-                    all_template_ids=sorted_bank.template_ids.numpy(),
-                    bankids_map=sorted_bank.bankids_map,
-                    subbankids=sorted_bank.subbankids,
-                    template_sngls=sorted_bank.sngls,
+                    config_name=event_config,
                     trigger_output=trigger_output,
-                    ranking_stat_output=ranking_stat_output,
                 ),
                 link_map={
-                    "StrikeSnk:sink:trigs": "itacacac:src:trigs",
+                    "StillSuitSnk:sink:trigs": "itacacac:src:trigs",
                 },
             )
             for ifo in ifos:
                 pipeline.insert(
                     link_map={
-                        "StrikeSnk:sink:horizon_" + ifo: horizon_out_links[ifo],
+                        "StillSuitSnk:sink:horizon_" + ifo: horizon_out_links[ifo],
                     }
                 )
+        else:
+            raise ValueError("Unknown sink option")
+            #pipeline.insert(
+            #    StrikeSink(
+            #        name="StrikeSnk",
+            #        sink_pad_names=("trigs",)
+            #        + tuple(["horizon_" + ifo for ifo in ifos]),
+            #        ifos=ifos,
+            #        verbose=verbose,
+            #        all_template_ids=sorted_bank.template_ids.numpy(),
+            #        bankids_map=sorted_bank.bankids_map,
+            #        subbankids=sorted_bank.subbankids,
+            #        template_sngls=sorted_bank.sngls,
+            #        trigger_output=trigger_output,
+            #        ranking_stat_output=ranking_stat_output,
+            #    ),
+            #    link_map={
+            #        "StrikeSnk:sink:trigs": "itacacac:src:trigs",
+            #    },
+            #)
+            #for ifo in ifos:
+            #    pipeline.insert(
+            #        link_map={
+            #            "StrikeSnk:sink:horizon_" + ifo: horizon_out_links[ifo],
+            #        }
+            #    )
 
     # Plot pipeline
     if graph_name:
@@ -657,6 +684,7 @@ def main():
         verbose=options.verbose,
         analysis_tag=options.analysis_tag,
         trigger_output=options.trigger_output,
+        event_config=options.event_config,
         ranking_stat_output=options.ranking_stat_output,
         output_kafka_server=options.output_kafka_server,
         graph_name=options.graph_name,
