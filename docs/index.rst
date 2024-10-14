@@ -3,19 +3,21 @@
    :start-after: <!-- index.rst content start -->
 
 
-Examples
---------
+Installation
+------------
+To install the latest release from PyPI, simply run:
 
-For more information on how to use SGN, see the following guides and tutorials:
+.. code-block:: bash
+
+    pip install sgnl
+
+To install the latest development version from GitHub, see
+the more detailed instructions for setting up a development environment.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Examples:
+   :maxdepth: 1
 
-   examples/index
-   examples/trivial
-   examples/simple
-   examples/simple-json
+   install
 
 
 API Reference
