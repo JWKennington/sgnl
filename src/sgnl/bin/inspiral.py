@@ -596,6 +596,9 @@ def inspiral(
                     + tuple(["horizon_" + ifo for ifo in ifos]),
                     config_name=event_config,
                     trigger_output=trigger_output,
+                    template_ids=sorted_bank.template_ids.numpy(),
+                    template_sngls=sorted_bank.sngls,
+                    subbankids=sorted_bank.subbankids,
                 ),
                 link_map={
                     "StillSuitSnk:sink:trigs": "itacacac:src:trigs",
