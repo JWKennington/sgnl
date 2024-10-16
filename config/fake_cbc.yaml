@@ -9,7 +9,7 @@
 #   Reserved column names start with "_" or "__",
 #   - "_": required to be provided by the user, e.g., "_filter_id"
 #   - "__": will be filled in by stillsuit, e.g., "__trigger_id", "__trigger_map_id",
-#           "__simulation_id", "__event_id", "__data_id"
+#           "__simulation_id", "__event_id"
 #
 
 filter:
@@ -37,25 +37,18 @@ filter:
       #- {name: "dec", type: REAL}
       #- {name: "__simulation_id", type: INTEGER}
 
-data:
-  columns:
-    - {name: "__data_id", type: INTEGER, constraints: PRIMARY KEY}
-    - {name: "time", type: INTEGER}
-    - {name: "ifo", type: TEXT, size: 2}
-    - {name: "horizon", type: REAL}
-  relationships: []
-  static: False
-
 trigger:
   columns:
     - {name: "__trigger_id", type: INTEGER, constraints: PRIMARY KEY}
-    - {name: "__data_id", type: INTEGER}
     - {name: "_filter_id", type: INTEGER}
+    - {name: "epoch_start", type: INTEGER}
+    - {name: "epoch_end", type: INTEGER}
+    - {name: "ifo", type: TEXT, size: 2}
     - {name: "time", type: INTEGER}
     - {name: "snr", type: REAL}
     - {name: "chisq", type: REAL}
     - {name: "phase", type: REAL}
-  relationships: [{"filter": "_filter_id", "data": "__data_id"}]
+  relationships: [{"filter": "_filter_id"}]
   static: False
 
 event:

@@ -459,7 +459,6 @@ def inspiral(
             whitening_method=whitening_method,
             reference_psd=reference_psd,
             ht_gate_threshold=ht_gate_threshold,
-            event_config=event_config,
         )
     else:
         horizon_out_links = None
@@ -592,8 +591,7 @@ def inspiral(
             pipeline.insert(
                 StillSuitSink(
                     name="StillSuitSnk",
-                    sink_pad_names=("trigs",)
-                    + tuple(["horizon_" + ifo for ifo in ifos]),
+                    sink_pad_names=("trigs",),
                     config_name=event_config,
                     trigger_output=trigger_output,
                     template_ids=sorted_bank.template_ids.numpy(),
@@ -604,12 +602,6 @@ def inspiral(
                     "StillSuitSnk:sink:trigs": "itacacac:src:trigs",
                 },
             )
-            for ifo in ifos:
-                pipeline.insert(
-                    link_map={
-                        "StillSuitSnk:sink:horizon_" + ifo: horizon_out_links[ifo],
-                    }
-                )
         else:
             raise ValueError("Unknown sink option")
             #pipeline.insert(

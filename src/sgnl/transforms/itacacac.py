@@ -469,6 +469,12 @@ class Itacacac(TSTransform):
         self.rate = frame.sample_rate
         self.offset = frame.offset
 
+        offset0 = self.preparedoutoffsets[self.sink_pads[0]][0]["offset"]
+        ts = Offset.tons(offset0)
+        te = Offset.tons(
+            offset0 + self.preparedoutoffsets[self.sink_pads[0]][0]["noffset"]
+        )
+
         metadata = frame.metadata
         if len(snrs.keys()) == 0:
             event_data = {t: None for t in self.event_dtypes}
@@ -581,6 +587,9 @@ class Itacacac(TSTransform):
                             for col in ["time", "snr", "chisq", "phase"]
                         }
                         trig["_filter_id"] = clustered_coinc[0][j]
+                        trig["ifo"] = ifo
+                        trig["epoch_start"] = ts
+                        trig["epoch_end"] = te
                         trigs_this_event.append(trig)
                     else:
                         trigs_this_event.append(None)
@@ -609,10 +618,5 @@ class Itacacac(TSTransform):
 
         # return TSFrame(buffers=[outbuf], EOS=frame.EOS, metadata=metadata)
 
-        offset0 = self.preparedoutoffsets[self.sink_pads[0]][0]["offset"]
-        ts = Offset.tons(offset0)
-        te = Offset.tons(
-            offset0 + self.preparedoutoffsets[self.sink_pads[0]][0]["noffset"]
-        )
         events = {t: EventBuffer(ts, te, data=event_data[t]) for t in self.event_dtypes}
         return EventFrame(events=events, EOS=frame.EOS, metadata=metadata)

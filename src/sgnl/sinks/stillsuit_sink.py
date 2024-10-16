@@ -22,7 +22,7 @@ class StillSuitSink(SinkElement):
             raise ValueError("Must provide trigger_output")
         self.out = stillsuit.StillSuit(config=self.config_name, dbname=":memory:")
 
-        self.tables = ["data", "trigger", "event"]
+        self.tables = ["trigger", "event"]
         self.event_dict = {t: [] for t in self.tables}
 
         # insert filter
@@ -62,26 +62,18 @@ class StillSuitSink(SinkElement):
         if frame.EOS:
             self.mark_eos(pad)
 
-        if "data" in frame.events:
-            data = frame.events["data"].data
-            if data is not None:
-                self.event_dict["data"].append(data)
-        else:
-            self.event_dict["trigger"] = frame.events["trigger"].data
-            self.event_dict["event"] = frame.events["event"].data
+        self.event_dict["trigger"] = frame.events["trigger"].data
+        self.event_dict["event"] = frame.events["event"].data
 
     def internal(self, pad):
         # check if there are empty buffers
-        if None in self.event_dict["data"]:
-            self.event_dict = {t: [] for t in self.tables}
-            return
-
         for v in self.event_dict.values():
             if v is None:
                 self.event_dict = {t: [] for t in self.tables}
                 return
 
-        self.out.insert_events(self.event_dict)
+        for event, trigger in zip(self.event_dict["event"], self.event_dict["trigger"]):
+            self.out.insert_event({"event": event, "trigger": trigger})
         self.event_dict = {t: [] for t in self.tables}
 
         if self.at_eos:
