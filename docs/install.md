@@ -36,6 +36,8 @@ git clone git@git.ligo.org:greg/strike.git
 git clone git@git.ligo.org:greg/stillsuit.git
 ```
 
+To download data files used in tests, install `git-lfs` and in `sgnl` do `git lfs install` and `git lfs pull`.
+
 ## Prepare Isolated Python Environment
 
 Prepare a new python environment via your preferred method. Below is an example
@@ -59,13 +61,13 @@ FYI, `conda` seems to have fewer problems than `pip` at the moment.
 
 ```bash
 # Basic installs
-conda install -c conda-forge numpy, pandas, scipy, matplotlib, pytorch pytest
+conda install -c conda-forge numpy pandas scipy matplotlib pytorch pytest
 
 # Service installs
 conda install -c conda-forge python-confluent-kafka
 
 # LIGO installs
-conda install -c lscsoft lalsuite ligo-scald python-ligo-lw
+conda install -c conda-forge lalsuite ligo-scald python-ligo-lw
 ```
 
 ### Install SGN Family of Libraries
@@ -76,9 +78,11 @@ respective directory, in the order listed below.
 ```bash
 pip install -e .
 ```
-
+- `stillsuit`
+- `strike`
 - `sgn`
 - `sgn-ts`
+- `sgn-event`
 - `sgn-ligo`
 - `sgnl`
 
