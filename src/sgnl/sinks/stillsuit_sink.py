@@ -1,12 +1,18 @@
 from dataclasses import dataclass
-from sgn.sinks import SinkElement
+from typing import Any, Sequence
+
 import stillsuit
+import yaml
+from sgn.sinks import SinkElement
 
 
 @dataclass
 class StillSuitSink(SinkElement):
     config_name: str = None
     trigger_output: str = None
+    template_ids: Sequence[Any] = None
+    template_sngls: list = None
+    subbankids: Sequence[Any] = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -15,15 +21,49 @@ class StillSuitSink(SinkElement):
         if self.trigger_output is None:
             raise ValueError("Must provide trigger_output")
         self.out = stillsuit.StillSuit(config=self.config_name, dbname=":memory:")
+
         self.tables = ["data", "trigger", "event"]
         self.event_dict = {t: [] for t in self.tables}
+
+        # insert filter
+        with open(self.config_name) as f:
+            self.config = yaml.safe_load(f)
+
+        filters = []
+        for i, subbank in enumerate(self.template_sngls):
+            for template_id, sngl in subbank.items():
+                filter_row = self.init_config_row(self.config["filter"])
+                filter_row["_filter_id"] = template_id
+                filter_row["bank_id"] = int(self.subbankids[i].split("_")[0])
+                filter_row["subbank_id"] = int(self.subbankids[i].split("_")[1])
+                filter_row["end_time_delta"] = (
+                    sngl.end_time * 1_000_000_000 + sngl.end_time_ns
+                )
+                filter_row["mass1"] = sngl.mass1
+                filter_row["mass2"] = sngl.mass2
+                filter_row["spin1x"] = sngl.spin1x
+                filter_row["spin1y"] = sngl.spin1y
+                filter_row["spin1z"] = sngl.spin1z
+                filter_row["spin2x"] = sngl.spin2x
+                filter_row["spin2y"] = sngl.spin2y
+                filter_row["spin2z"] = sngl.spin2z
+                filters.append(filter_row)
+        self.out.insert_static({"filter": filters})
+
+    def init_config_row(self, table, extra=None):
+        out = {
+            c["name"]: None for c in table["columns"] if not c["name"].startswith("__")
+        }
+        if extra is not None:
+            out.update(extra)
+        return out
 
     def pull(self, pad, frame):
         if frame.EOS:
             self.mark_eos(pad)
 
         if "data" in frame.events:
-            data = frame.events["data"].data 
+            data = frame.events["data"].data
             if data is not None:
                 self.event_dict["data"].append(data)
         else:

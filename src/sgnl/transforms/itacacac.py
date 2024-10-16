@@ -109,14 +109,6 @@ class Itacacac(TSTransform):
 
         super().__post_init__()
 
-    def init_config_row(self, table, extra=None):
-        out = {
-            c["name"]: None for c in table["columns"] if not c["name"].startswith("__")
-        }
-        if extra is not None:
-            out.update(extra)
-        return out
-
     def find_peaks_and_calculate_chisqs(self, snrs):
         """
         find snr peaks in a given snr time series window, and obtain peak time,
@@ -588,6 +580,7 @@ class Itacacac(TSTransform):
                             col: sngl[col][j]
                             for col in ["time", "snr", "chisq", "phase"]
                         }
+                        trig["_filter_id"] = clustered_coinc[0][j]
                         trigs_this_event.append(trig)
                     else:
                         trigs_this_event.append(None)

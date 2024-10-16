@@ -6,19 +6,27 @@
 #   TEXT. The value is a text string, stored using the database encoding (UTF-8, UTF-16BE or UTF-16LE).
 #   BLOB. The value is a blob of data, stored exactly as it was input.
 #
-#   Reserved column names start with "__", e.g.,  "__filter_id",
-#   "__trigger_id", "__trigger_map_id", "__simulation_id", "__event_id"
-#   "__data_id"
+#   Reserved column names start with "_" or "__",
+#   - "_": required to be provided by the user, e.g., "_filter_id"
+#   - "__": will be filled in by stillsuit, e.g., "__trigger_id", "__trigger_map_id",
+#           "__simulation_id", "__event_id", "__data_id"
 #
 
 filter:
   columns:
-    - {name: "__filter_id", type: INTEGER, constraints: PRIMARY KEY}
-    - {name: "time", type: INTEGER}
+    - {name: "_filter_id", type: INTEGER, constraints: UNIQUE}
+    - {name: "bank_id", type: INTEGER}
+    - {name: "subbank_id", type: INTEGER}
+    - {name: "end_time_delta", type: INTEGER}
     - {name: "mass1", type: REAL}
     - {name: "mass2", type: REAL}
-    - {name: "chi", type: REAL, default: 0.0}
-    - {name: "approximant", type: TEXT, size: 32}
+    - {name: "spin1x", type: REAL}
+    - {name: "spin1y", type: REAL}
+    - {name: "spin1z", type: REAL}
+    - {name: "spin2x", type: REAL}
+    - {name: "spin2y", type: REAL}
+    - {name: "spin2z", type: REAL}
+      #- {name: "approximant", type: TEXT, size: 32}
   relationships: []
   static: True
 
@@ -42,12 +50,12 @@ trigger:
   columns:
     - {name: "__trigger_id", type: INTEGER, constraints: PRIMARY KEY}
     - {name: "__data_id", type: INTEGER}
-    - {name: "__filter_id", type: INTEGER}
+    - {name: "_filter_id", type: INTEGER}
     - {name: "time", type: INTEGER}
     - {name: "snr", type: REAL}
     - {name: "chisq", type: REAL}
     - {name: "phase", type: REAL}
-  relationships: [{"filter": "__filter_id", "data": "__data_id"}]
+  relationships: [{"filter": "_filter_id", "data": "__data_id"}]
   static: False
 
 event:
