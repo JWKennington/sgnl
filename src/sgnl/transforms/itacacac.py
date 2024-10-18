@@ -411,7 +411,7 @@ class Itacacac(TSTransform):
             sngls[ifo]["time"] = (
                 np.round(
                     (Offset.fromsamples(peak_locations, self.rate) + self.offset)
-                    / Offset.OFFSET_RATE
+                    / Offset.MAX_RATE
                     * 1_000_000_000
                 ).astype(int)
                 + Offset.offset_ref_t0
@@ -503,7 +503,7 @@ class Itacacac(TSTransform):
                                         )
                                         + self.offset
                                     )
-                                    / Offset.OFFSET_RATE
+                                    / Offset.MAX_RATE
                                     * 1_000_000_000
                                 ).astype(int)
                                 + Offset.offset_ref_t0
@@ -544,7 +544,7 @@ class Itacacac(TSTransform):
             #                     time = (
             #                         np.round(
             #                             (Offset.fromsamples(time, self.rate) + self.offset)
-            #                             / Offset.OFFSET_RATE
+            #                             / Offset.MAX_RATE
             #                             * 1_000_000_000
             #                         ).astype(int)
             #                         + Offset.offset_ref_t0

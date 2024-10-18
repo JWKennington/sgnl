@@ -42,13 +42,6 @@ def parse_command_line():
         help="Requested sampling rate of the data.",
     )
     group.add_option(
-        "--source-buffer-duration",
-        type=float,
-        metavar="seconds",
-        action="store",
-        help="Source elements will produce buffers in strides of this duration.",
-    )
-    group.add_option(
         "--frame-cache",
         metavar="file",
         help="Set the path to the frame cache file to analyze.",
@@ -105,9 +98,9 @@ def parse_command_line():
     )
     group.add_option(
         "--impulse-position",
+        type=int,
         action="store",
-        default=-1,
-        help="The sample point to put the impulse at. If -1, place randomly.",
+        help="The sample point to put the impulse at.",
     )
     group.add_option(
         "--impulse-ifo",
@@ -204,6 +197,7 @@ def parse_command_line():
     )
     group.add_option(
         "--impulse-bankno",
+        type=int,
         metavar="index",
         action="store",
         help="The template bank index to perform the impulse test on.",
@@ -270,9 +264,7 @@ def parse_command_line():
     group.add_option(
         "--graph-name", metavar="filename", help="Plot pipieline graph to graph_name."
     )
-    group.add_option(
-        "--fake-sink", action="store_true", help="Connect to a NullSink"
-    )
+    group.add_option("--fake-sink", action="store_true", help="Connect to a NullSink")
     parser.add_option_group(group)
 
     options, args = parser.parse_args()
@@ -281,7 +273,6 @@ def parse_command_line():
 
 
 def inspiral(
-    source_buffer_duration: int,
     sample_rate: int,
     channel_name: List[str],
     data_source: str = "frames",
@@ -292,8 +283,8 @@ def inspiral(
     impulse_bank: str = None,
     impulse_bankno: int = None,
     impulse_ifo: str = None,
+    impulse_position: int = None,
     ranking_stat_output: List[str] = None,
-
     frame_cache: str = None,
     gps_start_time: int = None,
     gps_end_time: int = None,
@@ -309,7 +300,6 @@ def inspiral(
     analysis_tag=None,
     trigger_output=None,
     event_config=None,
-
     output_kafka_server=None,
     graph_name=None,
     state_channel_name=None,
@@ -323,6 +313,8 @@ def inspiral(
 
     # sanity check options
     known_datasources = ["white", "sin", "impulse", "frames", "devshm"]
+    channel_dict = parse_list_to_dict(channel_name)
+    source_ifos = list(channel_dict.keys())
     if data_source in ["white", "sin", "impulse"]:
         if not num_buffers:
             raise ValueError(
@@ -334,27 +326,21 @@ def inspiral(
                 "Must specify sample_rate when data_source is one of 'white',"
                 "'sin', 'impulse'"
             )
-        elif not source_buffer_duration:
-            raise ValueError(
-                "Must specify source_buffer_duration when data_source is one "
-                "of 'white', 'sin', 'impulse'"
-            )
 
         if data_source == "impulse":
             if not impulse_bank:
                 raise ValueError("Must specify impulse_bank when data_source='impulse'")
-            elif not impulse_bankno:
+            elif impulse_bankno is None:
                 raise ValueError(
                     "Must specify impulse_bankno when data_source='impulse'"
                 )
             elif not impulse_ifo:
                 raise ValueError("Must specify impulse_ifo when data_source='impulse'")
+            elif not impulse_position:
+                raise ValueError(
+                    "Must specify impulse_position when data_source='impulse'"
+                )
 
-        if data_source == "white":
-            channel_dict = parse_list_to_dict(channel_name)
-            source_ifos = list(channel_dict.keys())
-        else:
-            source_ifos = None
     elif data_source == "frames":
         if not frame_cache:
             raise ValueError("Must specify frame_cache when data_source='frames'")
@@ -365,22 +351,19 @@ def inspiral(
             )
         elif not channel_name:
             raise ValueError("Must specify channel_name when data_source='frames'")
-        elif not sample_rate:
-            # FIXME: shoud we just determine the sample rate from the gwf file?
-            raise ValueError("Must specify sample_rate when data_source='frames'")
-        elif not source_buffer_duration:
-            raise ValueError("Must specify source_buffer_duration")
-        channel_dict = parse_list_to_dict(channel_name)
-        source_ifos = list(channel_dict.keys())
     elif data_source == "devshm":
         if not shared_memory_dir:
             raise ValueError("Must specify shared_memory_dir when data_source='devshm'")
         elif not channel_name:
             raise ValueError("Must specify channel_name when data_source='devshm'")
-        source_buffer_duration = 1
-        sample_rate = 16384
-        channel_dict = parse_list_to_dict(channel_name)
-        source_ifos = list(channel_dict.keys())
+        elif not state_channel_name:
+            raise ValueError(
+                "Must specify state_channel_name when data_source='devshm'"
+            )
+        elif not state_vector_on_bits:
+            raise ValueError(
+                "Must specify state_vector_on_bits when data_source='devshm'"
+            )
     else:
         raise ValueError(f"Unknown data source, must be one of {known_datasources}")
 
@@ -428,14 +411,13 @@ def inspiral(
     pipeline = Pipeline()
 
     # Create data source
-    source_out_links = datasource(
+    source_out_links, sample_rate = datasource(
         pipeline=pipeline,
         ifos=ifos,
         channel_name=channel_name,
         state_channel_name=state_channel_name,
         state_vector_on_bits=state_vector_on_bits,
         shared_memory_dir=shared_memory_dir,
-        source_buffer_duration=source_buffer_duration,
         sample_rate=sample_rate,
         data_source=data_source,
         frame_cache=frame_cache,
@@ -463,14 +445,11 @@ def inspiral(
     else:
         horizon_out_links = None
 
-    num_samples = int(source_buffer_duration * maxrate)
-
     # connect LLOID
     lloid_output_source_link = lloid(
         pipeline,
         sorted_bank,
         source_out_links,
-        num_samples,
         nslice,
         torch_device,
         dtype,
@@ -484,7 +463,7 @@ def inspiral(
                 sink_pad_names=tuple(ifos) + (impulse_ifo + "_src",),
                 original_templates=impulse_bank,
                 template_duration=141,
-                plotname="plots/response",
+                plotname="response",
                 impulse_pad=impulse_ifo + "_src",
                 data_pad=impulse_ifo,
                 bankno=impulse_bankno,
@@ -525,16 +504,16 @@ def inspiral(
                     "itacacac:sink:" + ifo: lloid_output_source_link[ifo],
                 }
             )
-        if data_source == "devshm":
-            pipeline.insert(
-                Latency(
-                    name="itacacac_latency",
-                    sink_pad_names=("data",),
-                    source_pad_names=("latency",),
-                    route="all_itacacac_latency",
-                ),
-                link_map={"itacacac_latency:sink:data": "itacacac:src:trigs"},
-            )
+        # if data_source == "devshm":
+        #    pipeline.insert(
+        #        Latency(
+        #            name="itacacac_latency",
+        #            sink_pad_names=("data",),
+        #            source_pad_names=("latency",),
+        #            route="all_itacacac_latency",
+        #        ),
+        #        link_map={"itacacac_latency:sink:data": "itacacac:src:trigs"},
+        #    )
 
         # Connect sink
         if fake_sink:
@@ -604,7 +583,7 @@ def inspiral(
             )
         else:
             raise ValueError("Unknown sink option")
-            #pipeline.insert(
+            # pipeline.insert(
             #    StrikeSink(
             #        name="StrikeSnk",
             #        sink_pad_names=("trigs",)
@@ -621,8 +600,8 @@ def inspiral(
             #    link_map={
             #        "StrikeSnk:sink:trigs": "itacacac:src:trigs",
             #    },
-            #)
-            #for ifo in ifos:
+            # )
+            # for ifo in ifos:
             #    pipeline.insert(
             #        link_map={
             #            "StrikeSnk:sink:horizon_" + ifo: horizon_out_links[ifo],
@@ -656,7 +635,6 @@ def main():
     options, args = parse_command_line()
 
     inspiral(
-        source_buffer_duration=options.source_buffer_duration,
         sample_rate=options.sample_rate,
         data_source=options.data_source,
         num_buffers=options.num_buffers,
@@ -664,6 +642,7 @@ def main():
         impulse_bankno=options.impulse_bankno,
         frame_cache=options.frame_cache,
         impulse_ifo=options.impulse_ifo,
+        impulse_position=options.impulse_position,
         gps_start_time=options.gps_start_time,
         gps_end_time=options.gps_end_time,
         channel_name=options.channel_name,
