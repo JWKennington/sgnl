@@ -48,6 +48,8 @@ Issues = "https://git.ligo.org/greg/sgnl/issues"
 [project.scripts]
 sgnl-inspiral = "sgnl.bin.inspiral:main"
 sgnl-ll-dq = "sgnl.bin.ll_dq:main"
+sgnl-reference-psd = "sgnl.bin.reference_psd:main"
+sgnl-median-of-psds = "sgnl.bin.median_of_psds:main"
 
 [project.optional-dependencies]
 test = [

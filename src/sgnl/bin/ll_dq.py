@@ -1,4 +1,4 @@
-from optparse import OptionParser
+from argparse import ArgumentParser
 
 from sgn.apps import Pipeline
 from sgn.sinks import FakeSink
@@ -18,93 +18,93 @@ from sgnligo.transforms import (
 
 
 def parse_command_line():
-    parser = OptionParser(description=__doc__)
+    parser = ArgumentParser(description=__doc__)
 
     # add our own options
-    parser.add_option(
+    parser.add_argument(
         "--sample-rate",
         metavar="Hz",
         default=2048,
         type="int",
         help="Sample rate at which to generate the PSD, default 2048 Hz",
     )
-    parser.add_option(
+    parser.add_argument(
         "--psd-fft-length",
         metavar="s",
         default=8,
         type="int",
         help="FFT length, default 8s",
     )
-    parser.add_option(
+    parser.add_argument(
         "--scald-config",
         metavar="path",
         help="sets ligo-scald options based on yaml configuration.",
     )
-    parser.add_option(
+    parser.add_argument(
         "--output-kafka-server",
         metavar="addr",
         help="Set the server address and port number for output data. Optional",
     )
-    parser.add_option(
+    parser.add_argument(
         "--analysis-tag",
         metavar="tag",
         default="test",
         help='Set the string to identify the analysis in which this job is part of. Used when --output-kafka-server is set. May not contain "." nor "-". Default is test.',
     )
-    parser.add_option(
+    parser.add_argument(
         "--reference-psd",
         metavar="filename",
         help="Load spectrum from this LIGO light-weight XML file. The noise spectrum will be measured and tracked starting from this reference. (optional).",
     )
-    parser.add_option(
+    parser.add_argument(
         "--horizon-approximant",
         type="string",
         default="IMRPhenomD",
         help="Specify a waveform approximant to use while calculating the horizon distance and range. Default is IMRPhenomD.",
     )
-    parser.add_option(
+    parser.add_argument(
         "--horizon-f-min",
         metavar="Hz",
         type="float",
         default=15.0,
         help="Set the frequency at which the waveform model is to begin for the horizon distance and range calculation. Default is 15 Hz.",
     )
-    parser.add_option(
+    parser.add_argument(
         "--horizon-f-max",
         metavar="Hz",
         type="float",
         default=900.0,
         help="Set the upper frequency cut off for the waveform model used in the horizon distance and range calculation. Default is 900 Hz.",
     )
-    parser.add_option(
+    parser.add_argument(
         "--whitening-method",
         metavar="algorithm",
         default="gstlal",
         help="Algorithm to use for whitening the data. Supported options are 'gwpy' or 'gstlal'. Default is gstlal.",
     )
-    parser.add_option(
+    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Be verbose (optional)."
     )
 
-    parser.add_option(
+    parser.add_argument(
         "--instrument", metavar="ifo", help="Instrument to analyze. H1, L1, or V1."
     )
-    parser.add_option(
+    parser.add_argument(
         "--channel-name", metavar="channel", help="Name of the data channel to analyze."
     )
-    parser.add_option(
+    parser.add_argument(
         "--shared-memory-dir",
         metavar="directory",
         help="Set the name of the shared memory directory.",
     )
-    parser.add_option(
+    parser.add_argument(
         "--wait-time",
         metavar="seconds",
         type=int,
         default=60,
         help="Time to wait for new files in seconds before throwing an error. In online mode, new files should always arrive every second, unless there are problems. Default wait time is 60 seconds.",
     )
-    parser.add_option(
+    parser.add_argument(
         "--kafka-reduce-time",
         metavar="seconds",
         type=int,
@@ -112,9 +112,9 @@ def parse_command_line():
         help="Time to reduce data to send to kafka.",
     )
 
-    options, filenames = parser.parse_args()
+    options = parser.parse_args()
 
-    return options, filenames
+    return options
 
 
 def main():
