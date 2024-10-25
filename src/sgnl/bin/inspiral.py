@@ -1,6 +1,6 @@
 import os
 import sys
-from optparse import OptionGroup, OptionParser
+from argparse import ArgumentGroup, ArgumentParser
 from typing import List
 
 import torch
@@ -18,9 +18,9 @@ from sgnl.sinks import StillSuitSink
 
 
 def parse_command_line():
-    parser = OptionParser()
+    parser = ArgumentParser()
 
-    group = OptionGroup(parser, "Data source", "Options for data source.")
+    group = ArgumentGroup(parser, "Data source", "Options for data source.")
     group.add_option(
         "--data-source",
         action="store",
@@ -28,58 +28,66 @@ def parse_command_line():
         help="The type of the input source. Supported sources: 'white', 'sin', "
         "'impulse', 'frames', 'devshm'",
     )
-    group.add_option(
+    group.add_argument(
         "--channel-name",
         metavar="ifo=channel-name",
         action="append",
         help="Name of the data channel to analyze. Can be given multiple times as "
         "--channel-name=IFO=CHANNEL-NAME",
     )
-    group.add_option(
+    group.add_argument(
         "--sample-rate",
         metavar="Hz",
         type=int,
         help="Requested sampling rate of the data.",
     )
-    group.add_option(
+    group.add_argument(
+        "--source-buffer-duration",
+        type=float,
+        metavar="seconds",
+        action="store",
+        help="Source elements will produce buffers in strides of this duration.",
+    )
+    group.add_argument
+    (
         "--frame-cache",
         metavar="file",
         help="Set the path to the frame cache file to analyze.",
     )
-    group.add_option(
+    group.add_argument(
         "--gps-start-time",
         metavar="seconds",
         help="Set the start time of the segment to analyze in GPS seconds. "
         "For frame cache data source",
     )
-    group.add_option(
+    group.add_argument(
         "--gps-end-time",
         metavar="seconds",
         help="Set the end time of the segment to analyze in GPS seconds. "
         "For frame cache data source",
     )
-    group.add_option(
+    group.add_argument(
         "--shared-memory-dir",
         metavar="ifo=directory",
         action="append",
         help="Set the name of the shared memory directory. "
         "Can be given multiple times as --shared-memory-dir=IFO=DIR-NAME",
     )
-    group.add_option(
+    group.add_argument(
         "--state-channel-name",
         metavar="ifo=channel-name",
         action="append",
         help="Set the state vector channel name. "
         "Can be given multiple times as --state-channel-name=IFO=CHANNEL-NAME",
     )
-    group.add_option(
+    group.add_argument(
         "--state-vector-on-bits",
         metavar="ifo=number",
         action="append",
         help="Set the state vector on bits. "
         "Can be given multiple times as --state-vector-on-bits=IFO=NUMBER",
     )
-    group.add_option(
+    group.add_argument(
         "--wait-time",
         metavar="seconds",
         type=int,
@@ -88,7 +96,7 @@ def parse_command_line():
         "In online mode, new files should always arrive every second, unless "
         "there are problems. Default wait time is 60 seconds.",
     )
-    group.add_option(
+    group.add_argument(
         "--num-buffers",
         type="int",
         action="store",
@@ -96,62 +104,62 @@ def parse_command_line():
         help="Number of buffers the source element should produce when source is "
         "fake source",
     )
-    group.add_option(
+    group.add_argument(
         "--impulse-position",
         type=int,
         action="store",
         help="The sample point to put the impulse at.",
     )
-    group.add_option(
+    group.add_argument(
         "--impulse-ifo",
         action="store",
         help="Only do impulse test on data from this ifo.",
     )
-    parser.add_option_group(group)
+    parser.add_argument_group(group)
 
-    group = OptionGroup(
+    group = ArgumentGroup(
         parser, "PSD Options", "Adjust noise spectrum estimation parameters"
     )
-    group.add_option(
+    group.add_argument(
         "--whitening-method",
         metavar="algorithm",
         default="gstlal",
         help="Algorithm to use for whitening the data. Supported options are 'gwpy' "
         "or 'gstlal'. Default is gstlal.",
     )
-    group.add_option(
+    group.add_argument(
         "--psd-fft-length",
         action="store",
         type=int,
         help="The fft length for psd estimation.",
     )
-    group.add_option(
+    group.add_argument(
         "--reference-psd",
         metavar="file",
         help="load the spectrum from this LIGO light-weight XML file (optional).",
     )
-    group.add_option(
+    group.add_argument(
         "--track-psd",
         action="store_true",
         help="Enable dynamic PSD tracking.  Always enabled if --reference-psd is not "
         "given.",
     )
-    parser.add_option_group(group)
+    parser.add_argument_group(group)
 
-    group = OptionGroup(parser, "Data Qualtiy", "Adjust data quality handling")
-    group.add_option(
+    group = ArgumentGroup(parser, "Data Qualtiy", "Adjust data quality handling")
+    group.add_argument(
         "--ht-gate-threshold",
         action="store",
         type=float,
         default=float("+inf"),
         help="The gating threshold. Data above this value will be gated out.",
     )
-    parser.add_option_group(group)
+    parser.add_argument_group(group)
 
     group = OptionGroup(
         parser, "Trigger Generator", "Adjust trigger generator behaviour"
     )
-    group.add_option(
+    group.add_argument(
         "--svd-bank",
         metavar="filename",
         action="append",
@@ -165,7 +173,7 @@ def parse_command_line():
         "order.  At least one svd bank for at least 2 detectors is required, "
         "but see also --svd-bank-cache.",
     )
-    group.add_option(
+    group.add_argument(
         "--nbank-pretend",
         type="int",
         action="store",
@@ -173,14 +181,14 @@ def parse_command_line():
         help="Pretend we have this many subbanks by copying the first subbank "
         "this many times",
     )
-    group.add_option(
+    group.add_argument(
         "--nslice",
         type="int",
         action="store",
         default=-1,
         help="Only filter this many timeslices. Default: -1, filter all timeslices.",
     )
-    group.add_option(
+    group.add_argument(
         "--trigger-finding-length",
         type="int",
         metavar="samples",
@@ -188,38 +196,38 @@ def parse_command_line():
         default=2048,
         help="Produce triggers in blocks of this many samples.",
     )
-    group.add_option(
+    group.add_argument(
         "--impulse-bank",
         metavar="filename",
         action="store",
         default=None,
         help="The full original templates to compare the impulse response test with.",
     )
-    group.add_option(
+    group.add_argument(
         "--impulse-bankno",
         type=int,
         metavar="index",
         action="store",
         help="The template bank index to perform the impulse test on.",
     )
-    group.add_option(
+    group.add_argument(
         "--trigger-output",
         metavar="filename",
         action="store",
         help="Set the name of the sqlite output file *.sqlite",
     )
-    group.add_option(
+    group.add_argument(
         "--event-config",
         metavar="filename",
         action="store",
         help="Set the name of the config yaml file for event buffers",
     )
-    parser.add_option_group(group)
+    parser.add_argument_group(group)
 
-    group = OptionGroup(
+    group = ArgumentGroup(
         parser, "Ranking Statistic Options", "Adjust ranking statistic behaviour"
     )
-    group.add_option(
+    group.add_argument(
         "--ranking-stat-output",
         metavar="filename",
         action="append",
@@ -229,31 +237,31 @@ def parse_command_line():
         "exactly as many must be provided as there are --svd-bank options and they will"
         " be writen to in order.",
     )
-    parser.add_option_group(group)
+    parser.add_argument_group(group)
 
-    group = OptionGroup(parser, "Program Behaviour")
-    group.add_option(
+    group = ArgumentGroup(parser, "Program Behaviour")
+    group.add_argument(
         "--torch-device",
         action="store",
         default="cpu",
         help="The device to run LLOID and Trigger generation on.",
     )
-    group.add_option(
+    group.add_argument(
         "--torch-dtype",
         action="store",
         type="str",
         default="float32",
         help="The data type to run LLOID and Trigger generation with.",
     )
-    group.add_option(
+    group.add_argument(
         "-v", "--verbose", action="store_true", help="Be verbose (optional)."
     )
-    group.add_option(
+    group.add_argument(
         "--output-kafka-server",
         metavar="addr",
         help="Set the server address and port number for output data. Optional",
     )
-    group.add_option(
+    group.add_argument(
         "--analysis-tag",
         metavar="tag",
         default="test",
@@ -261,15 +269,17 @@ def parse_command_line():
         'Used when --output-kafka-server is set. May not contain "." nor "-". Default '
         "is test.",
     )
-    group.add_option(
+    group.add_argument(
         "--graph-name", metavar="filename", help="Plot pipieline graph to graph_name."
     )
-    group.add_option("--fake-sink", action="store_true", help="Connect to a NullSink")
-    parser.add_option_group(group)
+    group.add_argument(
+        "--fake-sink", action="store_true", help="Connect to a NullSink"
+    )
+    parser.add_argument_group(group)
 
-    options, args = parser.parse_args()
+    options = parser.parse_args()
 
-    return options, args
+    return options
 
 
 def inspiral(
@@ -632,7 +642,7 @@ def inspiral(
 
 def main():
     # parse arguments
-    options, args = parse_command_line()
+    options = parse_command_line()
 
     inspiral(
         sample_rate=options.sample_rate,

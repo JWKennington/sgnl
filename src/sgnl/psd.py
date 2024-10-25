@@ -13,7 +13,15 @@ import lal.series
 from lal import LIGOTimeGPS
 import lalsimulation
 
+from sgn.apps import Pipeline
+from sgnligo.sources import datasource, DevShmSrc
+from sgnligo.transforms import (
+    Whiten,
+    Resampler,
+    HorizonDistance,
+)
 
+from sgnl.sinks import PSDSink
 #
 # =============================================================================
 #
@@ -22,6 +30,103 @@ import lalsimulation
 # =============================================================================
 #
 
+def measure_psd(gw_data_source_info, instrument, rate, psd_fft_length = 8, verbose = False):
+
+    #
+    # 8 FFT-lengths is just a ball-parky estimate of how much data is
+    # needed for a good PSD, this isn't a requirement of the code (the
+    # code requires a minimum of 1)
+    #
+
+    if gw_data_source_info.seg is not None and float(abs(gw_data_source_info.seg)) < 8 * psd_fft_length:
+        raise ValueError("segment %s too short" % str(gw_data_source_info.seg))
+
+    #
+    # build pipeline
+    #
+
+    if verbose:
+        print("measuring PSD in segment %s" % str(gw_data_source_info.seg), file=sys.stderr)
+        print("building pipeline ...", file=sys.stderr)
+
+    pipeline = Pipeline()
+
+    #
+    #          -----------
+    #         | DevShmSrc |
+    #          -----------
+    #         /
+    #     H1 /
+    #   ------------
+    #  |  Resampler |
+    #   ------------
+    #       |
+    #   ------------  hoft ----------
+    #  |  Whiten    | --- | FakeSink |
+    #   ------------       ----------
+    #          |psd
+    #   ------------
+    #  |  PSDSink   |
+    #   ------------
+
+    pipeline.insert(
+        DevShmSrc(
+            name="src1",
+            source_pad_names=("frsrc",),
+            rate=16384,
+            num_samples=16384,
+            channel_name=options.channel_name,
+            instrument=options.instrument,
+            shared_memory_dir=options.shared_memory_dir,
+            wait_time=options.wait_time,
+        ),
+        Resampler(
+            name="Resampler",
+            source_pad_names=("resamp",),
+            sink_pad_names=("frsrc",),
+            inrate=source_sample_rate,
+            outrate=options.sample_rate,
+        ),
+        Whiten(
+            name="Whitener",
+            source_pad_names=("hoft", "spectrum"),
+            sink_pad_names=("resamp",),
+            instrument=options.instrument,
+            sample_rate=options.sample_rate,
+            fft_length=options.psd_fft_length,
+            whitening_method=options.whitening_method,
+            reference_psd=options.reference_psd,
+            psd_pad_name="Whitener:src:spectrum",
+        ),
+        FakeSeriesSink(
+            name="HoftSnk",
+            sink_pad_names=("hoft",),
+            verbose=True,
+        ),
+        PSDSink(
+            fname = "test.xml",
+            name="PSDSnk",
+            sink_pad_names=("spectrum",),
+            verbose=True,
+        ),
+    )
+
+    pipeline.insert(
+        link_map={
+            "Resampler:sink:frsrc": "src1:src:frsrc",
+            "Whitener:sink:resamp": "Resampler:src:resamp",
+            "PSDSink:sink:spectrum": "Whitener:src:spectrum",
+            "HoftSnk:sink:hoft": "Whitener:src:hoft",
+        }
+    )
+
+    if verbose:
+        print("running pipeline ...", file=sys.stderr)
+    
+    pipeline.run()
+
+    if verbose:
+        print("PSD measurement complete", file=sys.stderr)
 
 def read_psd(
     filename: str, verbose: Optional[bool] = False

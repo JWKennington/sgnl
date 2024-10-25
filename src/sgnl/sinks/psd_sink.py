@@ -1,0 +1,35 @@
+from dataclasses import dataclass
+from sgn.base import SinkElement, Frame, SinkPad, InternalPad
+import stillsuit
+from ligo.lw import utils as ligolw_utils
+import lal
+
+def write_psd(fname, psddict, verbose=True, trap_signals = None): 
+        ligolw_utils.write_filename(
+        lal.series.make_psd_xmldoc(psddict),
+        fname,
+        verbose=verbose,
+        trap_signals=trap_signals,
+    )
+
+@dataclass
+class PSDSink(SinkElement):
+    """
+    A sink element that dumps a PSD to an LIGOLW XML file
+    """
+
+    fname: str = None
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.psd = {}
+
+    def pull(self, pad: SinkPad, frame: Frame) -> None:
+        if frame.EOS:
+            self.mark_eos(pad)
+            self.psd[pad.name.split(':')[-1]]  = frame.metadata["psd"]
+
+    def internal(self, pad: SinkPad) -> None:
+        if self.at_eos:
+            write_psd(self.fname, self.psd)
+
