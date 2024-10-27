@@ -105,7 +105,9 @@ class Itacacac(TSTransform):
                 n: dtype_from_config(self.config[n]) for n in ["trigger", "event"]
             }
         else:
-            self.event_dtypes = {"": None}
+            self.event_dtypes = {
+                n: None for n in ["trigger", "event"]
+            }
 
         super().__post_init__()
 

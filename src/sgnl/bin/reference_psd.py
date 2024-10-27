@@ -68,12 +68,6 @@ def parse_command_line():
         "For frame cache data source",
     )
     parser.add_argument(
-        "--source-buffer-duration",
-        type=int,
-        default = 1,
-        help="Buffer duration.",
-    )
-    parser.add_argument(
         "--reference-psd",
         metavar="filename",
         help="Load spectrum from this LIGO light-weight XML file. The noise spectrum will be measured and tracked starting from this reference. (optional).",
@@ -128,7 +122,6 @@ def parse_command_line():
     return options
 
 def reference_psd(
-    source_buffer_duration: int,
     sample_rate: int,
     channel_name: List[str],
     input_sample_rate: int = 16384,
@@ -162,11 +155,6 @@ def reference_psd(
                 "Must specify input_sample_rate when data_source is one of 'white',"
                 "'sin', 'impulse'"
             )
-        elif not source_buffer_duration:
-            raise ValueError(
-                "Must specify source_buffer_duration when data_source is one "
-                "of 'white', 'sin', 'impulse'"
-            )
 
         if data_source == "impulse":
             if not impulse_bank:
@@ -196,8 +184,6 @@ def reference_psd(
         elif not input_sample_rate:
             # FIXME: shoud we just determine the sample rate from the gwf file?
             raise ValueError("Must specify input_sample_rate when data_source='frames'")
-        elif not source_buffer_duration:
-            raise ValueError("Must specify source_buffer_duration")
         channel_dict = parse_list_to_dict(channel_name)
         source_ifos = list(channel_dict.keys())
     elif data_source == "devshm":
@@ -205,7 +191,6 @@ def reference_psd(
             raise ValueError("Must specify shared_memory_dir when data_source='devshm'")
         elif not channel_name:
             raise ValueError("Must specify channel_name when data_source='devshm'")
-        source_buffer_duration = 1
         input_sample_rate = 16384
         channel_dict = parse_list_to_dict(channel_name)
         source_ifos = list(channel_dict.keys())
@@ -223,14 +208,13 @@ def reference_psd(
     pipeline = Pipeline()
 
     # Create data source
-    source_out_links = datasource(
+    source_out_links, input_sample_rate = datasource(
         pipeline=pipeline,
         ifos=ifos,
         channel_name=channel_name,
         state_channel_name=state_channel_name,
         state_vector_on_bits=state_vector_on_bits,
         shared_memory_dir=shared_memory_dir,
-        source_buffer_duration=source_buffer_duration,
         sample_rate=input_sample_rate,
         data_source=data_source,
         frame_cache=frame_cache,
@@ -307,7 +291,6 @@ def main():
     options = parse_command_line()
 
     reference_psd(
-    source_buffer_duration=options.source_buffer_duration,
     sample_rate=options.sample_rate,
     input_sample_rate=options.input_sample_rate,
     channel_name=options.channel_name,
