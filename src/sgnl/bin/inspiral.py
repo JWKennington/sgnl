@@ -1,6 +1,6 @@
 import os
 import sys
-from argparse import ArgumentGroup, ArgumentParser
+from argparse import ArgumentParser
 from typing import List
 
 import torch
@@ -20,8 +20,8 @@ from sgnl.sinks import StillSuitSink
 def parse_command_line():
     parser = ArgumentParser()
 
-    group = ArgumentGroup(parser, "Data source", "Options for data source.")
-    group.add_option(
+    group = parser.add_argument_group("Data source", "Options for data source.")
+    group.add_argument(
         "--data-source",
         action="store",
         default="frames",
@@ -42,14 +42,6 @@ def parse_command_line():
         help="Requested sampling rate of the data.",
     )
     group.add_argument(
-        "--source-buffer-duration",
-        type=float,
-        metavar="seconds",
-        action="store",
-        help="Source elements will produce buffers in strides of this duration.",
-    )
-    group.add_argument
-    (
         "--frame-cache",
         metavar="file",
         help="Set the path to the frame cache file to analyze.",
@@ -98,7 +90,7 @@ def parse_command_line():
     )
     group.add_argument(
         "--num-buffers",
-        type="int",
+        type=int,
         action="store",
         default=10,
         help="Number of buffers the source element should produce when source is "
@@ -115,10 +107,9 @@ def parse_command_line():
         action="store",
         help="Only do impulse test on data from this ifo.",
     )
-    parser.add_argument_group(group)
 
-    group = ArgumentGroup(
-        parser, "PSD Options", "Adjust noise spectrum estimation parameters"
+    group = parser.add_argument_group(
+        "PSD Options", "Adjust noise spectrum estimation parameters"
     )
     group.add_argument(
         "--whitening-method",
@@ -144,9 +135,8 @@ def parse_command_line():
         help="Enable dynamic PSD tracking.  Always enabled if --reference-psd is not "
         "given.",
     )
-    parser.add_argument_group(group)
 
-    group = ArgumentGroup(parser, "Data Qualtiy", "Adjust data quality handling")
+    group = parser.add_argument_group("Data Qualtiy", "Adjust data quality handling")
     group.add_argument(
         "--ht-gate-threshold",
         action="store",
@@ -154,10 +144,9 @@ def parse_command_line():
         default=float("+inf"),
         help="The gating threshold. Data above this value will be gated out.",
     )
-    parser.add_argument_group(group)
 
-    group = OptionGroup(
-        parser, "Trigger Generator", "Adjust trigger generator behaviour"
+    group = parser.add_argument_group(
+        "Trigger Generator", "Adjust trigger generator behaviour"
     )
     group.add_argument(
         "--svd-bank",
@@ -175,7 +164,7 @@ def parse_command_line():
     )
     group.add_argument(
         "--nbank-pretend",
-        type="int",
+        type=int,
         action="store",
         default=0,
         help="Pretend we have this many subbanks by copying the first subbank "
@@ -183,14 +172,14 @@ def parse_command_line():
     )
     group.add_argument(
         "--nslice",
-        type="int",
+        type=int,
         action="store",
         default=-1,
         help="Only filter this many timeslices. Default: -1, filter all timeslices.",
     )
     group.add_argument(
         "--trigger-finding-length",
-        type="int",
+        type=int,
         metavar="samples",
         action="store",
         default=2048,
@@ -222,10 +211,9 @@ def parse_command_line():
         action="store",
         help="Set the name of the config yaml file for event buffers",
     )
-    parser.add_argument_group(group)
 
-    group = ArgumentGroup(
-        parser, "Ranking Statistic Options", "Adjust ranking statistic behaviour"
+    group = parser.add_argument_group(
+        "Ranking Statistic Options", "Adjust ranking statistic behaviour"
     )
     group.add_argument(
         "--ranking-stat-output",
@@ -237,9 +225,8 @@ def parse_command_line():
         "exactly as many must be provided as there are --svd-bank options and they will"
         " be writen to in order.",
     )
-    parser.add_argument_group(group)
 
-    group = ArgumentGroup(parser, "Program Behaviour")
+    group = parser.add_argument_group("Program Behaviour")
     group.add_argument(
         "--torch-device",
         action="store",
@@ -249,7 +236,7 @@ def parse_command_line():
     group.add_argument(
         "--torch-dtype",
         action="store",
-        type="str",
+        type=str,
         default="float32",
         help="The data type to run LLOID and Trigger generation with.",
     )
@@ -272,10 +259,7 @@ def parse_command_line():
     group.add_argument(
         "--graph-name", metavar="filename", help="Plot pipieline graph to graph_name."
     )
-    group.add_argument(
-        "--fake-sink", action="store_true", help="Connect to a NullSink"
-    )
-    parser.add_argument_group(group)
+    group.add_argument("--fake-sink", action="store_true", help="Connect to a NullSink")
 
     options = parser.parse_args()
 
@@ -346,10 +330,6 @@ def inspiral(
                 )
             elif not impulse_ifo:
                 raise ValueError("Must specify impulse_ifo when data_source='impulse'")
-            elif not impulse_position:
-                raise ValueError(
-                    "Must specify impulse_position when data_source='impulse'"
-                )
 
     elif data_source == "frames":
         if not frame_cache:
@@ -435,6 +415,7 @@ def inspiral(
         gps_end_time=gps_end_time,
         wait_time=wait_time,
         num_buffers=num_buffers,
+        impulse_position=impulse_position,
         verbose=verbose,
     )
 
@@ -534,6 +515,16 @@ def inspiral(
                 ),
                 link_map={"Sink:sink:sink": "itacacac:src:trigs"},
             )
+            for ifo in ifos:
+                pipeline.insert(
+                    NullSink(
+                        name="Null_" + ifo,
+                        sink_pad_names=(ifo,),
+                    ),
+                    link_map={
+                        "Null_" + ifo + ":sink:" + ifo: horizon_out_links[ifo],
+                    },
+                )
         elif data_source == "devshm":
             pipeline.insert(
                 KafkaSink(
@@ -591,6 +582,17 @@ def inspiral(
                     "StillSuitSnk:sink:trigs": "itacacac:src:trigs",
                 },
             )
+            # FIXME: horizons should connect to strike sink once strike sink is ready
+            for ifo in ifos:
+                pipeline.insert(
+                    NullSink(
+                        name="Null_" + ifo,
+                        sink_pad_names=(ifo,),
+                    ),
+                    link_map={
+                        "Null_" + ifo + ":sink:" + ifo: horizon_out_links[ifo],
+                    },
+                )
         else:
             raise ValueError("Unknown sink option")
             # pipeline.insert(
