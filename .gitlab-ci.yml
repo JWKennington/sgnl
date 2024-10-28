@@ -15,11 +15,13 @@ include:
         - "3.11"
   - component: git.ligo.org/computing/gitlab/components/sphinx/apidoc@1
     inputs:
+      image: python:3.12
       module_dir: "src/sgnl"
       sphinx_sourcedir: "docs"
       requirements: ".[docs]"
   - component: git.ligo.org/computing/gitlab/components/sphinx/build@1
     inputs:
+      image: python:3.12
       sphinx_sourcedir: "docs"
       requirements: ".[docs]"
   - component: git.ligo.org/computing/gitlab/components/sphinx/pages@1
@@ -28,4 +30,12 @@ include:
 
 python_test:
   before_script:
-    - apt-get update
+    - echo "Manually installing dependencies"
+    - |
+      pip install lalsuite
+      pip install torch
+      pip install gwpy
+    - echo "Installing SGN Family libraries"
+    - |
+      pip install -r build_requirements.txt
+
