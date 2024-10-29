@@ -13,17 +13,10 @@ dynamic = ["version"]
 dependencies = [
     # External packages
     "pandas",
-
-    # LIGO dependencies
-    "python-ligo-lw",
-
     # SGN dependencies
     "sgn",
     "sgn-ts",
     "sgn-ligo",
-
-    # Temporary for testing in CI suite for linux env
-    "inotify",
 ]
 requires-python = ">=3.9"
 authors = [

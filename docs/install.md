@@ -13,7 +13,7 @@ family of libraries. The SGN family of libraries includes:
 The current dev environment is setup in 3 steps:
 
 1. Clone the repos
-2. Create a new conda environment
+2. (Optional) Create a new python environment
 3. Install the packages
 
 ## Clone repos
@@ -22,21 +22,29 @@ The repos can be cloned using the below commands. It is recommended to clone
 all the repos to have the complete set of tools available, in the same
 directory.
 
+### Note: Git LFS and Test Data
+
+The `sgnl` library uses git-lfs to store test data. To download the test data
+files, install `git-lfs` and run `git lfs install`. If you have already cloned
+the repos, you can run `git lfs pull` in the respective directories to download
+the test data.
+
+### Clone the Repos in Order
+
+Clone the repos in the order listed below. The first two are only required for
+the `sgn-ligo` library.
+
 ```bash
+# First two only required for SGNL/SGN-LIGO
+git clone git@git.ligo.org:greg/strike.git
+git clone git@git.ligo.org:greg/stillsuit.git
+
+# Following are required for all
 git clone git@git.ligo.org:greg/sgn.git
 git clone git@git.ligo.org:greg/sgn-ts.git
 git clone git@git.ligo.org:greg/sgn-ligo.git
 git clone git@git.ligo.org:greg/sgnl.git
 ```
-
-Optional dependencies:
-
-```bash
-git clone git@git.ligo.org:greg/strike.git
-git clone git@git.ligo.org:greg/stillsuit.git
-```
-
-To download data files used in tests, install `git-lfs` and in `sgnl` do `git lfs install` and `git lfs pull`.
 
 ## Prepare Isolated Python Environment
 
@@ -48,36 +56,48 @@ conda create -n sgn-env python=3.10
 conda activate sgn-env
 ```
 
-### Install External Dependencies
-
-For the full `sgnl` experience, install the following packages:
-
-- numpy, pandas, scipy, matplotlib
-- torch (pytorch), pytest
-- confluent-kafka "python-confluent-kafka"
-- lalsuite, ligo-scald, python-ligo-lw
-
-FYI, `conda` seems to have fewer problems than `pip` at the moment.
-
-```bash
-# Basic installs
-conda install -c conda-forge numpy pandas scipy matplotlib pytorch pytest
-
-# Service installs
-conda install -c conda-forge python-confluent-kafka
-
-# LIGO installs
-conda install -c conda-forge lalsuite ligo-scald python-ligo-lw
-```
-
-### Install SGN Family of Libraries
+## Install SGN Family of Libraries
 
 Install the SGN family of libraries using the below command in each
-respective directory, in the order listed below.
+respective directory, in the order listed below. To get all development
+dependencies, use the `[dev]` tag on the sgn* packages when using the local
+editable pip install `pip install -e .`. Specific commands
+are given below, that assume all repositories have been cloned into a common
+parent directory, which is the cwd at the beginning of the below.
 
 ```bash
+# Install stillsuit
+cd stillsuit
 pip install -e .
+
+# Install strike
+cd ../strike
+pip install -e .
+
+# Install sgn
+cd ../sgn
+pip install -e .[dev]
+
+# Install sgn-event
+cd ../sgn-event
+pip install -e .
+
+# Install sgn-ts
+cd ../sgn-ts
+pip install -e .[dev]
+
+# Install sgn-ligo
+cd ../sgn-ligo
+pip install -e .[dev]
+
+# Install sgnl
+cd ../sgnl
+pip install -e .[dev]
 ```
+
+As reflected above, the general order of install should be the inverse depth-sorted order of
+package dependencies. The order is:
+
 - `stillsuit`
 - `strike`
 - `sgn`
@@ -91,7 +111,34 @@ pip install -e .
 To test the installation, run the below command in the `sgnl/tests` directory.
 
 ```bash
+cd /path/to/parent/sgnl/tests
 pytest
 ```
 
 This will run the whitenoise pipeline test.
+
+## Optional: Manual Install of External Dependencies
+
+In earlier versions of the libraries, some external dependencies were not
+installed automatically via package dependencies. Though this is not required
+anymore, you can manually install the below packages if needed.
+
+The packages are listed below in terms of pip-friendly names, (conda names in parantheses).
+
+- numpy, pandas, scipy, matplotlib
+- torch (pytorch), pytest
+- confluent-kafka "python-confluent-kafka"
+- lalsuite, ligo-scald, python-ligo-lw
+
+Example installs with conda:
+
+```bash
+# Basic installs
+conda install -c conda-forge numpy pandas scipy matplotlib pytorch pytest
+
+# Service installs
+conda install -c conda-forge python-confluent-kafka
+
+# LIGO installs
+conda install -c conda-forge lalsuite ligo-scald python-ligo-lw
+```
