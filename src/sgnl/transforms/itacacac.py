@@ -205,8 +205,10 @@ class Itacacac(TSTransform):
                 + single_mask1 * ifo_numbers[0]
                 + single_mask2 * ifo_numbers[1]
             )
+            single_background_mask1 = ~coinc2_mask & ~single_mask1
+            single_background_mask2 = ~coinc2_mask & ~single_mask2
 
-            smasks = [single_mask1, single_mask2]
+            smasks = [single_background_mask1, single_background_mask2]
             for i, ifo in enumerate(on_ifos):
                 single_masks[ifo] = smasks[i]
 
@@ -235,8 +237,26 @@ class Itacacac(TSTransform):
                 + single_mask2 * ifo_numbers[1]
                 + single_mask3 * ifo_numbers[2]
             )
+            single_background_mask1 = (
+                ~coinc3_mask
+                & ~coinc2_mask12
+                & ~coinc2_mask31
+                & ~single_mask1
+            )
+            single_background_mask2 = (
+                ~coinc3_mask
+                & ~coinc2_mask12
+                & ~coinc2_mask23
+                & ~single_mask2
+            )
+            single_background_mask3 = (
+                ~coinc3_mask
+                & ~coinc2_mask23
+                & ~coinc2_mask31
+                & ~single_mask3
+            )
 
-            smasks = [single_mask1, single_mask2, single_mask3]
+            smasks = [single_background_mask1, single_background_mask2, single_background_mask3]
             for i, ifo in enumerate(on_ifos):
                 single_masks[ifo] = smasks[i]
         else:
