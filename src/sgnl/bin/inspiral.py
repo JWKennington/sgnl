@@ -11,9 +11,9 @@ from sgnl.sort_bank import SortedBank, group_and_read_banks
 from sgnligo.base.utils import parse_list_to_dict
 from sgnligo.sinks import ImpulseSink, KafkaSink
 from sgnligo.sources import datasource
-from sgnligo.transforms import Latency, condition, lloid
+from sgnligo.transforms import Latency, condition
 
-from sgnl.transforms import Itacacac
+from sgnl.transforms import Itacacac, lloid
 from sgnl.sinks import StillSuitSink
 
 
