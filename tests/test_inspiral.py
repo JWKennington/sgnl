@@ -25,12 +25,13 @@ class TestInspiral:
         inspiral.inspiral(
             data_source="white",
             channel_name=["H1=FAKE", "L1=FAKE", "V1=FAKE"],
-            sample_rate=4096,
-            num_buffers=10,
+            input_sample_rate=4096,
             psd_fft_length=4,
             svd_bank=[p.as_posix() for p in PATHS_SVD_BANK],
             torch_device="cpu",
             torch_dtype="float32",
             trigger_finding_length=2048,
+            gps_start_time=0,
+            gps_end_time=10,
             fake_sink=True,
         )

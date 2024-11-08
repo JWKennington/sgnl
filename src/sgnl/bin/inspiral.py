@@ -8,141 +8,17 @@ from sgn.apps import Pipeline
 from sgn.sinks import NullSink
 from sgnligo.base.utils import parse_list_to_dict
 from sgnligo.sinks import KafkaSink
-from sgnligo.sources import datasource
-from sgnligo.transforms import Latency, condition
+from sgnligo.sources import datasource, parse_command_line_datasource
+from sgnligo.transforms import Latency, condition, parse_command_line_condition
 
 from sgnl.sinks import ImpulseSink, StillSuitSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
 from sgnl.transforms import Itacacac, lloid
 
 
-def parse_command_line():
-    parser = ArgumentParser()
-
-    group = parser.add_argument_group("Data source", "Options for data source.")
-    group.add_argument(
-        "--data-source",
-        action="store",
-        default="frames",
-        help="The type of the input source. Supported sources: 'white', 'sin', "
-        "'impulse', 'frames', 'devshm'",
-    )
-    group.add_argument(
-        "--channel-name",
-        metavar="ifo=channel-name",
-        action="append",
-        help="Name of the data channel to analyze. Can be given multiple times as "
-        "--channel-name=IFO=CHANNEL-NAME",
-    )
-    group.add_argument(
-        "--sample-rate",
-        metavar="Hz",
-        type=int,
-        help="Requested sampling rate of the data.",
-    )
-    group.add_argument(
-        "--frame-cache",
-        metavar="file",
-        help="Set the path to the frame cache file to analyze.",
-    )
-    group.add_argument(
-        "--gps-start-time",
-        metavar="seconds",
-        help="Set the start time of the segment to analyze in GPS seconds. "
-        "For frame cache data source",
-    )
-    group.add_argument(
-        "--gps-end-time",
-        metavar="seconds",
-        help="Set the end time of the segment to analyze in GPS seconds. "
-        "For frame cache data source",
-    )
-    group.add_argument(
-        "--shared-memory-dir",
-        metavar="ifo=directory",
-        action="append",
-        help="Set the name of the shared memory directory. "
-        "Can be given multiple times as --shared-memory-dir=IFO=DIR-NAME",
-    )
-    group.add_argument(
-        "--state-channel-name",
-        metavar="ifo=channel-name",
-        action="append",
-        help="Set the state vector channel name. "
-        "Can be given multiple times as --state-channel-name=IFO=CHANNEL-NAME",
-    )
-    group.add_argument(
-        "--state-vector-on-bits",
-        metavar="ifo=number",
-        action="append",
-        help="Set the state vector on bits. "
-        "Can be given multiple times as --state-vector-on-bits=IFO=NUMBER",
-    )
-    group.add_argument(
-        "--wait-time",
-        metavar="seconds",
-        type=int,
-        default=60,
-        help="Time to wait for new files in seconds before throwing an error. "
-        "In online mode, new files should always arrive every second, unless "
-        "there are problems. Default wait time is 60 seconds.",
-    )
-    group.add_argument(
-        "--num-buffers",
-        type=int,
-        action="store",
-        default=10,
-        help="Number of buffers the source element should produce when source is "
-        "fake source",
-    )
-    group.add_argument(
-        "--impulse-position",
-        type=int,
-        action="store",
-        help="The sample point to put the impulse at.",
-    )
-    group.add_argument(
-        "--impulse-ifo",
-        action="store",
-        help="Only do impulse test on data from this ifo.",
-    )
-
-    group = parser.add_argument_group(
-        "PSD Options", "Adjust noise spectrum estimation parameters"
-    )
-    group.add_argument(
-        "--whitening-method",
-        metavar="algorithm",
-        default="gstlal",
-        help="Algorithm to use for whitening the data. Supported options are 'gwpy' "
-        "or 'gstlal'. Default is gstlal.",
-    )
-    group.add_argument(
-        "--psd-fft-length",
-        action="store",
-        type=int,
-        help="The fft length for psd estimation.",
-    )
-    group.add_argument(
-        "--reference-psd",
-        metavar="file",
-        help="load the spectrum from this LIGO light-weight XML file (optional).",
-    )
-    group.add_argument(
-        "--track-psd",
-        action="store_true",
-        help="Enable dynamic PSD tracking.  Always enabled if --reference-psd is not "
-        "given.",
-    )
-
-    group = parser.add_argument_group("Data Qualtiy", "Adjust data quality handling")
-    group.add_argument(
-        "--ht-gate-threshold",
-        action="store",
-        type=float,
-        default=float("+inf"),
-        help="The gating threshold. Data above this value will be gated out.",
-    )
+def parse_command_line(parser=None):
+    if parser is None:
+        parser = ArgumentParser()
 
     group = parser.add_argument_group(
         "Trigger Generator", "Adjust trigger generator behaviour"
@@ -197,6 +73,11 @@ def parse_command_line():
         metavar="index",
         action="store",
         help="The template bank index to perform the impulse test on.",
+    )
+    group.add_argument(
+        "--impulse-ifo",
+        action="store",
+        help="Only do impulse test on data from this ifo.",
     )
     group.add_argument(
         "--trigger-output",
@@ -260,16 +141,14 @@ def parse_command_line():
     )
     group.add_argument("--fake-sink", action="store_true", help="Connect to a NullSink")
 
-    options = parser.parse_args()
 
-    return options
+    return parser
 
 
 def inspiral(
-    sample_rate: int,
+    input_sample_rate: int,
     channel_name: List[str],
     data_source: str = "frames",
-    num_buffers: int = 10,
     nslice: int = -1,
     whitening_method: str = "gstlal",
     ht_gate_threshold: float = float("+inf"),
@@ -304,57 +183,15 @@ def inspiral(
     if ranking_stat_output is None:
         ranking_stat_output = []
 
-    # sanity check options
-    known_datasources = ["white", "sin", "impulse", "frames", "devshm"]
-    channel_dict = parse_list_to_dict(channel_name)
-    source_ifos = list(channel_dict.keys())
-    if data_source in ["white", "sin", "impulse"]:
-        if not num_buffers:
+    if data_source == "impulse":
+        if not impulse_bank:
+            raise ValueError("Must specify impulse_bank when data_source='impulse'")
+        elif impulse_bankno is None:
             raise ValueError(
-                "Must specify num_buffers when data_source is one of 'white',"
-                "'sin', 'impulse'"
+                "Must specify impulse_bankno when data_source='impulse'"
             )
-        elif not sample_rate:
-            raise ValueError(
-                "Must specify sample_rate when data_source is one of 'white',"
-                "'sin', 'impulse'"
-            )
-
-        if data_source == "impulse":
-            if not impulse_bank:
-                raise ValueError("Must specify impulse_bank when data_source='impulse'")
-            elif impulse_bankno is None:
-                raise ValueError(
-                    "Must specify impulse_bankno when data_source='impulse'"
-                )
-            elif not impulse_ifo:
-                raise ValueError("Must specify impulse_ifo when data_source='impulse'")
-
-    elif data_source == "frames":
-        if not frame_cache:
-            raise ValueError("Must specify frame_cache when data_source='frames'")
-        elif not gps_start_time or not gps_end_time:
-            raise ValueError(
-                "Must specify gps_start_time and gps_end_time when "
-                "data_source='frames'"
-            )
-        elif not channel_name:
-            raise ValueError("Must specify channel_name when data_source='frames'")
-    elif data_source == "devshm":
-        if not shared_memory_dir:
-            raise ValueError("Must specify shared_memory_dir when data_source='devshm'")
-        elif not channel_name:
-            raise ValueError("Must specify channel_name when data_source='devshm'")
-        elif not state_channel_name:
-            raise ValueError(
-                "Must specify state_channel_name when data_source='devshm'"
-            )
-        elif not state_vector_on_bits:
-            raise ValueError(
-                "Must specify state_vector_on_bits when data_source='devshm'"
-            )
-    else:
-        raise ValueError(f"Unknown data source, must be one of {known_datasources}")
+        elif not impulse_ifo:
+            raise ValueError("Must specify impulse_ifo when data_source='impulse'")
 
     # FIXME: currently track psd is always enabled in whitener
     if not reference_psd:
@@ -371,10 +208,34 @@ def inspiral(
     else:
         raise ValueError("Unknown data type")
 
+    #
+    # Build pipeline
+    #
+    pipeline = Pipeline()
+
+    # Create data source
+    source_out_links, input_sample_rate = datasource(
+        pipeline=pipeline,
+        channel_name=channel_name,
+        state_channel_name=state_channel_name,
+        state_vector_on_bits=state_vector_on_bits,
+        shared_memory_dir=shared_memory_dir,
+        input_sample_rate=input_sample_rate,
+        data_source=data_source,
+        frame_cache=frame_cache,
+        gps_start_time=gps_start_time,
+        gps_end_time=gps_end_time,
+        wait_time=wait_time,
+        impulse_position=impulse_position,
+        verbose=verbose,
+    )
+
+    ifos = list(source_out_links.keys())
+
     # read in the svd banks
     banks = group_and_read_banks(
         svd_bank=svd_bank,
-        source_ifos=source_ifos,
+        source_ifos=ifos,
         nbank_pretend=nbank_pretend,
         nslice=nslice,
         verbose=True,
@@ -391,49 +252,24 @@ def inspiral(
     )
     bank_metadata = sorted_bank.bank_metadata
 
-    ifos = [] if source_ifos is None else source_ifos
-    maxrate = bank_metadata["maxrate"]
-
-    #
-    # Build pipeline
-    #
-    pipeline = Pipeline()
-
-    # Create data source
-    source_out_links, sample_rate = datasource(
-        pipeline=pipeline,
-        ifos=ifos,
-        channel_name=channel_name,
-        state_channel_name=state_channel_name,
-        state_vector_on_bits=state_vector_on_bits,
-        shared_memory_dir=shared_memory_dir,
-        sample_rate=sample_rate,
-        data_source=data_source,
-        frame_cache=frame_cache,
-        gps_start_time=gps_start_time,
-        gps_end_time=gps_end_time,
-        wait_time=wait_time,
-        num_buffers=num_buffers,
-        impulse_position=impulse_position,
-        verbose=verbose,
-    )
+    template_maxrate = bank_metadata["maxrate"]
 
     # Condition the data source if not doing an impulse test
     if data_source != "impulse":
-        source_out_links, horizon_out_links, whiten_latency_out_links = condition(
+        source_out_links, spectrum_out_links, whiten_latency_out_links = condition(
             pipeline=pipeline,
             ifos=ifos,
-            maxrate=maxrate,
+            whiten_sample_rate=template_maxrate,
             input_links=source_out_links,
             data_source=data_source,
-            sample_rate=sample_rate,
+            input_sample_rate=input_sample_rate,
             psd_fft_length=psd_fft_length,
             whitening_method=whitening_method,
             reference_psd=reference_psd,
             ht_gate_threshold=ht_gate_threshold,
         )
     else:
-        horizon_out_links = None
+        spectrum_out_links = None
 
     # connect LLOID
     lloid_output_source_link = lloid(
@@ -521,7 +357,7 @@ def inspiral(
                         sink_pad_names=(ifo,),
                     ),
                     link_map={
-                        "Null_" + ifo + ":sink:" + ifo: horizon_out_links[ifo],
+                        "Null_" + ifo + ":sink:" + ifo: spectrum_out_links[ifo],
                     },
                 )
         elif data_source == "devshm":
@@ -584,12 +420,23 @@ def inspiral(
             # FIXME: horizons should connect to strike sink once strike sink is ready
             for ifo in ifos:
                 pipeline.insert(
+                    HorizonDistance(
+                        name=ifo + "_Horizon",
+                        source_pad_names=(ifo,),
+                        sink_pad_names=(ifo,),
+                        m1=1.4,
+                        m2=1.4,
+                        fmin=10.0,
+                        fmax=1000.0,
+                        delta_f=1 / 16.0,
+                    ),
                     NullSink(
                         name="Null_" + ifo,
                         sink_pad_names=(ifo,),
                     ),
                     link_map={
-                        "Null_" + ifo + ":sink:" + ifo: horizon_out_links[ifo],
+                        ifo + "_Horizon:sink:" + ifo: spectrum_out_links[ifo],
+                        "Null_" + ifo + ":sink:" + ifo: ifo + "_Horizon:src:" + ifo,
                     },
                 )
         else:
@@ -643,12 +490,14 @@ def inspiral(
 
 def main():
     # parse arguments
-    options = parse_command_line()
+    parser = parse_command_line_datasource()
+    parser = parse_command_line_condition(parser)
+    parser = parse_command_line(parser)
+    options = parser.parse_args()
 
     inspiral(
-        sample_rate=options.sample_rate,
+        input_sample_rate=options.input_sample_rate,
         data_source=options.data_source,
-        num_buffers=options.num_buffers,
         impulse_bank=options.impulse_bank,
         impulse_bankno=options.impulse_bankno,
         frame_cache=options.frame_cache,
