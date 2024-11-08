@@ -14,10 +14,10 @@ from lal import LIGOTimeGPS
 import lalsimulation
 
 from sgn.apps import Pipeline
+from sgnts.transforms import Resampler
 from sgnligo.sources import datasource, DevShmSrc
 from sgnligo.transforms import (
     Whiten,
-    Resampler,
     HorizonDistance,
 )
 

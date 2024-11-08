@@ -15,7 +15,8 @@ class TestReferencePsd:
             data_source="white",
             channel_name=["H1=FAKE", "L1=FAKE", "V1=FAKE"],
             input_sample_rate=1024,
-            sample_rate=512,
-            num_buffers=2048,
+            whiten_sample_rate=512,
             psd_fft_length=4,
+            gps_start_time=0,
+            gps_end_time=10,
         )

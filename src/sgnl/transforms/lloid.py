@@ -1,7 +1,7 @@
 import torch
+from sgnts.transforms import Adder
 from sgnligo.base import ArrayOps
 from sgnligo.transforms import (
-    Adder,
     Converter,
     LLOIDCorrelate,
     SumIndex,
