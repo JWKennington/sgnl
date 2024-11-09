@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import sys
 from argparse import ArgumentParser
@@ -6,10 +8,13 @@ from typing import List
 import torch
 from sgn.apps import Pipeline
 from sgn.sinks import NullSink
-from sgnligo.base.utils import parse_list_to_dict
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import datasource, parse_command_line_datasource
-from sgnligo.transforms import Latency, condition, parse_command_line_condition
+from sgnligo.transforms import (  # Latency,
+    HorizonDistance,
+    condition,
+    parse_command_line_condition,
+)
 
 from sgnl.sinks import ImpulseSink, StillSuitSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
@@ -141,7 +146,6 @@ def parse_command_line(parser=None):
     )
     group.add_argument("--fake-sink", action="store_true", help="Connect to a NullSink")
 
-
     return parser
 
 
@@ -187,9 +191,7 @@ def inspiral(
         if not impulse_bank:
             raise ValueError("Must specify impulse_bank when data_source='impulse'")
         elif impulse_bankno is None:
-            raise ValueError(
-                "Must specify impulse_bankno when data_source='impulse'"
-            )
+            raise ValueError("Must specify impulse_bankno when data_source='impulse'")
         elif not impulse_ifo:
             raise ValueError("Must specify impulse_ifo when data_source='impulse'")
 
