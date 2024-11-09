@@ -66,6 +66,7 @@ lint = [
     "flake8-future-annotations",
     "flake8-isort",
     "flake8-logging-format",
+    "flake8-pyproject",
     "isort",
     "mypy",
     "mypy-extensions",
