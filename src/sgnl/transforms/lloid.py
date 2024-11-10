@@ -1,11 +1,7 @@
-import torch
-from sgnligo.transforms import Converter, LLOIDCorrelate, SumIndex
 from sgnts.base import AdapterConfig, Offset, TorchBackend
-from sgnts.transforms import Adder, Matmul, Resampler
+from sgnts.transforms import Adder, Converter, Matmul, Resampler, SumIndex
 
-torch.backends.cudnn.benchmark = True
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
+from sgnl.transforms.lloid_correlate import LLOIDCorrelate
 
 
 def lloid(
@@ -137,6 +133,7 @@ def lloid(
                             sink_pad_names=(ifo,),
                             source_pad_names=(ifo,),
                             sl=sl,
+                            backend=TorchBackend,
                         ),
                         link_map={sumname + ":sink:" + ifo: mmname + ":src:" + ifo},
                     )
