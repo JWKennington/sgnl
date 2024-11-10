@@ -1,7 +1,7 @@
 import torch
-from sgnligo.transforms import Converter, LLOIDCorrelate, SumIndex, TorchResampler
+from sgnligo.transforms import Converter, LLOIDCorrelate, SumIndex
 from sgnts.base import AdapterConfig, Offset, TorchBackend
-from sgnts.transforms import Adder, Matmul
+from sgnts.transforms import Adder, Matmul, Resampler
 
 torch.backends.cudnn.benchmark = True
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -58,15 +58,11 @@ def lloid(
             source_pad_full = name + ":src:" + ifo
 
             pipeline.insert(
-                TorchResampler(
+                Resampler(
                     name=name,
                     sink_pad_names=(ifo,),
                     source_pad_names=(ifo,),
-                    dtype=dtype,
-                    device=device,
-                    adapter_config=AdapterConfig(
-                        pad_zeros_startup=True, backend=TorchBackend
-                    ),
+                    backend=TorchBackend,
                     inrate=rate,
                     outrate=rate_down,
                 ),
@@ -153,15 +149,11 @@ def lloid(
 
                     # upsample
                     pipeline.insert(
-                        TorchResampler(
+                        Resampler(
                             name=upname,
                             sink_pad_names=(ifo,),
                             source_pad_names=(ifo,),
-                            dtype=dtype,
-                            device=device,
-                            adapter_config=AdapterConfig(
-                                pad_zeros_startup=True, backend=TorchBackend
-                            ),
+                            backend=TorchBackend,
                             inrate=from_rate,
                             outrate=to_rate[-1],
                         ),
