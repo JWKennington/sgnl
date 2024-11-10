@@ -7,8 +7,7 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import correlate
-from sgnligo.base import ArrayOps
-from sgnts.base import Audioadapter, Offset, TSSink
+from sgnts.base import Audioadapter, Offset, TorchBackend, TSSink
 
 
 @dataclass
@@ -49,7 +48,7 @@ class ImpulseSink(TSSink):
     def __post_init__(self):
         super().__post_init__()
         self.cnt = {p: 0 for p in self.sink_pads}
-        self.A = Audioadapter(lib=ArrayOps)
+        self.A = Audioadapter(backend=TorchBackend)
         self.Ainput = Audioadapter()
 
     def pull(self, pad, bufs):
@@ -57,7 +56,7 @@ class ImpulseSink(TSSink):
         getting the buffer on the pad just modifies the name to show this final
         graph point and the prints it to prove it all works.
         """
-        # super().pull(pad, bufs)
+        super().pull(pad, bufs)
         # bufs = self.preparedframes[pad]
         # FIXME: use preparedframes
         self.cnt[pad] += 1

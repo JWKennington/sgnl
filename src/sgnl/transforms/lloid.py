@@ -1,14 +1,7 @@
 import torch
-from sgnts.transforms import Adder
-from sgnligo.base import ArrayOps
-from sgnligo.transforms import (
-    Converter,
-    LLOIDCorrelate,
-    SumIndex,
-    TorchMatmul,
-    TorchResampler,
-)
-from sgnts.base import AdapterConfig, Offset
+from sgnligo.transforms import Converter, LLOIDCorrelate, SumIndex, TorchResampler
+from sgnts.base import AdapterConfig, Offset, TorchBackend
+from sgnts.transforms import Adder, Matmul
 
 torch.backends.cudnn.benchmark = True
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -23,8 +16,8 @@ def lloid(
     device,
     dtype,
 ):
-    ArrayOps.DEVICE = device
-    ArrayOps.DTYPE = dtype
+    TorchBackend.set_device(device)
+    TorchBackend.set_dtype(dtype)
 
     output_source_links = {}
 
@@ -71,7 +64,9 @@ def lloid(
                     source_pad_names=(ifo,),
                     dtype=dtype,
                     device=device,
-                    adapter_config=AdapterConfig(pad_zeros_startup=True, lib=ArrayOps),
+                    adapter_config=AdapterConfig(
+                        pad_zeros_startup=True, backend=TorchBackend
+                    ),
                     inrate=rate,
                     outrate=rate_down,
                 ),
@@ -102,7 +97,7 @@ def lloid(
                         sink_pad_names=(ifo,),
                         source_pad_names=(ifo,),
                         filters=bases[from_rate][to_rate][ifo],
-                        lib=ArrayOps,
+                        backend=TorchBackend,
                         uppad=uppad,
                         downpad=downpad,
                         delays=delays,
@@ -125,10 +120,11 @@ def lloid(
                 # matmul
                 mmname = f"{ifo}_mm_{from_rate}_{to_rate}"
                 pipeline.insert(
-                    TorchMatmul(
+                    Matmul(
                         name=mmname,
                         sink_pad_names=(ifo,),
                         source_pad_names=(ifo,),
+                        backend=TorchBackend,
                         matrix=coeff[from_rate][to_rate][ifo],
                     ),
                     link_map={mmname + ":sink:" + ifo: corrname + ":src:" + ifo},
@@ -164,7 +160,7 @@ def lloid(
                             dtype=dtype,
                             device=device,
                             adapter_config=AdapterConfig(
-                                pad_zeros_startup=True, lib=ArrayOps
+                                pad_zeros_startup=True, backend=TorchBackend
                             ),
                             inrate=from_rate,
                             outrate=to_rate[-1],
@@ -181,7 +177,7 @@ def lloid(
                                 name=addname,
                                 sink_pad_names=(ifo, sink_name),
                                 source_pad_names=(ifo,),
-                                lib=ArrayOps,
+                                backend=TorchBackend,
                                 coeff_map={
                                     ifo: 1,
                                     sink_name: (to_rate[-1] / from_rate) ** 0.5,
@@ -211,7 +207,7 @@ def lloid(
                     sink_pad_names=(ifo,)
                     + tuple(k for k in final_adder_coeff_map.keys()),
                     source_pad_names=(ifo,),
-                    lib=ArrayOps,
+                    backend=TorchBackend,
                     coeff_map=dict(
                         {
                             ifo: 1,
@@ -228,7 +224,7 @@ def lloid(
         connected = []
         # links for upsampler and adder
         for from_rate, v in snr_slices.items():
-            for to_rate, snr_link in v.items():
+            for to_rate in v.keys():
                 if from_rate != maxrate:
                     if to_rate[-1] != maxrate:
                         upname = f"{ifo}_up_{to_rate[-1]}_{to_rate[:-1]}:sink:" + ifo

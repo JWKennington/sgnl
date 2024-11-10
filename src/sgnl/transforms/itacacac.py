@@ -1,17 +1,15 @@
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
-import torch
-import yaml
-
-from sgnts.base import Offset, SeriesBuffer, TSFrame, TSTransform, AdapterConfig
-from sgnligo.base import ArrayOps, now
-from sgnevent.base import EventFrame, EventBuffer, dtype_from_config
-
-import math
 
 import lal
 import numpy as np
+import torch
+import yaml
+from sgnevent.base import EventBuffer, EventFrame, dtype_from_config
+from sgnligo.base import now
+from sgnts.base import AdapterConfig, Offset, TorchBackend, TSTransform
 
 
 def index_select(tensor, dim, index):
@@ -74,7 +72,7 @@ class Itacacac(TSTransform):
         self.adapter_config = AdapterConfig(
             stride=self.trigger_finding_length,
             overlap=(self.padding, self.padding),
-            lib=ArrayOps,
+            backend=TorchBackend,
         )
         self.template_ids = self.template_ids.to(self.device)
         self.template_ids_np = self.template_ids.to("cpu").numpy()
@@ -105,9 +103,7 @@ class Itacacac(TSTransform):
                 n: dtype_from_config(self.config[n]) for n in ["trigger", "event"]
             }
         else:
-            self.event_dtypes = {
-                n: None for n in ["trigger", "event"]
-            }
+            self.event_dtypes = {n: None for n in ["trigger", "event"]}
 
         super().__post_init__()
 
@@ -180,7 +176,6 @@ class Itacacac(TSTransform):
     def make_coincs(self, triggers):
         on_ifos = list(triggers.keys())
         nifo = len(on_ifos)
-        snr_chisq_hist_index = {}
         single_masks = {}  # for snr chisq histogram
 
         if nifo == 1:
@@ -238,25 +233,20 @@ class Itacacac(TSTransform):
                 + single_mask3 * ifo_numbers[2]
             )
             single_background_mask1 = (
-                ~coinc3_mask
-                & ~coinc2_mask12
-                & ~coinc2_mask31
-                & ~single_mask1
+                ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask31 & ~single_mask1
             )
             single_background_mask2 = (
-                ~coinc3_mask
-                & ~coinc2_mask12
-                & ~coinc2_mask23
-                & ~single_mask2
+                ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask23 & ~single_mask2
             )
             single_background_mask3 = (
-                ~coinc3_mask
-                & ~coinc2_mask23
-                & ~coinc2_mask31
-                & ~single_mask3
+                ~coinc3_mask & ~coinc2_mask23 & ~coinc2_mask31 & ~single_mask3
             )
 
-            smasks = [single_background_mask1, single_background_mask2, single_background_mask3]
+            smasks = [
+                single_background_mask1,
+                single_background_mask2,
+                single_background_mask3,
+            ]
             for i, ifo in enumerate(on_ifos):
                 single_masks[ifo] = smasks[i]
         else:
@@ -426,9 +416,9 @@ class Itacacac(TSTransform):
         sngls = {}
         for ifo, trig in triggers.items():
             sngls[ifo] = {}
-            peak_locations = triggers[ifo][0][range(self.nsubbank), max_locations]
-            sngl_snr = triggers[ifo][1][range(self.nsubbank), max_locations]
-            sngl_chisq = triggers[ifo][2][range(self.nsubbank), max_locations]
+            peak_locations = trig[0][range(self.nsubbank), max_locations]
+            sngl_snr = trig[1][range(self.nsubbank), max_locations]
+            sngl_chisq = trig[2][range(self.nsubbank), max_locations]
 
             sngls[ifo]["time"] = (
                 np.round(
@@ -546,7 +536,8 @@ class Itacacac(TSTransform):
             # Populate background snr, chisq, time for each bank, ifo
             # FIXME: is stacking then copying to cpu faster?
             # FIXME: do we only need snr chisq for singles?
-            # background = {bankid: {ifo: None} for bankid, ids in self.bankids_map.items() for ifo in ifos}
+            # background = {bankid: {ifo: None} for bankid, ids in
+            #   self.bankids_map.items() for ifo in ifos}
             # # loop over banks
             # for bankid, ids in self.bankids_map.items():
             #     # loop over ifos
@@ -565,7 +556,8 @@ class Itacacac(TSTransform):
             #                     time = triggers[ifo][0][i][smask]
             #                     time = (
             #                         np.round(
-            #                             (Offset.fromsamples(time, self.rate) + self.offset)
+            #                             (Offset.fromsamples(time, self.rate)
+            #                               + self.offset)
             #                             / Offset.MAX_RATE
             #                             * 1_000_000_000
             #                         ).astype(int)
@@ -577,7 +569,8 @@ class Itacacac(TSTransform):
             #                     chisqs.append(triggers[ifo][2][i][smask])
             #                     template_ids.append(self.template_ids_np[i][smask])
 
-            #         background[bankid][ifo] = {"time": times, "snrs": snrs, "chisqs": chisqs, "template_ids": template_ids}
+            #         background[bankid][ifo] = {"time": times, "snrs": snrs, "chisqs":
+            #             chisqs, "template_ids": template_ids}
 
             #
             # Construct event buffers
