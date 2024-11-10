@@ -32,6 +32,6 @@ class TestInspiral:
             torch_dtype="float32",
             trigger_finding_length=2048,
             gps_start_time=0,
-            gps_end_time=10,
+            gps_end_time=100,
             fake_sink=True,
         )
