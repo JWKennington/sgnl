@@ -42,7 +42,8 @@ class Itacacac(TSTransform):
     An inspiral trigger, autocorrelation chisq, and coincidence, and clustering element
     """
 
-    trigger_finding_length: int = None
+    sample_rate: int = None
+    trigger_finding_duration: float = None
     autocorrelation_banks: Sequence[Any] = None
     template_ids: Sequence[Any] = None
     bankids_map: Sequence[Any] = None
@@ -53,6 +54,11 @@ class Itacacac(TSTransform):
 
     def __post_init__(self):
 
+        self.trigger_finding_samples = self.trigger_finding_duration * self.sample_rate
+        assert self.trigger_finding_samples == int(
+            self.trigger_finding_samples
+        ), "trigger_finding_duration must map to integer number of sample points"
+        self.trigger_finding_samples = int(self.trigger_finding_samples)
         self.ifos = list(self.autocorrelation_banks.keys())
         self.nifo = len(self.ifos)
 
@@ -70,8 +76,11 @@ class Itacacac(TSTransform):
 
         self.padding = self.autocorrelation_length // 2
         self.adapter_config = AdapterConfig(
-            stride=self.trigger_finding_length,
-            overlap=(self.padding, self.padding),
+            stride=Offset.fromsec(self.trigger_finding_duration),
+            overlap=(
+                Offset.fromsamples(self.padding, self.sample_rate),
+                Offset.fromsamples(self.padding, self.sample_rate),
+            ),
             backend=TorchBackend,
         )
         self.template_ids = self.template_ids.to(self.device)
@@ -121,7 +130,7 @@ class Itacacac(TSTransform):
 
         padding = self.padding
         idi = padding
-        idf = padding + self.trigger_finding_length
+        idf = padding + self.trigger_finding_samples
         triggers = {}
         for ifo, snr in snrs.items():
             shape = snr.shape

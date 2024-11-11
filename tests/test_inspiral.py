@@ -30,7 +30,7 @@ class TestInspiral:
             svd_bank=[p.as_posix() for p in PATHS_SVD_BANK],
             torch_device="cpu",
             torch_dtype="float32",
-            trigger_finding_length=2048,
+            trigger_finding_duration=1,
             gps_start_time=0,
             gps_end_time=100,
             fake_sink=True,

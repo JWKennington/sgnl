@@ -29,7 +29,7 @@ def lloid(
             name="converter1",
             sink_pad_names=tuple(ifos),
             source_pad_names=tuple(ifos),
-            adapter_config=AdapterConfig(stride=Offset.sample_stride(maxrate)),
+            adapter_config=AdapterConfig(stride=Offset.SAMPLE_STRIDE_AT_MAX_RATE),
             backend="torch",
             dtype=dtype,
             device=device,
