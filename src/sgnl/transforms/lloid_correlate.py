@@ -125,8 +125,8 @@ class LLOIDCorrelate(TSTransform):
                         - Offset.fromsamples(self.shape[-1] - 1, buf.sample_rate)
                     )
                     earliest.append(cp_segment0)
-                    if cp_segment1 > A.offset and not A.is_gap():
-                        if A.data_all is None:
+                    if cp_segment1 > A.offset and not A.is_gap:
+                        if A.pre_cat_data is None:
                             A.concatenate_data(
                                 (
                                     max(
@@ -182,8 +182,7 @@ class LLOIDCorrelate(TSTransform):
                 # flush data
                 flush_end_offset = min(earliest)
                 if flush_end_offset > A.offset:
-                    A.flush_samples_by_end_offset_segment(flush_end_offset)
-                A.data_all = None
+                    A.flush_samples_by_end_offset(flush_end_offset)
 
                 # Do the correlation!
                 if outs is not None:
