@@ -9,9 +9,9 @@ from collections import Counter, defaultdict
 import numpy as np
 import torch
 from lal.utils import CacheEntry
-
 from sgnts.base import Offset
 from sgnts.transforms.resampler import DOWN_HALF_LENGTH, UP_HALF_LENGTH
+
 from .svd_bank import parse_bank_files
 
 
@@ -27,7 +27,7 @@ def group_and_read_banks(
     svd_bank_cache.sort(key=lambda cache_entry: cache_entry.description)
     svd_banks = []
 
-    for key, seq in itertools.groupby(
+    for _key, seq in itertools.groupby(
         svd_bank_cache, key=lambda cache_entry: cache_entry.description
     ):
         svd_group = dict(
@@ -51,7 +51,7 @@ def group_and_read_banks(
         #   many times
         svd_bank_url_dict = svd_banks[0]
         banks_per_svd = parse_bank_files(svd_bank_url_dict, verbose=verbose)
-        for i in range(nbank_pretend):
+        for _ in range(nbank_pretend):
             for ifo in ifos:
                 banks[ifo].extend([banks_per_svd[ifo][0]])
     else:
@@ -297,7 +297,7 @@ class SortedBank:
                 print(a, flush=True, file=sys.stderr)
 
         # check if nbank_pretend is true
-        bankids = [a["bankid"] for a in sorted_unique_rates]
+        # bankids = [a["bankid"] for a in sorted_unique_rates]
         # nbank_pretend = False
         # if len(bankids) > 1 and len(set(bankids)) == 1:
         #    if self.verbose:
@@ -364,7 +364,7 @@ class SortedBank:
 
         # find the ids each bank should addto after upsampling
         # FIXME: is there a more elegant way?
-        for bankid, a in addto_ids.items():
+        for _bankid, a in addto_ids.items():
             for from_rate in unique_rates:
                 from_bank = sorted_rates[from_rate]
                 k = list(a.keys())
@@ -393,9 +393,9 @@ class SortedBank:
             urates = list(sorted(set(rates), reverse=True))
             urs = urates[1:]
             # uppad = {
-            #    #r0: sum(Offset.fromsamples(UP_HALF_LENGTH, ri) for ri in urs[urs >= r0])
-            #    r0: sum([Offset.fromsamples(UP_HALF_LENGTH, ri) for ri in urs[urs >= r0]])
-            #    for r0 in urs
+            # #r0: sum(Offset.fromsamples(UP_HALF_LENGTH, ri) for ri in urs[urs >= r0])
+            # r0: sum([Offset.fromsamples(UP_HALF_LENGTH, ri) for ri in urs[urs >= r0]])
+            # for r0 in urs
             # }
             uppads = {r: None for r in urates}
             uppad = 0
@@ -445,7 +445,7 @@ class SortedBank:
                     rate_group["ntempmax"].append(bf.mix_matrix.shape[1])
 
         for from_rate, v in sorted_rates.items():
-            for to_rate, rate_group in v.items():
+            for _to_rate, rate_group in v.items():
                 if from_rate != maxrate:
                     addids = rate_group["_addids"]
                     rate_group["addslice"] = slice(addids[0], addids[-1] + 1)
@@ -477,16 +477,12 @@ class SortedBank:
         dtype = self.dtype
         device = self.device
 
-        nifo = bank_metadata["nifo"]
         ifos = bank_metadata["ifos"]
         nfilter_samples = bank_metadata["nfilter_samples"]
         nbank = bank_metadata["nbank"]
         sorted_rates = bank_metadata["sorted_rates"]
 
         # outputs
-        data_by_rate = defaultdict(dict)
-        # bases_by_rate = defaultdict(dict)
-        # coeff_sv_by_rate = defaultdict(dict)
         bases_by_rate = {
             r1: {r2: {} for r2 in rb.keys()} for r1, rb in sorted_rates.items()
         }
@@ -655,7 +651,7 @@ class SortedBank:
             autocorrelation_banks[ifo] = torch.zeros(
                 size=(nbank, ntempmax // 2, max_acl), device=device, dtype=self.cdtype
             )
-        for i, ifo in enumerate(ifos):
+        for ifo in ifos:
             for j in range(nbank):
                 acorr = reordered_bank[ifo][j].autocorrelation_bank
 

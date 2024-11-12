@@ -5,8 +5,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import lal
-from ligo.lw import array as ligolw_array, ligolw, lsctables, param as ligolw_param, \
-    utils as ligolw_utils
+from ligo.lw import array as ligolw_array
+from ligo.lw import ligolw, lsctables
+from ligo.lw import param as ligolw_param
+from ligo.lw import utils as ligolw_utils
 
 from sgnl.psd import HorizonDistance, condition_psd
 
@@ -75,8 +77,10 @@ def horizon_distance_func(banks):
     nyquists = set((max(bank.get_rates()) / 2.0 for bank in banks))
     if len(nyquists) != 1:
         warnings.warn(
-            "all banks should have the same Nyquist frequency to define a consistent horizon distance function (got %s)"
-            % ", ".join("%g" % rate for rate in sorted(nyquists))
+            "all banks should have the same Nyquist frequency to define a consistent"
+            " horizon distance function (got %s)"
+            % ", ".join("%g" % rate for rate in sorted(nyquists)),
+            stacklevel=2,
         )
     # assume default 4 s PSD.  this is not required to be correct, but
     # for best accuracy it should not be larger than the true value and
@@ -275,6 +279,8 @@ def parse_bank_files(svd_banks, verbose, snr_threshold=None):
     # FIXME remove when this is no longer an issue
     if not banks:
         raise ValueError(
-            "Could not parse bank files into valid bank dictionary.\n\t- Perhaps you are using out-of-date svd bank files?  Please ensure that they were generated with the same code version as the parsing code"
+            "Could not parse bank files into valid bank dictionary.\n\t- Perhaps you"
+            " are using out-of-date svd bank files?  Please ensure that they were"
+            " generated with the same code version as the parsing code"
         )
     return banks

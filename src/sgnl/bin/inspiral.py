@@ -196,8 +196,8 @@ def inspiral(
             raise ValueError("Must specify impulse_ifo when data_source='impulse'")
 
     # FIXME: currently track psd is always enabled in whitener
-    if not reference_psd:
-        track_psd = True
+    # if not reference_psd:
+    #    track_psd = True
 
     # check pytorch data type
     dtype = torch_dtype

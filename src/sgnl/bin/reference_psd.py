@@ -1,16 +1,16 @@
+from __future__ import annotations
+
 from argparse import ArgumentParser
 from typing import List
+
 from sgn.apps import Pipeline
-
-from sgnts.sinks import FakeSeriesSink
-
-from sgnts.sinks import FakeSeriesSink 
-from sgnts.sources import FakeSeriesSrc
-from sgnts.transforms import Resampler
-from sgnligo.transforms import Whiten
 from sgnligo.sources import datasource
-from sgnligo.base.utils import parse_list_to_dict
+from sgnligo.transforms import Whiten
+from sgnts.sinks import FakeSeriesSink
+from sgnts.transforms import Resampler
+
 from sgnl.sinks import PSDSink
+
 
 def parse_command_line():
     parser = ArgumentParser(description=__doc__)
@@ -26,13 +26,15 @@ def parse_command_line():
     parser.add_argument(
         "--reference-psd",
         metavar="filename",
-        help="Load spectrum from this LIGO light-weight XML file. The noise spectrum will be measured and tracked starting from this reference. (optional).",
+        help="Load spectrum from this LIGO light-weight XML file. The noise spectrum"
+        " will be measured and tracked starting from this reference. (optional).",
     )
     parser.add_argument(
         "--whitening-method",
         metavar="algorithm",
         default="gstlal",
-        help="Algorithm to use for whitening the data. Supported options are 'gwpy' or 'gstlal'. Default is gstlal.",
+        help="Algorithm to use for whitening the data. Supported options are 'gwpy' or"
+        " 'gstlal'. Default is gstlal.",
     )
 
     parser.add_argument(
@@ -48,12 +50,14 @@ def parse_command_line():
     parser.add_argument(
         "--output-name",
         metavar="filename",
-        help="Set the output filename. If no filename is given, the output is dumped to stdout.",
+        help="Set the output filename. If no filename is given, the output is dumped"
+        " to stdout.",
     )
 
     options = parser.parse_args()
 
     return options
+
 
 def reference_psd(
     whiten_sample_rate: int,
@@ -114,74 +118,76 @@ def reference_psd(
     #   ------------
     #  |  PSDSink   |
     #   ------------
-    #  
+    #
 
     ifos = list(source_out_links.keys())
     for ifo in ifos:
         pipeline.insert(
             Resampler(
-                name=ifo+"Resampler",
+                name=ifo + "Resampler",
                 source_pad_names=("resamp",),
                 sink_pad_names=("frsrc",),
                 inrate=input_sample_rate,
                 outrate=whiten_sample_rate,
             ),
             Whiten(
-                name=ifo+"Whitener",
-                source_pad_names=("hoft",ifo),
+                name=ifo + "Whitener",
+                source_pad_names=("hoft", ifo),
                 sink_pad_names=("resamp",),
                 instrument=ifo,
                 sample_rate=whiten_sample_rate,
                 fft_length=psd_fft_length,
                 whitening_method=whitening_method,
                 reference_psd=reference_psd,
-                psd_pad_name=ifo+"Whitener:src:"+ifo,
+                psd_pad_name=ifo + "Whitener:src:" + ifo,
             ),
             FakeSeriesSink(
-                name=ifo+"HoftSink",
+                name=ifo + "HoftSink",
                 sink_pad_names=("hoft",),
                 verbose=True,
             ),
             link_map={
-                ifo+"Resampler:sink:frsrc": source_out_links[ifo],
-                ifo+"Whitener:sink:resamp": ifo+"Resampler:src:resamp",
-                ifo+"HoftSink:sink:hoft": ifo+"Whitener:src:hoft",
-            }
+                ifo + "Resampler:sink:frsrc": source_out_links[ifo],
+                ifo + "Whitener:sink:resamp": ifo + "Resampler:src:resamp",
+                ifo + "HoftSink:sink:hoft": ifo + "Whitener:src:hoft",
+            },
         )
     pipeline.insert(
         PSDSink(
-            fname = output_name,
+            fname=output_name,
             name="PSDSink",
             sink_pad_names=(tuple(ifo for ifo in ifos)),
         ),
-        link_map={"PSDSink:sink:"+ifo: ifo+"Whitener:src:"+ifo for ifo in ifos}
-        )
- 
+        link_map={"PSDSink:sink:" + ifo: ifo + "Whitener:src:" + ifo for ifo in ifos},
+    )
+
     pipeline.run()
+
 
 def main():
     # parse arguments
     options = parse_command_line()
 
     reference_psd(
-    sample_rate=options.sample_rate,
-    input_sample_rate=options.input_sample_rate,
-    channel_name=options.channel_name,
-    data_source=options.data_source,
-    whitening_method=options.whitening_method,
-    frame_cache=options.frame_cache,
-    gps_start_time=options.gps_start_time,
-    gps_end_time=options.gps_end_time,
-    shared_memory_dir=options.shared_memory_dir,
-    reference_psd=options.reference_psd,
-    fake_sink=None,
-    verbose=None,
-    state_channel_name=None,
-    state_vector_on_bits=None,
-    wait_time=None,
-    psd_fft_length=options.psd_fft_length,
-    output_name=options.output_name,
-)
+        sample_rate=options.sample_rate,
+        input_sample_rate=options.input_sample_rate,
+        channel_name=options.channel_name,
+        data_source=options.data_source,
+        whitening_method=options.whitening_method,
+        frame_cache=options.frame_cache,
+        gps_start_time=options.gps_start_time,
+        gps_end_time=options.gps_end_time,
+        shared_memory_dir=options.shared_memory_dir,
+        reference_psd=options.reference_psd,
+        fake_sink=None,
+        verbose=None,
+        state_channel_name=None,
+        state_vector_on_bits=None,
+        wait_time=None,
+        psd_fft_length=options.psd_fft_length,
+        output_name=options.output_name,
+    )
+
 
 if __name__ == "__main__":
     main()
