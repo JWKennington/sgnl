@@ -1,20 +1,10 @@
 from argparse import ArgumentParser
 
 from sgn.apps import Pipeline
-from sgn.sinks import FakeSink
-
-from sgnts.base import AdapterConfig, Offset
-from sgnts.sources import FakeSeriesSrc
-from sgnts.sinks import DumpSeriesSink, FakeSeriesSink
-from sgnts.transforms import Threshold
-
+from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DevShmSrc
-from sgnligo.sinks import FakeSeriesSink, KafkaSink, InfluxSink
-from sgnligo.transforms import (
-    Whiten,
-    Resampler,
-    HorizonDistance,
-)
+from sgnligo.transforms import HorizonDistance, Resampler, Whiten
+from sgnts.sinks import FakeSeriesSink
 
 
 def parse_command_line():
@@ -49,38 +39,45 @@ def parse_command_line():
         "--analysis-tag",
         metavar="tag",
         default="test",
-        help='Set the string to identify the analysis in which this job is part of. Used when --output-kafka-server is set. May not contain "." nor "-". Default is test.',
+        help="Set the string to identify the analysis in which this job is part of."
+        ' Used when --output-kafka-server is set. May not contain "." nor "-". Default'
+        " is test.",
     )
     parser.add_argument(
         "--reference-psd",
         metavar="filename",
-        help="Load spectrum from this LIGO light-weight XML file. The noise spectrum will be measured and tracked starting from this reference. (optional).",
+        help="Load spectrum from this LIGO light-weight XML file. The noise spectrum'\
+        ' will be measured and tracked starting from this reference. (optional).",
     )
     parser.add_argument(
         "--horizon-approximant",
         type="string",
         default="IMRPhenomD",
-        help="Specify a waveform approximant to use while calculating the horizon distance and range. Default is IMRPhenomD.",
+        help="Specify a waveform approximant to use while calculating the horizon'\
+        ' distance and range. Default is IMRPhenomD.",
     )
     parser.add_argument(
         "--horizon-f-min",
         metavar="Hz",
         type="float",
         default=15.0,
-        help="Set the frequency at which the waveform model is to begin for the horizon distance and range calculation. Default is 15 Hz.",
+        help="Set the frequency at which the waveform model is to begin for the'\
+        ' horizon distance and range calculation. Default is 15 Hz.",
     )
     parser.add_argument(
         "--horizon-f-max",
         metavar="Hz",
         type="float",
         default=900.0,
-        help="Set the upper frequency cut off for the waveform model used in the horizon distance and range calculation. Default is 900 Hz.",
+        help="Set the upper frequency cut off for the waveform model used in the'\
+        ' horizon distance and range calculation. Default is 900 Hz.",
     )
     parser.add_argument(
         "--whitening-method",
         metavar="algorithm",
         default="gstlal",
-        help="Algorithm to use for whitening the data. Supported options are 'gwpy' or 'gstlal'. Default is gstlal.",
+        help="Algorithm to use for whitening the data. Supported options are 'gwpy'"
+        " or 'gstlal'. Default is gstlal.",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Be verbose (optional)."
@@ -102,7 +99,9 @@ def parse_command_line():
         metavar="seconds",
         type=int,
         default=60,
-        help="Time to wait for new files in seconds before throwing an error. In online mode, new files should always arrive every second, unless there are problems. Default wait time is 60 seconds.",
+        help="Time to wait for new files in seconds before throwing an error. In online"
+        " mode, new files should always arrive every second, unless there are problems."
+        " Default wait time is 60 seconds.",
     )
     parser.add_argument(
         "--kafka-reduce-time",
@@ -122,8 +121,6 @@ def main():
     options, args = parse_command_line()
 
     source_sample_rate = 16384
-
-    num_samples = source_sample_rate * 1
 
     # sanity check the whitening method given
     if options.whitening_method not in ("gwpy", "gstlal"):
@@ -207,12 +204,18 @@ def main():
             name="HorizonSnk",
             sink_pad_names=("horizon",),
             output_kafka_server=options.output_kafka_server,
-            topic="gstlal."+options.analysis_tag+"."+options.instrument+"_range_history",
-            route='range_history',
-            metadata_key='range',
-            tags=[options.instrument,],
+            topic="gstlal."
+            + options.analysis_tag
+            + "."
+            + options.instrument
+            + "_range_history",
+            route="range_history",
+            metadata_key="range",
+            tags=[
+                options.instrument,
+            ],
             reduce_time=options.kafka_reduce_time,
-            verbose=True
+            verbose=True,
         ),
     )
 

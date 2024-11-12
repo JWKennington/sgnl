@@ -1,27 +1,26 @@
+from __future__ import annotations
+
 import math
-import sys
 import signal
+import sys
 from typing import Dict, Iterable, Optional, Tuple, Union
 
-import numpy
-import pandas
-from scipy import interpolate
-
-from ligo.lw import utils as ligolw_utils
 import lal
 import lal.series
-from lal import LIGOTimeGPS
 import lalsimulation
-
+import numpy
+import pandas
+from lal import LIGOTimeGPS
+from ligo.lw import utils as ligolw_utils
+from scipy import interpolate
 from sgn.apps import Pipeline
+from sgnligo.sources import DevShmSrc
+from sgnligo.transforms import Whiten
+from sgnts.sinks import FakeSeriesSink
 from sgnts.transforms import Resampler
-from sgnligo.sources import datasource, DevShmSrc
-from sgnligo.transforms import (
-    Whiten,
-    HorizonDistance,
-)
 
 from sgnl.sinks import PSDSink
+
 #
 # =============================================================================
 #
@@ -30,7 +29,20 @@ from sgnl.sinks import PSDSink
 # =============================================================================
 #
 
-def measure_psd(gw_data_source_info, instrument, rate, psd_fft_length = 8, verbose = False):
+
+def measure_psd(
+    gw_data_source_info,
+    channel_name,
+    shared_memory_dir,
+    wait_time,
+    sample_rate,
+    whitening_method,
+    reference_psd,
+    instrument,
+    rate,
+    psd_fft_length=8,
+    verbose=False,
+):
 
     #
     # 8 FFT-lengths is just a ball-parky estimate of how much data is
@@ -38,7 +50,10 @@ def measure_psd(gw_data_source_info, instrument, rate, psd_fft_length = 8, verbo
     # code requires a minimum of 1)
     #
 
-    if gw_data_source_info.seg is not None and float(abs(gw_data_source_info.seg)) < 8 * psd_fft_length:
+    if (
+        gw_data_source_info.seg is not None
+        and float(abs(gw_data_source_info.seg)) < 8 * psd_fft_length
+    ):
         raise ValueError("segment %s too short" % str(gw_data_source_info.seg))
 
     #
@@ -46,7 +61,10 @@ def measure_psd(gw_data_source_info, instrument, rate, psd_fft_length = 8, verbo
     #
 
     if verbose:
-        print("measuring PSD in segment %s" % str(gw_data_source_info.seg), file=sys.stderr)
+        print(
+            "measuring PSD in segment %s" % str(gw_data_source_info.seg),
+            file=sys.stderr,
+        )
         print("building pipeline ...", file=sys.stderr)
 
     pipeline = Pipeline()
@@ -75,27 +93,27 @@ def measure_psd(gw_data_source_info, instrument, rate, psd_fft_length = 8, verbo
             source_pad_names=("frsrc",),
             rate=16384,
             num_samples=16384,
-            channel_name=options.channel_name,
-            instrument=options.instrument,
-            shared_memory_dir=options.shared_memory_dir,
-            wait_time=options.wait_time,
+            channel_name=channel_name,
+            instrument=instrument,
+            shared_memory_dir=shared_memory_dir,
+            wait_time=wait_time,
         ),
         Resampler(
             name="Resampler",
             source_pad_names=("resamp",),
             sink_pad_names=("frsrc",),
-            inrate=source_sample_rate,
-            outrate=options.sample_rate,
+            inrate=16384,
+            outrate=sample_rate,
         ),
         Whiten(
             name="Whitener",
             source_pad_names=("hoft", "spectrum"),
             sink_pad_names=("resamp",),
-            instrument=options.instrument,
-            sample_rate=options.sample_rate,
-            fft_length=options.psd_fft_length,
-            whitening_method=options.whitening_method,
-            reference_psd=options.reference_psd,
+            instrument=instrument,
+            sample_rate=sample_rate,
+            fft_length=psd_fft_length,
+            whitening_method=whitening_method,
+            reference_psd=reference_psd,
             psd_pad_name="Whitener:src:spectrum",
         ),
         FakeSeriesSink(
@@ -104,7 +122,7 @@ def measure_psd(gw_data_source_info, instrument, rate, psd_fft_length = 8, verbo
             verbose=True,
         ),
         PSDSink(
-            fname = "test.xml",
+            fname="test.xml",
             name="PSDSnk",
             sink_pad_names=("spectrum",),
             verbose=True,
@@ -122,11 +140,12 @@ def measure_psd(gw_data_source_info, instrument, rate, psd_fft_length = 8, verbo
 
     if verbose:
         print("running pipeline ...", file=sys.stderr)
-    
+
     pipeline.run()
 
     if verbose:
         print("PSD measurement complete", file=sys.stderr)
+
 
 def read_psd(
     filename: str, verbose: Optional[bool] = False
@@ -290,9 +309,11 @@ def interpolate_psd(
     # x = fftpack.irfft(x)
     # if deltaF < psd.deltaF:
     #    x *= numpy.cos(numpy.arange(len(x)) * math.pi / (len(x) + 1))**2
-    #    x = numpy.concatenate((x[:(len(x) / 2)], numpy.zeros((int(round(len(x) * psd.deltaF / deltaF)) - len(x),), dtype = "double"), x[(len(x) / 2):]))
+    #    x = numpy.concatenate((x[:(len(x) / 2)], numpy.zeros((int(round(len(x)
+    #        * psd.deltaF / deltaF)) - len(x),), dtype = "double"), x[(len(x) / 2):]))
     # else:
-    #    x = numpy.concatenate((x[:(int(round(len(x) * psd.deltaF / deltaF)) / 2)], x[-(int(round(len(x) * psd.deltaF / deltaF)) / 2):]))
+    #    x = numpy.concatenate((x[:(int(round(len(x) * psd.deltaF / deltaF)) / 2)],
+    #        x[-(int(round(len(x) * psd.deltaF / deltaF)) / 2):]))
     #    x *= numpy.cos(numpy.arange(len(x)) * math.pi / (len(x) + 1))**2
     # x = 1 / fftpack.rfft(x)**2
     # psd_data = numpy.concatenate(([x[0]], x[1::2]))
@@ -401,15 +422,15 @@ def taperzero_fseries(
         psd:
             lal.REAL8FrequencySeries, the PSD to taper
         minfs (Hz):
-            Tuple[float, float], optional, the frequency boundaries over which to taper the
-            spectrum to infinity.  i.e., frequencies below the first item in the tuple will
-            have an infinite spectrum, the second item in the tuple will not be changed.
-            A taper from 0 to infinity is applied in between.
+            Tuple[float, float], optional, the frequency boundaries over which to taper
+            the spectrum to infinity.  i.e., frequencies below the first item in the
+            tuple will have an infinite spectrum, the second item in the tuple will not
+            be changed. A taper from 0 to infinity is applied in between.
         maxfs (Hz):
-            Tuple[float, float], optional, the frequency boundaries over which to taper the
-            spectrum to infinity.  i.e., frequencies above the second item in the tuple will
-            have an infinite spectrum, the first item in the tuple will not be changed.
-            A taper from 0 to infinity is applied in between.
+            Tuple[float, float], optional, the frequency boundaries over which to taper
+            the spectrum to infinity.  i.e., frequencies above the second item in the
+            tuple will have an infinite spectrum, the first item in the tuple will not
+            be changed. A taper from 0 to infinity is applied in between.
 
     Returns:
         lal.REAL8FrequencySeries, the tapered PSD
@@ -479,19 +500,19 @@ def condition_psd(
         newdeltaF (Hz):
             int, the target delta F to interpolate to
         minfs (Hz):
-            Tuple[float, float], optional, the frequency boundaries over which to taper the
-            spectrum to infinity.  i.e., frequencies below the first item in the tuple will
-            have an infinite spectrum, the second item in the tuple will not be changed.
-            A taper from 0 to infinity is applied in between.
+            Tuple[float, float], optional, the frequency boundaries over which to taper
+            the spectrum to infinity.  i.e., frequencies below the first item in the
+            tuple will have an infinite spectrum, the second item in the tuple will not
+            be changed. A taper from 0 to infinity is applied in between.
         maxfs (Hz):
-            Tuple[float, float], optional, the frequency boundaries over which to taper the
-            spectrum to infinity.  i.e., frequencies above the second item in the tuple will
-            have an infinite spectrum, the first item in the tuple will not be changed.
-            A taper from 0 to infinity is applied in between.
+            Tuple[float, float], optional, the frequency boundaries over which to taper
+            the spectrum to infinity.  i.e., frequencies above the second item in the
+            tuple will have an infinite spectrum, the first item in the tuple will not
+            be changed. A taper from 0 to infinity is applied in between.
         smoothing_frequency (Hz):
-            float, default = 4 Hz, the target frequency resolution after smoothing. Lines with
-            bandwidths << smoothing_frequency are removed via a median calculation.
-            Remaining features will be blurred out to this resolution.
+            float, default = 4 Hz, the target frequency resolution after smoothing.
+            Lines with bandwidths << smoothing_frequency are removed via a median
+            calculation.  Remaining features will be blurred out to this resolution.
         fir_whiten:
             bool, default False, whether to enable causal whitening with a time-domain
             whitening kernel vs. traditional acausal whitening
@@ -525,8 +546,10 @@ def condition_psd(
     psd.data.data = psddata
 
     #
-    # Tapering psd in either side up to infinity if a frequency-domain whitener is used, returns a psd without tapering otherwise.
-    # For a time-domain whitener, the tapering is effectively done as a part of deriving a frequency series of the FIR-whitner kernel
+    # Tapering psd in either side up to infinity if a frequency-domain whitener is used,
+    # returns a psd without tapering otherwise. For a time-domain whitener, the tapering
+    # is effectively done as a part of deriving a frequency series of the FIR-whitner
+    # kernel
     #
     if not fir_whiten:
         #
@@ -704,7 +727,8 @@ class HorizonDistance(object):
         >>> horizon_distance = HorizonDistance(10., 1024., 1./32., 1.4, 1.4)
         >>> # populate a PSD for testing
         >>> import lal, lalsimulation
-        >>> psd = lal.CreateREAL8FrequencySeries("psd", lal.LIGOTimeGPS(0), 0., 1./32., lal.Unit("strain^2 s"), horizon_distance.model.data.length)
+        >>> psd = lal.CreateREAL8FrequencySeries("psd", lal.LIGOTimeGPS(0), 0., 1./32.,
+        ...     lal.Unit("strain^2 s"), horizon_distance.model.data.length)
         >>> lalsimulation.SimNoisePSDaLIGODesignSensitivityP1200087(psd, 0.)
         0
         >>> # compute horizon distance
@@ -806,7 +830,7 @@ class HorizonDistance(object):
         The inspiral spectrum returned has the same units as the
         PSD and is normalized so that the SNR is
 
-        SNR^2 = \int (inspiral_spectrum / psd) df
+        SNR^2 = int (inspiral_spectrum / psd) df
 
         That is, the ratio of the inspiral spectrum to the PSD
         gives the spectral density of SNR^2.

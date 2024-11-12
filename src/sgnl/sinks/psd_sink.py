@@ -1,16 +1,18 @@
 from dataclasses import dataclass
-from sgn.base import SinkElement, Frame, SinkPad, InternalPad
-import stillsuit
-from ligo.lw import utils as ligolw_utils
-import lal
 
-def write_psd(fname, psddict, verbose=True, trap_signals = None): 
-        ligolw_utils.write_filename(
+import lal
+from ligo.lw import utils as ligolw_utils
+from sgn.base import Frame, InternalPad, SinkElement, SinkPad
+
+
+def write_psd(fname, psddict, verbose=True, trap_signals=None):
+    ligolw_utils.write_filename(
         lal.series.make_psd_xmldoc(psddict),
         fname,
         verbose=verbose,
         trap_signals=trap_signals,
     )
+
 
 @dataclass
 class PSDSink(SinkElement):
@@ -27,9 +29,8 @@ class PSDSink(SinkElement):
     def pull(self, pad: SinkPad, frame: Frame) -> None:
         if frame.EOS:
             self.mark_eos(pad)
-            self.psd[pad.name.split(':')[-1]]  = frame.metadata["psd"]
+            self.psd[pad.name.split(":")[-1]] = frame.metadata["psd"]
 
-    def internal(self, pad: SinkPad) -> None:
+    def internal(self, pad: InternalPad) -> None:
         if self.at_eos:
             write_psd(self.fname, self.psd)
-
