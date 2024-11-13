@@ -4,59 +4,31 @@ from argparse import ArgumentParser
 from typing import List
 
 from sgn.apps import Pipeline
-from sgnligo.sources import datasource
-from sgnligo.transforms import Whiten
+from sgnligo.sources import datasource, parse_command_line_datasource
+from sgnligo.transforms import condition, parse_command_line_condition
 from sgnts.sinks import FakeSeriesSink
-from sgnts.transforms import Resampler
 
 from sgnl.sinks import PSDSink
 
 
-def parse_command_line():
-    parser = ArgumentParser(description=__doc__)
+def parse_command_line(parser=None):
+    if parser is None:
+        parser = ArgumentParser(description=__doc__)
 
     # add our own options
-    parser.add_argument(
-        "--psd-fft-length",
-        metavar="s",
-        default=8,
-        type=int,
-        help="FFT length, default 8s",
-    )
-    parser.add_argument(
-        "--reference-psd",
-        metavar="filename",
-        help="Load spectrum from this LIGO light-weight XML file. The noise spectrum"
-        " will be measured and tracked starting from this reference. (optional).",
-    )
-    parser.add_argument(
-        "--whitening-method",
-        metavar="algorithm",
-        default="gstlal",
-        help="Algorithm to use for whitening the data. Supported options are 'gwpy' or"
-        " 'gstlal'. Default is gstlal.",
-    )
 
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Be verbose (optional)."
     )
     parser.add_argument(
-        "--output-sample-rate",
-        metavar="Hz",
-        default=2048,
-        type=int,
-        help="Sample rate at which to generate the PSD, default 2048 Hz",
-    )
-    parser.add_argument(
         "--output-name",
         metavar="filename",
+        required=True,
         help="Set the output filename. If no filename is given, the output is dumped"
         " to stdout.",
     )
 
-    options = parser.parse_args()
-
-    return options
+    return parser
 
 
 def reference_psd(
@@ -121,35 +93,28 @@ def reference_psd(
     #
 
     ifos = list(source_out_links.keys())
+
+    condition_out_links, spectrum_out_links, _ = condition(
+        pipeline=pipeline,
+        ifos=ifos,
+        whiten_sample_rate=whiten_sample_rate,
+        input_links=source_out_links,
+        data_source=data_source,
+        input_sample_rate=input_sample_rate,
+        psd_fft_length=psd_fft_length,
+        whitening_method=whitening_method,
+        reference_psd=reference_psd,
+    )
+
     for ifo in ifos:
         pipeline.insert(
-            Resampler(
-                name=ifo + "Resampler",
-                source_pad_names=("resamp",),
-                sink_pad_names=("frsrc",),
-                inrate=input_sample_rate,
-                outrate=whiten_sample_rate,
-            ),
-            Whiten(
-                name=ifo + "Whitener",
-                source_pad_names=("hoft", ifo),
-                sink_pad_names=("resamp",),
-                instrument=ifo,
-                sample_rate=whiten_sample_rate,
-                fft_length=psd_fft_length,
-                whitening_method=whitening_method,
-                reference_psd=reference_psd,
-                psd_pad_name=ifo + "Whitener:src:" + ifo,
-            ),
             FakeSeriesSink(
                 name=ifo + "HoftSink",
                 sink_pad_names=("hoft",),
-                verbose=True,
+                verbose=verbose,
             ),
             link_map={
-                ifo + "Resampler:sink:frsrc": source_out_links[ifo],
-                ifo + "Whitener:sink:resamp": ifo + "Resampler:src:resamp",
-                ifo + "HoftSink:sink:hoft": ifo + "Whitener:src:hoft",
+                ifo + "HoftSink:sink:hoft": condition_out_links[ifo],
             },
         )
     pipeline.insert(
@@ -158,7 +123,7 @@ def reference_psd(
             name="PSDSink",
             sink_pad_names=(tuple(ifo for ifo in ifos)),
         ),
-        link_map={"PSDSink:sink:" + ifo: ifo + "Whitener:src:" + ifo for ifo in ifos},
+        link_map={"PSDSink:sink:" + ifo: spectrum_out_links[ifo] for ifo in ifos},
     )
 
     pipeline.run()
@@ -166,10 +131,13 @@ def reference_psd(
 
 def main():
     # parse arguments
-    options = parse_command_line()
+    parser = parse_command_line_datasource()
+    parser = parse_command_line_condition(parser)
+    parser = parse_command_line(parser)
+    options = parser.parse_args()
 
     reference_psd(
-        sample_rate=options.sample_rate,
+        whiten_sample_rate=options.whiten_sample_rate,
         input_sample_rate=options.input_sample_rate,
         channel_name=options.channel_name,
         data_source=options.data_source,
