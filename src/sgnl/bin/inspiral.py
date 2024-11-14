@@ -164,6 +164,8 @@ def inspiral(
     frame_cache: str = None,
     gps_start_time: int = None,
     gps_end_time: int = None,
+    frame_segments_file: Optional[str] = None,
+    frame_segments_name: Optional[str] = None,
     shared_memory_dir: str = None,
     reference_psd: str = None,
     torch_dtype: str = None,
@@ -227,6 +229,8 @@ def inspiral(
         frame_cache=frame_cache,
         gps_start_time=gps_start_time,
         gps_end_time=gps_end_time,
+        frame_segments_file=frame_segments_file,
+        frame_segments_name=frame_segments_name,
         wait_time=wait_time,
         impulse_position=impulse_position,
         verbose=verbose,
@@ -409,12 +413,15 @@ def inspiral(
             pipeline.insert(
                 StillSuitSink(
                     name="StillSuitSnk",
-                    sink_pad_names=("trigs",),
+                    sink_pad_names=("trigs",)
+                    + tuple(["segments_" + ifo for ifo in ifos]),
                     config_name=event_config,
                     trigger_output=trigger_output,
                     template_ids=sorted_bank.template_ids.numpy(),
                     template_sngls=sorted_bank.sngls,
                     subbankids=sorted_bank.subbankids,
+                    itacacac_pad_name="trigs",
+                    segments_pad_map={"segments_" + ifo: ifo for ifo in ifos},
                 ),
                 link_map={
                     "StillSuitSnk:sink:trigs": "itacacac:src:trigs",
@@ -441,6 +448,12 @@ def inspiral(
                         ifo + "_Horizon:sink:" + ifo: spectrum_out_links[ifo],
                         "Null_" + ifo + ":sink:" + ifo: ifo + "_Horizon:src:" + ifo,
                     },
+                )
+            for ifo in ifos:
+                pipeline.insert(
+                    link_map={
+                        "StillSuitSnk:sink:segments_" + ifo: source_out_links[ifo],
+                    }
                 )
         else:
             raise ValueError("Unknown sink option")
@@ -508,6 +521,8 @@ def main():
         impulse_position=options.impulse_position,
         gps_start_time=options.gps_start_time,
         gps_end_time=options.gps_end_time,
+        frame_segments_file=options.frame_segments_file,
+        frame_segments_name=options.frame_segments_name,
         channel_name=options.channel_name,
         shared_memory_dir=options.shared_memory_dir,
         reference_psd=options.reference_psd,

@@ -603,7 +603,8 @@ class Itacacac(TSTransform):
             # Zero-out the non-coinc ifos
             for j, c in enumerate(clustered_coinc[1]):
                 trigs_this_event = []
-                for ifo, ifo_num in self.ifos_number_map.items():
+                for ifo in ifos:
+                    ifo_num = self.ifos_number_map[ifo]
                     sngl = sngls[ifo]
                     if str(ifo_num) in str(c):
                         trig = {

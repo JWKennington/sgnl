@@ -162,7 +162,12 @@ class LLOIDCorrelate(TSTransform):
                     outs = []
                     # Now stack the output array
                     if len(self.unique_delays) == 1:
-                        outs = outs_map[delay].unsqueeze(0)
+                        delay = self.unique_delays[0]
+                        out = outs_map[delay]
+                        if out is not None:
+                            outs = outs_map[delay].unsqueeze(0)
+                        else:
+                            outs = None
                     else:
                         for delay in self.delays:
                             out = outs_map[delay]
