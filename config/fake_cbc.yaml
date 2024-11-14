@@ -30,6 +30,16 @@ filter:
   relationships: []
   static: True
 
+segment:
+  columns:
+    - {name: "__segment_id", type: INTEGER, constraints: PRIMARY KEY}
+    - {name: "start_time", type: INTEGER}
+    - {name: "end_time", type: INTEGER}
+    - {name: "ifo", type: TEXT, size: 2}
+    - {name: "name", type: TEXT, size: 15}
+  relationships: []
+  static: True
+
       #simulation:
       #columns:
       #- {name: "time", type: INTEGER}
