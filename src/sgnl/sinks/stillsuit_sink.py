@@ -100,8 +100,8 @@ class StillSuitSink(SinkElement):
         if self.at_eos:
             self.segments.coalesce()
             out_segments = []
-            for ifo, segments in self.segments.items():
-                for segment in segments:
+            for ifo, seg in self.segments.items():
+                for segment in seg:
                     segment_row = self.init_config_row(self.config["segment"])
                     segment_row["start_time"] = Offset.tons(segment[0])
                     segment_row["end_time"] = Offset.tons(segment[1])
