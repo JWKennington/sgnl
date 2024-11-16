@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from typing import Any, Sequence
 
@@ -24,6 +25,9 @@ class StillSuitSink(SinkElement):
             raise ValueError("Must provide config_name")
         if self.trigger_output is None:
             raise ValueError("Must provide trigger_output")
+        if os.path.exists(self.trigger_output):
+            raise ValueError("output db exists")
+
         self.out = stillsuit.StillSuit(config=self.config_name, dbname=":memory:")
 
         self.tables = ["trigger", "event"]
