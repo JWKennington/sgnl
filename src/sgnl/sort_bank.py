@@ -105,7 +105,7 @@ class SortedBank:
             self.coeff_sv_cat,
             self.bases_cat,
             self.template_ids,
-            self.end_times,
+            self.end_time_delta,
             self.subbankids,
             self.bankids_map,
             self.sngls,
@@ -600,7 +600,7 @@ class SortedBank:
         template_ids = torch.ones(size=(nbank, ntempmax // 2), dtype=torch.int32) * -1
         subbankids = []
         sngls = []
-        end_times = torch.zeros(size=(nbank,), dtype=torch.long)
+        end_time_delta = torch.zeros(size=(nbank,), dtype=torch.long)
         bankids_map = defaultdict(list)
         for j in range(nbank):
             sngl = reordered_bank[ifos[0]][j].sngl_inspiral_table
@@ -609,7 +609,7 @@ class SortedBank:
 
             ends0 = [row.end.ns() for row in sngl]
             assert len(set(ends0)) == 1, "there are different end times in a subbank"
-            end_times[j] = list(set(ends0))[0]
+            end_time_delta[j] = list(set(ends0))[0]
 
             subbank_id = reordered_bank[ifos[0]][j].bank_id
             if self.nbank_pretend:
@@ -672,7 +672,7 @@ class SortedBank:
             coeff_sv_by_rate,
             bases_by_rate,
             template_ids,
-            end_times,
+            end_time_delta,
             subbankids,
             bankids_map,
             sngls,

@@ -96,6 +96,16 @@ def parse_command_line(parser=None):
         action="store",
         help="Set the name of the config yaml file for event buffers",
     )
+    group.add_argument(
+        "--coincidence-threshold",
+        metavar="seconds",
+        action="store",
+        type=float,
+        default=0.005,
+        help="Set the coincidence window in seconds (default = 0.005 s).  The"
+        " light-travel time between instruments will be added automatically in the"
+        " coincidence test.",
+    )
 
     group = parser.add_argument_group(
         "Ranking Statistic Options", "Adjust ranking statistic behaviour"
@@ -180,6 +190,7 @@ def inspiral(
     analysis_tag=None,
     trigger_output=None,
     event_config=None,
+    coincidence_threshold=0.005,
     output_kafka_server=None,
     graph_name=None,
     state_channel_name=None,
@@ -329,10 +340,11 @@ def inspiral(
                 autocorrelation_banks=sorted_bank.autocorrelation_banks,
                 template_ids=sorted_bank.template_ids,
                 bankids_map=sorted_bank.bankids_map,
-                end_times=sorted_bank.end_times,
+                end_time_delta=sorted_bank.end_time_delta,
                 kafka=data_source == "devshm",
                 device=torch_device,
                 event_config=event_config,
+                coincidence_threshold=coincidence_threshold,
             ),
         )
         for ifo in ifos:
@@ -543,6 +555,7 @@ def main():
         analysis_tag=options.analysis_tag,
         trigger_output=options.trigger_output,
         event_config=options.event_config,
+        coincidence_threshold=options.coincidence_threshold,
         ranking_stat_output=options.ranking_stat_output,
         output_kafka_server=options.output_kafka_server,
         graph_name=options.graph_name,

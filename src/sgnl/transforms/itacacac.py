@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Dict
 
 import lal
 import numpy as np
@@ -9,25 +11,26 @@ import torch
 import yaml
 from sgnevent.base import EventBuffer, EventFrame, dtype_from_config
 from sgnligo.base import now
-from sgnts.base import AdapterConfig, Offset, TorchBackend, TSTransform
+from sgnts.base import AdapterConfig, Array, Offset, TorchBackend, TSTransform
 
 
 def index_select(tensor, dim, index):
     return tensor.gather(dim, index.unsqueeze(dim)).squeeze(dim)
 
 
-def light_travel_time(ifo1, ifo2):
-    """
-    Compute and return the time required for light to travel through
+def light_travel_time(ifo1: str, ifo2: str) -> float:
+    """Compute and return the time required for light to travel through
     free space the distance separating the two ifos. The result is
     returned in seconds.
 
-    Arguments:
-    ----------
-    ifo1: str
-        prefix of the first ifo (e.g., "H1")
-    ifo2: str
-        prefix of the first ifo (e.g., "L1")
+    Args:
+        ifo1:
+            str, prefix of the first ifo (e.g., "H1")
+        ifo2:
+            str, prefix of the first ifo (e.g., "L1")
+
+    Returns:
+        float, the light-travel time, in seconds
     """
     dx = (
         lal.cached_detector_by_prefix[ifo1].location
@@ -38,19 +41,44 @@ def light_travel_time(ifo1, ifo2):
 
 @dataclass
 class Itacacac(TSTransform):
-    """
-    An inspiral trigger, autocorrelation chisq, and coincidence, and clustering element
+    """An inspiral trigger, autocorrelation chisq, and coincidence, and clustering
+    element
+
+    Args:
+        sample_rate:
+            int, the sample rate of the snr time series
+        trigger_finding_duration:
+            float, the window to find snr peaks, in seconds
+        autocorrelation_banks:
+            Array, the autocorrelations of the template bank
+        template_ids:
+            Array, the template ids as an array
+        bankids_map:
+            Dict[int, list[int]], the mapping between bankid to the array index in the
+            zero-th dimension of the snr time-series array
+        end_time_delta:
+            Array, the end time correction for the snr peaks
+        device:
+            str, the device to run the trigger finding function on
+        kafka:
+            bool, default False, whether to output to kafka server
+        event_config:
+            str, the config to output event buffers
+        coincidence_threshold:
+            float, the time difference threshold to identify coincidence triggers, in
+            addition to the light-travel time, in seconds.
     """
 
     sample_rate: int = None
     trigger_finding_duration: float = None
-    autocorrelation_banks: Sequence[Any] = None
-    template_ids: Sequence[Any] = None
-    bankids_map: Sequence[Any] = None
-    end_times: Sequence[Any] = None
+    autocorrelation_banks: Array = None
+    template_ids: Array = None
+    bankids_map: Dict[int, list[int]] = None
+    end_time_delta: Sequence[Any] = None
     device: str = "cpu"
     kafka: bool = False
     event_config: str = None
+    coincidence_threshold: float = 0
 
     def __post_init__(self):
 
@@ -85,7 +113,7 @@ class Itacacac(TSTransform):
         )
         self.template_ids = self.template_ids.to(self.device)
         self.template_ids_np = self.template_ids.to("cpu").numpy()
-        self.end_times = self.end_times.numpy()
+        self.end_time_delta = self.end_time_delta.numpy()
 
         # Denominator Eq 28 from arXiv:1604.04324
         # self.autocorrelation_norms = torch.sum(
@@ -116,16 +144,19 @@ class Itacacac(TSTransform):
 
         super().__post_init__()
 
-    def find_peaks_and_calculate_chisqs(self, snrs):
-        """
-        find snr peaks in a given snr time series window, and obtain peak time,
-           phase, and chisq
+    def find_peaks_and_calculate_chisqs(self, snrs: Array) -> Dict[str, list[Array]]:
+        """Find snr peaks in a given snr time series window, and obtain peak time,
+        phase, and chisq
 
-        arguments:
-        ----------
-        snrs: dict[str, torch.tensor]
-            a dictionary of torch.tensors, with ifo as keys
-            only contains snrs for ifos with nongap tensors
+        Args:
+            snrs:
+                Dict[str, Array], a dictionary of Arrays, with ifos as keys, only
+                contains snrs for ifos with nongap data
+
+        Returns:
+            Dict[str, list[Array]], a dictionary of trigger data, with ifos as keys,
+            and a list of trigger data with the contents [peak_locations, peaks,
+            autocorrelation_chisq]
         """
 
         padding = self.padding
@@ -392,7 +423,7 @@ class Itacacac(TSTransform):
         )
 
     def coinc2(self, snrs, times, ifos):
-        dt = light_travel_time(*ifos) * self.rate
+        dt = (light_travel_time(*ifos) + self.coincidence_threshold) * self.rate
         snr1 = snrs[0]
         snr2 = snrs[1]
         time1 = times[0]
@@ -436,7 +467,7 @@ class Itacacac(TSTransform):
                     * 1_000_000_000
                 ).astype(int)
                 + Offset.offset_ref_t0
-                + self.end_times
+                + self.end_time_delta
             )
             sngls[ifo]["snr"] = sngl_snr
             sngls[ifo]["chisq"] = sngl_chisq
@@ -528,7 +559,7 @@ class Itacacac(TSTransform):
                                     * 1_000_000_000
                                 ).astype(int)
                                 + Offset.offset_ref_t0
-                                + self.end_times[maxsnr_id[0]]
+                                + self.end_time_delta[maxsnr_id[0]]
                             )
                             / 1_000_000_000,
                         ],
