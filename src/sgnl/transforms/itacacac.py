@@ -653,7 +653,7 @@ class Itacacac(TSTransform):
 
             event_data["event"] = [
                 {
-                    "time": clustered_coinc[3]["H1"]["time"][j],
+                    "time": list(clustered_coinc[3].values())[0]["time"][j],
                     "network_snr": clustered_coinc[2][j],
                 }
                 for j in range(clustered_coinc[1].shape[0])
