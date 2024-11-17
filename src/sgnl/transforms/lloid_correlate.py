@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from lal import LIGOTimeGPS
+from ligo import segments
 from sgn.base import SourcePad
 from sgnts.base import (
     Array,
@@ -37,6 +39,7 @@ class LLOIDCorrelate(TSTransform):
     uppad: int = 0
     downpad: int = 0
     delays: list[int] = None
+    reconstruction_segment_list: list[segments.segment] = None
 
     def __post_init__(self):
         assert self.filters is not None
@@ -107,102 +110,127 @@ class LLOIDCorrelate(TSTransform):
                 else:
                     this_segment0 = this_segment1 - (buf.end_offset - buf.offset)
                 this_segment = (this_segment0, this_segment1)
-
                 A.push(buf)
 
-                outs_map = {}
-                # Only do the copy for unique delays
-                copied_data = False
-                earliest = []
-
-                # copy out the unique segments
-                for delay in self.unique_delays:
-                    # find the segment to copy out
-                    cp_segment1 = this_segment1 + self.uppad - delay
-                    cp_segment0 = (
-                        cp_segment1
-                        - (this_segment1 - this_segment0)
-                        - Offset.fromsamples(self.shape[-1] - 1, buf.sample_rate)
+                if (
+                    self.reconstruction_segment_list is not None
+                    and not self.reconstruction_segment_list.intersects_segment(
+                        segments.segment(
+                            LIGOTimeGPS(Offset.tosec(this_segment0)),
+                            LIGOTimeGPS(Offset.tosec(this_segment1)),
+                        )
                     )
-                    earliest.append(cp_segment0)
-                    if cp_segment1 > A.offset and not A.is_gap:
-                        if A.pre_cat_data is None:
-                            A.concatenate_data(
-                                (
-                                    max(
-                                        this_segment0
-                                        + self.uppad
-                                        - max(self.unique_delays)
-                                        - Offset.fromsamples(
-                                            self.shape[-1] - 1, buf.sample_rate
-                                        ),
-                                        A.offset,
-                                    ),
-                                    this_segment1
-                                    + self.uppad
-                                    - min(self.unique_delays),
-                                )
-                            )
-                        cp_segment = (max(A.offset, cp_segment0), cp_segment1)
-                        # We need to do a copy
-                        out = A.copy_samples_by_offset_segment(cp_segment)
-                        if cp_segment0 < A.offset and out is not None:
-                            # pad with zeros in front
-                            pad_length = Offset.tosamples(
-                                A.offset - cp_segment0, buf.sample_rate
-                            )
-                            out = self.backend.pad(out, (pad_length, 0))
-                        copied_data = True
-                    else:
-                        out = None
-                    outs_map[delay] = out
+                ):
+                    # The ortho snr segment does not intersect the reconstruction
+                    # segment list, don't need to produce this ortho snr
+                    outbufs.append(
+                        SeriesBuffer(
+                            offset=this_segment[0] + self.uppad,
+                            sample_rate=buf.sample_rate,
+                            data=None,
+                            shape=self.shape[:-1]
+                            + (
+                                Offset.tosamples(
+                                    this_segment1 - this_segment0, buf.sample_rate
+                                ),
+                            ),
+                        )
+                    )
+                else:
+                    outs_map = {}
+                    # Only do the copy for unique delays
+                    copied_data = False
+                    earliest = []
 
-                # fill in zeros arrays
-                if copied_data is True:
-                    outs = []
-                    # Now stack the output array
-                    if len(self.unique_delays) == 1:
-                        delay = self.unique_delays[0]
-                        out = outs_map[delay]
-                        if out is not None:
-                            outs = outs_map[delay].unsqueeze(0)
-                        else:
-                            outs = None
-                    else:
-                        for delay in self.delays:
-                            out = outs_map[delay]
-                            if out is None:
-                                out = self.backend.zeros(
+                    # copy out the unique segments
+                    for delay in self.unique_delays:
+                        # find the segment to copy out
+                        cp_segment1 = this_segment1 + self.uppad - delay
+                        cp_segment0 = (
+                            cp_segment1
+                            - (this_segment1 - this_segment0)
+                            - Offset.fromsamples(self.shape[-1] - 1, buf.sample_rate)
+                        )
+                        earliest.append(cp_segment0)
+                        if cp_segment1 > A.offset and not A.is_gap:
+                            if A.pre_cat_data is None:
+                                A.concatenate_data(
                                     (
-                                        Offset.tosamples(
-                                            cp_segment1 - cp_segment0, buf.sample_rate
+                                        max(
+                                            this_segment0
+                                            + self.uppad
+                                            - max(self.unique_delays)
+                                            - Offset.fromsamples(
+                                                self.shape[-1] - 1, buf.sample_rate
+                                            ),
+                                            A.offset,
                                         ),
+                                        this_segment1
+                                        + self.uppad
+                                        - min(self.unique_delays),
                                     )
                                 )
-                            outs.append(out)
-                        outs = self.backend.stack(outs)
-                else:
-                    outs = None
+                            cp_segment = (max(A.offset, cp_segment0), cp_segment1)
+                            # We need to do a copy
+                            out = A.copy_samples_by_offset_segment(cp_segment)
+                            if cp_segment0 < A.offset and out is not None:
+                                # pad with zeros in front
+                                pad_length = Offset.tosamples(
+                                    A.offset - cp_segment0, buf.sample_rate
+                                )
+                                out = self.backend.pad(out, (pad_length, 0))
+                            copied_data = True
+                        else:
+                            out = None
+                        outs_map[delay] = out
 
-                # flush data
-                flush_end_offset = min(earliest)
-                if flush_end_offset > A.offset:
-                    A.flush_samples_by_end_offset(flush_end_offset)
+                    # fill in zeros arrays
+                    if copied_data is True:
+                        outs = []
+                        # Now stack the output array
+                        if len(self.unique_delays) == 1:
+                            delay = self.unique_delays[0]
+                            out = outs_map[delay]
+                            if out is not None:
+                                outs = outs_map[delay].unsqueeze(0)
+                            else:
+                                outs = None
+                        else:
+                            for delay in self.delays:
+                                out = outs_map[delay]
+                                if out is None:
+                                    out = self.backend.zeros(
+                                        (
+                                            Offset.tosamples(
+                                                cp_segment1 - cp_segment0,
+                                                buf.sample_rate,
+                                            ),
+                                        )
+                                    )
+                                outs.append(out)
+                            outs = self.backend.stack(outs)
+                    else:
+                        outs = None
 
-                # Do the correlation!
-                if outs is not None:
-                    outs = self.corr(outs)
-                outbufs.append(
-                    SeriesBuffer(
-                        offset=this_segment[0] + self.uppad,
-                        sample_rate=buf.sample_rate,
-                        data=outs,
-                        shape=self.shape[:-1]
-                        + (
-                            Offset.tosamples(
-                                this_segment1 - this_segment0, buf.sample_rate
+                    # flush data
+                    flush_end_offset = min(earliest)
+                    if flush_end_offset > A.offset:
+                        A.flush_samples_by_end_offset(flush_end_offset)
+
+                    # Do the correlation!
+                    if outs is not None:
+                        outs = self.corr(outs)
+                    outbufs.append(
+                        SeriesBuffer(
+                            offset=this_segment[0] + self.uppad,
+                            sample_rate=buf.sample_rate,
+                            data=outs,
+                            shape=self.shape[:-1]
+                            + (
+                                Offset.tosamples(
+                                    this_segment1 - this_segment0, buf.sample_rate
+                                ),
                             ),
-                        ),
+                        )
                     )
-                )
         return TSFrame(buffers=outbufs, EOS=frame.EOS, metadata=frame.metadata)

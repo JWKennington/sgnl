@@ -11,6 +11,7 @@ def lloid(
     nslice: int,
     device,
     dtype,
+    reconstruction_segment_list=None,
 ):
     TorchBackend.set_device(device)
     TorchBackend.set_dtype(dtype)
@@ -93,6 +94,7 @@ def lloid(
                         uppad=uppad,
                         downpad=downpad,
                         delays=delays,
+                        reconstruction_segment_list=reconstruction_segment_list,
                     ),
                 )
                 if from_rate != maxrate:

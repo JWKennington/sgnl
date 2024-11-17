@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import sys
 from argparse import ArgumentParser
@@ -9,21 +10,20 @@ import torch
 from sgn.apps import Pipeline
 from sgn.sinks import NullSink
 from sgnligo.sinks import KafkaSink
-from sgnligo.sources import datasource, parse_command_line_datasource
-from sgnligo.transforms import (  # Latency,
-    HorizonDistance,
-    condition,
-    parse_command_line_condition,
-)
+from sgnligo.sources import DataSourceInfo, datasource
+from sgnligo.transforms import ConditionInfo, HorizonDistance, condition  # Latency,
 
+from sgnl import simulation
 from sgnl.sinks import ImpulseSink, StillSuitSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
 from sgnl.transforms import Itacacac, lloid
 
 
-def parse_command_line(parser=None):
-    if parser is None:
-        parser = ArgumentParser()
+def parse_command_line():
+    parser = ArgumentParser()
+
+    DataSourceInfo.append_options(parser)
+    ConditionInfo.append_options(parser)
 
     group = parser.add_argument_group(
         "Trigger Generator", "Adjust trigger generator behaviour"
@@ -32,30 +32,14 @@ def parse_command_line(parser=None):
         "--svd-bank",
         metavar="filename",
         action="append",
-        default=[],
+        required=True,
         help="Set the name of the LIGO light-weight XML file from which to load the "
-        "svd bank for a given instrument.  To analyze multiple instruments, "
-        "--svd-bank can be called multiple times for svd banks corresponding "
-        "to different instruments.  If --data-source is lvshm or framexmit, "
-        "then only svd banks corresponding to a single bin must be given. "
-        "If given multiple times, the banks will be processed one-by-one, in "
-        "order.  At least one svd bank for at least 2 detectors is required, "
-        "but see also --svd-bank-cache.",
-    )
-    group.add_argument(
-        "--nbank-pretend",
-        type=int,
-        action="store",
-        default=0,
-        help="Pretend we have this many subbanks by copying the first subbank "
-        "this many times",
-    )
-    group.add_argument(
-        "--nslice",
-        type=int,
-        action="store",
-        default=-1,
-        help="Only filter this many timeslices. Default: -1, filter all timeslices.",
+        "svd bank for a given instrument.  To analyze multiple instruments, --svd-bank "
+        "can be called multiple times for svd banks corresponding to different "
+        "instruments.  If --data-source is lvshm or framexmit, then only svd banks "
+        "corresponding to a single bin must be given. If given multiple times, the "
+        "banks will be processed one-by-one, in order.  At least one svd bank for at "
+        "least 2 detectors is required, but see also --svd-bank-cache.",
     )
     group.add_argument(
         "--trigger-finding-duration",
@@ -64,6 +48,28 @@ def parse_command_line(parser=None):
         action="store",
         default=1,
         help="Produce triggers in blocks of this duration.",
+    )
+    group.add_argument(
+        "--coincidence-threshold",
+        metavar="seconds",
+        action="store",
+        type=float,
+        default=0.005,
+        help="Set the coincidence window in seconds (default = 0.005 s).  The"
+        " light-travel time between instruments will be added automatically in the"
+        " coincidence test.",
+    )
+    group.add_argument(
+        "--event-config",
+        metavar="filename",
+        action="store",
+        help="Set the name of the config yaml file for event buffers",
+    )
+    group.add_argument(
+        "--trigger-output",
+        metavar="filename",
+        action="store",
+        help="Set the name of the sqlite output file *.sqlite",
     )
     group.add_argument(
         "--impulse-bank",
@@ -85,26 +91,19 @@ def parse_command_line(parser=None):
         help="Only do impulse test on data from this ifo.",
     )
     group.add_argument(
-        "--trigger-output",
-        metavar="filename",
+        "--nbank-pretend",
+        type=int,
         action="store",
-        help="Set the name of the sqlite output file *.sqlite",
+        default=0,
+        help="Pretend we have this many subbanks by copying the first subbank "
+        "this many times",
     )
     group.add_argument(
-        "--event-config",
-        metavar="filename",
+        "--nslice",
+        type=int,
         action="store",
-        help="Set the name of the config yaml file for event buffers",
-    )
-    group.add_argument(
-        "--coincidence-threshold",
-        metavar="seconds",
-        action="store",
-        type=float,
-        default=0.005,
-        help="Set the coincidence window in seconds (default = 0.005 s).  The"
-        " light-travel time between instruments will be added automatically in the"
-        " coincidence test.",
+        default=-1,
+        help="Only filter this many timeslices. Default: -1, filter all timeslices.",
     )
 
     group = parser.add_argument_group(
@@ -114,7 +113,6 @@ def parse_command_line(parser=None):
         "--ranking-stat-output",
         metavar="filename",
         action="append",
-        default=[],
         help="Set the name of the file to which to write ranking statistic data "
         "collected from triggers (optional).  Can be given more than once.  If given, "
         "exactly as many must be provided as there are --svd-bank options and they will"
@@ -134,6 +132,24 @@ def parse_command_line(parser=None):
         type=str,
         default="float32",
         help="The data type to run LLOID and Trigger generation with.",
+    )
+    group.add_argument(
+        "--injections",
+        action="store_true",
+        help="Whether to run this as an injection job. If data-source = 'frames',"
+        " --injection-file must also be specified. Additionally, --ranking-stat-output"
+        " must not be specified when --injections is set.",
+    )
+    group.add_argument(
+        "--injection-file",
+        metavar="filename",
+        help="Set the name of the LIGO light-weight XML file from which to load "
+        "injections. Required if --injections is set and data-source = 'frames'.",
+    )
+    group.add_argument(
+        "--reconstruct-inj-segments",
+        action="store_true",
+        help="Whether to only recontruct around injection segments.",
     )
     group.add_argument(
         "-v", "--verbose", action="store_true", help="Be verbose (optional)."
@@ -156,63 +172,50 @@ def parse_command_line(parser=None):
     )
     group.add_argument("--fake-sink", action="store_true", help="Connect to a NullSink")
 
-    return parser
+    options = parser.parse_args()
+
+    return options
 
 
 def inspiral(
-    input_sample_rate: int,
-    channel_name: List[str],
-    data_source: str = "frames",
-    nslice: int = -1,
-    whitening_method: str = "gstlal",
-    ht_gate_threshold: float = float("+inf"),
+    data_source_info: DataSourceInfo,
+    condition_info: ConditionInfo,
+    svd_bank: List[str],
+    trigger_finding_duration: float = 1,
+    coincidence_threshold: float = 0.005,
+    event_config: str = None,
+    trigger_output: str = None,
+    ranking_stat_output: List[str] = None,
+    torch_dtype: str = "float32",
+    torch_device: str = "cpu",
+    injections: bool = False,
+    injection_file: str = None,
+    reconstruct_inj_segments: bool = False,
+    analysis_tag: str = "test",
+    output_kafka_server: str = None,
+    fake_sink: bool = False,
+    verbose: bool = False,
+    graph_name: str = None,
     impulse_bank: str = None,
     impulse_bankno: int = None,
     impulse_ifo: str = None,
-    impulse_position: int = None,
-    ranking_stat_output: List[str] = None,
-    frame_cache: str = None,
-    gps_start_time: int = None,
-    gps_end_time: int = None,
-    frame_segments_file: str = None,
-    frame_segments_name: str = None,
-    noiseless_inj_frame_cache: str = None,
-    noiseless_inj_channel_name: List[str] = None,
-    shared_memory_dir: str = None,
-    reference_psd: str = None,
-    torch_dtype: str = None,
-    svd_bank=None,
-    nbank_pretend=None,
-    torch_device=None,
-    trigger_finding_duration=None,
-    fake_sink=None,
-    verbose=None,
-    analysis_tag=None,
-    trigger_output=None,
-    event_config=None,
-    coincidence_threshold=0.005,
-    output_kafka_server=None,
-    graph_name=None,
-    state_channel_name=None,
-    state_vector_on_bits=None,
-    wait_time=None,
-    psd_fft_length=None,
+    nbank_pretend: int = None,
+    nslice: int = -1,
 ):
-    # Mutable defaults
-    if ranking_stat_output is None:
-        ranking_stat_output = []
+    #
+    # Sanity check
+    #
 
-    if data_source == "impulse":
+    if trigger_output is not None and os.path.exists(trigger_output):
+        raise ValueError("output db exists")
+
+    if data_source_info.data_source == "impulse":
         if not impulse_bank:
             raise ValueError("Must specify impulse_bank when data_source='impulse'")
         elif impulse_bankno is None:
             raise ValueError("Must specify impulse_bankno when data_source='impulse'")
         elif not impulse_ifo:
             raise ValueError("Must specify impulse_ifo when data_source='impulse'")
-
-    # FIXME: currently track psd is always enabled in whitener
-    # if not reference_psd:
-    #    track_psd = True
 
     # check pytorch data type
     dtype = torch_dtype
@@ -225,33 +228,56 @@ def inspiral(
     else:
         raise ValueError("Unknown data type")
 
+    if (
+        fake_sink is False and data_source_info.data_source not in ["devshm", "impulse"]
+    ) and trigger_output is None:
+        raise ValueError(
+            "Must supply trigger_output when fake_sink is False and "
+            "data_source != 'devshm' or 'impulse'"
+        )
+    elif trigger_output is not None and event_config is None:
+        raise ValueError("Must supply event_config when trigger_output is specified")
+
+    # FIXME: put in check once we decide whether to put multiple banks in the same
+    #        file or not
+    # if ranking_stat_output is not None and len(ranking_stat_output) != len(
+    #    trigger_output
+    # ):
+    #    raise ValueError(
+    #        "must supply either none or exactly as many --ranking-stat-output options
+    #        " as --output"
+    #    )
+
+    if (injections and data_source_info.data_source == "frames") and not injection_file:
+        raise ValueError(
+            "Must supply --injection-file when --injections is set and "
+            "data_source == 'frames'."
+        )
+    if injection_file and not injections:
+        raise ValueError("Must supply --injections when --injection-file is set")
+    # if (
+    #     likelihood_snapshot_interval and not ranking_stat_output
+    # ) and not injections:
+    #     raise ValueError(
+    #         "must set --ranking-stat-output when --likelihood-snapshot-interval is"
+    #         " set"
+    #     )
+    if ranking_stat_output and injections:
+        raise ValueError("Must not set --ranking-stat-output when --injections is set")
+
     #
     # Build pipeline
     #
     pipeline = Pipeline()
 
     # Create data source
-    source_out_links, input_sample_rate = datasource(
+    source_out_links = datasource(
         pipeline=pipeline,
-        channel_name=channel_name,
-        state_channel_name=state_channel_name,
-        state_vector_on_bits=state_vector_on_bits,
-        shared_memory_dir=shared_memory_dir,
-        input_sample_rate=input_sample_rate,
-        data_source=data_source,
-        frame_cache=frame_cache,
-        gps_start_time=gps_start_time,
-        gps_end_time=gps_end_time,
-        frame_segments_file=frame_segments_file,
-        frame_segments_name=frame_segments_name,
-        noiseless_inj_frame_cache=noiseless_inj_frame_cache,
-        noiseless_inj_channel_name=noiseless_inj_channel_name,
-        wait_time=wait_time,
-        impulse_position=impulse_position,
+        info=data_source_info,
         verbose=verbose,
     )
 
-    ifos = list(source_out_links.keys())
+    ifos = data_source_info.ifos
 
     # read in the svd banks
     banks = group_and_read_banks(
@@ -261,6 +287,19 @@ def inspiral(
         nslice=nslice,
         verbose=True,
     )
+
+    # Choose to optionally reconstruct segments around injections
+    if injection_file and reconstruct_inj_segments:
+        offset_padding = max(
+            math.ceil(abs(row.end)) + 2
+            for bank in list(banks.values())[0]
+            for row in bank.sngl_inspiral_table
+        )
+        reconstruction_segment_list = simulation.sim_inspiral_to_segment_list(
+            injection_file, pad=offset_padding
+        )
+    else:
+        reconstruction_segment_list = None
 
     # sort and group the svd banks by sample rate
     sorted_bank = SortedBank(
@@ -276,18 +315,15 @@ def inspiral(
     template_maxrate = bank_metadata["maxrate"]
 
     # Condition the data source if not doing an impulse test
-    if data_source != "impulse":
+    if data_source_info.data_source != "impulse":
         source_out_links, spectrum_out_links, whiten_latency_out_links = condition(
             pipeline=pipeline,
+            condition_info=condition_info,
             ifos=ifos,
-            whiten_sample_rate=template_maxrate,
+            data_source=data_source_info.data_source,
+            input_sample_rate=data_source_info.input_sample_rate,
             input_links=source_out_links,
-            data_source=data_source,
-            input_sample_rate=input_sample_rate,
-            psd_fft_length=psd_fft_length,
-            whitening_method=whitening_method,
-            reference_psd=reference_psd,
-            ht_gate_threshold=ht_gate_threshold,
+            whiten_latency=data_source_info.data_source == "devshm",
         )
     else:
         spectrum_out_links = None
@@ -300,10 +336,11 @@ def inspiral(
         nslice,
         torch_device,
         dtype,
+        reconstruction_segment_list,
     )
 
     # make the sink
-    if data_source == "impulse":
+    if data_source_info.data_source == "impulse":
         pipeline.insert(
             ImpulseSink(
                 name="imsink0",
@@ -341,7 +378,7 @@ def inspiral(
                 template_ids=sorted_bank.template_ids,
                 bankids_map=sorted_bank.bankids_map,
                 end_time_delta=sorted_bank.end_time_delta,
-                kafka=data_source == "devshm",
+                kafka=data_source_info.data_source == "devshm",
                 device=torch_device,
                 event_config=event_config,
                 coincidence_threshold=coincidence_threshold,
@@ -383,7 +420,7 @@ def inspiral(
                         "Null_" + ifo + ":sink:" + ifo: spectrum_out_links[ifo],
                     },
                 )
-        elif data_source == "devshm":
+        elif data_source_info.data_source == "devshm":
             pipeline.insert(
                 KafkaSink(
                     name="KafkaSnk",
@@ -522,49 +559,35 @@ def inspiral(
 
 def main():
     # parse arguments
-    parser = parse_command_line_datasource()
-    parser = parse_command_line_condition(parser)
-    parser = parse_command_line(parser)
-    options = parser.parse_args()
+    options = parse_command_line()
+
+    data_source_info = DataSourceInfo.from_options(options)
+    condition_info = ConditionInfo.from_options(options)
 
     inspiral(
-        input_sample_rate=options.input_sample_rate,
-        data_source=options.data_source,
-        impulse_bank=options.impulse_bank,
-        impulse_bankno=options.impulse_bankno,
-        frame_cache=options.frame_cache,
-        impulse_ifo=options.impulse_ifo,
-        impulse_position=options.impulse_position,
-        gps_start_time=options.gps_start_time,
-        gps_end_time=options.gps_end_time,
-        frame_segments_file=options.frame_segments_file,
-        frame_segments_name=options.frame_segments_name,
-        noiseless_inj_frame_cache=options.noiseless_inj_frame_cache,
-        noiseless_inj_channel_name=options.noiseless_inj_channel_name,
-        channel_name=options.channel_name,
-        shared_memory_dir=options.shared_memory_dir,
-        reference_psd=options.reference_psd,
-        torch_dtype=options.torch_dtype,
+        data_source_info=data_source_info,
+        condition_info=condition_info,
         svd_bank=options.svd_bank,
-        nbank_pretend=options.nbank_pretend,
-        nslice=options.nslice,
-        torch_device=options.torch_device,
         trigger_finding_duration=options.trigger_finding_duration,
+        coincidence_threshold=options.coincidence_threshold,
+        event_config=options.event_config,
+        trigger_output=options.trigger_output,
+        ranking_stat_output=options.ranking_stat_output,
+        torch_dtype=options.torch_dtype,
+        torch_device=options.torch_device,
+        injections=options.injections,
+        injection_file=options.injection_file,
+        reconstruct_inj_segments=options.reconstruct_inj_segments,
+        analysis_tag=options.analysis_tag,
+        output_kafka_server=options.output_kafka_server,
         fake_sink=options.fake_sink,
         verbose=options.verbose,
-        analysis_tag=options.analysis_tag,
-        trigger_output=options.trigger_output,
-        event_config=options.event_config,
-        coincidence_threshold=options.coincidence_threshold,
-        ranking_stat_output=options.ranking_stat_output,
-        output_kafka_server=options.output_kafka_server,
         graph_name=options.graph_name,
-        state_channel_name=options.state_channel_name,
-        state_vector_on_bits=options.state_vector_on_bits,
-        wait_time=options.wait_time,
-        psd_fft_length=options.psd_fft_length,
-        whitening_method=options.whitening_method,
-        ht_gate_threshold=options.ht_gate_threshold,
+        impulse_bank=options.impulse_bank,
+        impulse_bankno=options.impulse_bankno,
+        impulse_ifo=options.impulse_ifo,
+        nbank_pretend=options.nbank_pretend,
+        nslice=options.nslice,
     )
 
 
