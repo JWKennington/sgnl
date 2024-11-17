@@ -18,6 +18,8 @@ class StillSuitSink(SinkElement):
     subbankids: Sequence[Any] = None
     itacacac_pad_name: str = None
     segments_pad_map: dict[str, str] = None
+    process_params: dict = None
+    program: str = "sgnl-inspiral"
 
     def __post_init__(self):
         super().__post_init__()
@@ -33,11 +35,12 @@ class StillSuitSink(SinkElement):
         self.tables = ["trigger", "event"]
         self.event_dict = {t: [] for t in self.tables}
 
-        # insert filter
         with open(self.config_name) as f:
             self.config = yaml.safe_load(f)
 
-        # filter table
+        #
+        # Filter
+        #
         filters = []
         for i, subbank in enumerate(self.template_sngls):
             for template_id, sngl in subbank.items():
@@ -58,6 +61,34 @@ class StillSuitSink(SinkElement):
                 filter_row["spin2z"] = sngl.spin2z
                 filters.append(filter_row)
         self.out.insert_static({"filter": filters})
+
+        #
+        # Process params
+        #
+        params = []
+        if self.process_params is not None:
+            for name, values in self.process_params.items():
+                name = "--%s" % name.replace("_", "-")
+                if values is None:
+                    continue
+                elif values is True or values is False:
+                    # boolen options have no value recorded
+                    values = None
+                elif isinstance(values, list):
+                    for v in values:
+                        param_row = self.init_config_row(self.config["process_params"])
+                        param_row["param"] = name
+                        param_row["program"] = self.program
+                        param_row["value"] = str(v)
+                        params.append(param_row)
+                    continue
+
+                param_row = self.init_config_row(self.config["process_params"])
+                param_row["param"] = name
+                param_row["program"] = self.program
+                param_row["value"] = str(values)
+                params.append(param_row)
+        self.out.insert_static({"process_params": params})
 
         #
         # Segments
