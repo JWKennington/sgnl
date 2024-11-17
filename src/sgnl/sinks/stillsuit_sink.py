@@ -79,7 +79,7 @@ class StillSuitSink(SinkElement):
         if frame.EOS:
             self.mark_eos(pad)
 
-        pad_name = pad.name.split(":")[-1]
+        pad_name = self.rsnks[pad]
         if pad_name == self.itacacac_pad_name:
             self.event_dict["trigger"] = frame.events["trigger"].data
             self.event_dict["event"] = frame.events["event"].data
@@ -92,13 +92,11 @@ class StillSuitSink(SinkElement):
 
     def internal(self, pad):
         # check if there are empty buffers
-        for v in self.event_dict.values():
-            if v is None:
-                self.event_dict = {t: [] for t in self.tables}
-                return
-
-        for event, trigger in zip(self.event_dict["event"], self.event_dict["trigger"]):
-            self.out.insert_event({"event": event, "trigger": trigger})
+        if self.event_dict["event"] is not None:
+            for event, trigger in zip(
+                self.event_dict["event"], self.event_dict["trigger"]
+            ):
+                self.out.insert_event({"event": event, "trigger": trigger})
         self.event_dict = {t: [] for t in self.tables}
 
         if self.at_eos:
@@ -114,4 +112,5 @@ class StillSuitSink(SinkElement):
                     out_segments.append(segment_row)
 
             self.out.insert_static({"segment": out_segments})
+            print("Writing out db...")
             self.out.to_file(self.trigger_output)
