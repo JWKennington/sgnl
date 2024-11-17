@@ -11,6 +11,14 @@
 #   - "__": will be filled in by stillsuit, e.g., "__trigger_id", "__trigger_map_id",
 #           "__simulation_id", "__event_id"
 #
+process_params:
+  columns:
+    - {name: "__param_id", type: INTEGER, constraints: PRIMARY KEY}
+    - {name: "param", type: TEXT}
+    - {name: "program", type: TEXT}
+    - {name: "value", type: TEXT}
+  relationships: []
+  static: True
 
 filter:
   columns:

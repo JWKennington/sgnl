@@ -201,6 +201,7 @@ def inspiral(
     impulse_ifo: str = None,
     nbank_pretend: int = None,
     nslice: int = -1,
+    process_params: dict = None,
 ):
     #
     # Sanity check
@@ -475,6 +476,7 @@ def inspiral(
                     subbankids=sorted_bank.subbankids,
                     itacacac_pad_name="trigs",
                     segments_pad_map={"segments_" + ifo: ifo for ifo in ifos},
+                    process_params=process_params,
                 ),
                 link_map={
                     "StillSuitSnk:sink:trigs": "itacacac:src:trigs",
@@ -564,6 +566,8 @@ def main():
     data_source_info = DataSourceInfo.from_options(options)
     condition_info = ConditionInfo.from_options(options)
 
+    process_params = options.__dict__.copy()
+
     inspiral(
         data_source_info=data_source_info,
         condition_info=condition_info,
@@ -588,6 +592,7 @@ def main():
         impulse_ifo=options.impulse_ifo,
         nbank_pretend=options.nbank_pretend,
         nslice=options.nslice,
+        process_params=process_params,
     )
 
 
