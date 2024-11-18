@@ -7,6 +7,8 @@ from argparse import ArgumentParser
 from typing import List
 
 import torch
+from ligo.lw import ligolw, lsctables
+from ligo.lw import utils as ligolw_utils
 from sgn.apps import Pipeline
 from sgn.sinks import NullSink
 from sgnligo.sinks import KafkaSink
@@ -17,6 +19,11 @@ from sgnl import simulation
 from sgnl.sinks import ImpulseSink, StillSuitSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
 from sgnl.transforms import Itacacac, lloid
+
+
+@lsctables.use_in
+class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
+    pass
 
 
 def parse_command_line():
@@ -302,6 +309,22 @@ def inspiral(
     else:
         reconstruction_segment_list = None
 
+    if injection_file is not None:
+        # read in injections
+        xmldoc = ligolw_utils.load_filename(
+            injection_file, verbose=verbose, contenthandler=LIGOLWContentHandler
+        )
+        sim_inspiral_table = lsctables.SimInspiralTable.get_table(xmldoc)
+
+        # trim injection list to analysis segments
+        injection_list = [
+            inj
+            for inj in sim_inspiral_table
+            if inj.time_geocent in data_source_info.seg
+        ]
+    else:
+        injection_list = None
+
     # sort and group the svd banks by sample rate
     sorted_bank = SortedBank(
         banks=banks,
@@ -477,6 +500,8 @@ def inspiral(
                     itacacac_pad_name="trigs",
                     segments_pad_map={"segments_" + ifo: ifo for ifo in ifos},
                     process_params=process_params,
+                    program="sgnl-inspiral",
+                    injection_list=injection_list,
                 ),
                 link_map={
                     "StillSuitSnk:sink:trigs": "itacacac:src:trigs",

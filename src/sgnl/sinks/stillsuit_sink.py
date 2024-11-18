@@ -19,7 +19,9 @@ class StillSuitSink(SinkElement):
     itacacac_pad_name: str = None
     segments_pad_map: dict[str, str] = None
     process_params: dict = None
-    program: str = "sgnl-inspiral"
+    program: str = ""
+    injection_list: list = None
+    verbose: bool = False
 
     def __post_init__(self):
         super().__post_init__()
@@ -97,6 +99,38 @@ class StillSuitSink(SinkElement):
         self.segments = segments.segmentlistdict(
             {ifo: segments.segmentlist() for ifo in ifos}
         )
+
+        #
+        # Simulation
+        #
+        if self.injection_list is not None:
+            sims = []
+            for inj in self.injection_list:
+                sim_row = self.init_config_row(self.config["simulation"])
+                sim_row["_simulation_id"] = inj.simulation_id
+                sim_row["coa_phase"] = inj.coa_phase
+                sim_row["distance"] = inj.distance
+                sim_row["f_final"] = inj.f_final
+                sim_row["f_lower"] = inj.f_lower
+                sim_row["geocent_end_time"] = (
+                    inj.geocent_end_time * 1_000_000_000 + inj.geocent_end_time_ns
+                )
+                sim_row["inclination"] = inj.inclination
+                sim_row["polarization"] = inj.polarization
+                sim_row["mass1"] = inj.mass1
+                sim_row["mass2"] = inj.mass2
+                sim_row["snr_H1"] = inj.alpha4
+                sim_row["snr_L1"] = inj.alpha5
+                sim_row["snr_V1"] = inj.alpha6
+                sim_row["spin1x"] = inj.spin1x
+                sim_row["spin1y"] = inj.spin1y
+                sim_row["spin1z"] = inj.spin1z
+                sim_row["spin2x"] = inj.spin2x
+                sim_row["spin2y"] = inj.spin2y
+                sim_row["spin2z"] = inj.spin2z
+                sim_row["waveform"] = inj.waveform
+                sims.append(sim_row)
+            self.out.insert_static({"simulation": sims})
 
     def init_config_row(self, table, extra=None):
         out = {
