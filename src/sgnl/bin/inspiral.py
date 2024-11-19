@@ -492,6 +492,7 @@ def inspiral(
                     name="StillSuitSnk",
                     sink_pad_names=("trigs",)
                     + tuple(["segments_" + ifo for ifo in ifos]),
+                    ifos=ifos,
                     config_name=event_config,
                     trigger_output=trigger_output,
                     template_ids=sorted_bank.template_ids.numpy(),
@@ -502,6 +503,7 @@ def inspiral(
                     process_params=process_params,
                     program="sgnl-inspiral",
                     injection_list=injection_list,
+                    is_online=data_source_info == "devshm",
                 ),
                 link_map={
                     "StillSuitSnk:sink:trigs": "itacacac:src:trigs",

@@ -1,4 +1,5 @@
 import os
+import socket
 from dataclasses import dataclass
 from typing import Any, Sequence
 
@@ -6,11 +7,13 @@ import stillsuit
 import yaml
 from ligo import segments
 from sgn.sinks import SinkElement
+from sgnligo.base import now
 from sgnts.base import Offset
 
 
 @dataclass
 class StillSuitSink(SinkElement):
+    ifos: list = None
     config_name: str = None
     trigger_output: str = None
     template_ids: Sequence[Any] = None
@@ -21,6 +24,8 @@ class StillSuitSink(SinkElement):
     process_params: dict = None
     program: str = ""
     injection_list: list = None
+    is_online: bool = False
+    jobid: int = 0
     verbose: bool = False
 
     def __post_init__(self):
@@ -41,28 +46,16 @@ class StillSuitSink(SinkElement):
             self.config = yaml.safe_load(f)
 
         #
-        # Filter
+        # Process
         #
-        filters = []
-        for i, subbank in enumerate(self.template_sngls):
-            for template_id, sngl in subbank.items():
-                filter_row = self.init_config_row(self.config["filter"])
-                filter_row["_filter_id"] = template_id
-                filter_row["bank_id"] = int(self.subbankids[i].split("_")[0])
-                filter_row["subbank_id"] = int(self.subbankids[i].split("_")[1])
-                filter_row["end_time_delta"] = (
-                    sngl.end_time * 1_000_000_000 + sngl.end_time_ns
-                )
-                filter_row["mass1"] = sngl.mass1
-                filter_row["mass2"] = sngl.mass2
-                filter_row["spin1x"] = sngl.spin1x
-                filter_row["spin1y"] = sngl.spin1y
-                filter_row["spin1z"] = sngl.spin1z
-                filter_row["spin2x"] = sngl.spin2x
-                filter_row["spin2y"] = sngl.spin2y
-                filter_row["spin2z"] = sngl.spin2z
-                filters.append(filter_row)
-        self.out.insert_static({"filter": filters})
+        self.process_row = self.init_config_row(self.config["process"])
+        self.process_row["ifos"] = ",".join(self.ifos)
+        self.process_row["is_online"] = int(self.is_online)
+        self.process_row["node"] = socket.gethostname()
+        self.process_row["program"] = self.program
+        self.process_row["start_time"] = int(now())
+        self.process_row["unix_procid"] = os.getpid()
+        self.process_row["username"] = self.get_username()
 
         #
         # Process params
@@ -91,6 +84,30 @@ class StillSuitSink(SinkElement):
                 param_row["value"] = str(values)
                 params.append(param_row)
         self.out.insert_static({"process_params": params})
+
+        #
+        # Filter
+        #
+        filters = []
+        for i, subbank in enumerate(self.template_sngls):
+            for template_id, sngl in subbank.items():
+                filter_row = self.init_config_row(self.config["filter"])
+                filter_row["_filter_id"] = template_id
+                filter_row["bank_id"] = int(self.subbankids[i].split("_")[0])
+                filter_row["subbank_id"] = int(self.subbankids[i].split("_")[1])
+                filter_row["end_time_delta"] = (
+                    sngl.end_time * 1_000_000_000 + sngl.end_time_ns
+                )
+                filter_row["mass1"] = sngl.mass1
+                filter_row["mass2"] = sngl.mass2
+                filter_row["spin1x"] = sngl.spin1x
+                filter_row["spin1y"] = sngl.spin1y
+                filter_row["spin1z"] = sngl.spin1z
+                filter_row["spin2x"] = sngl.spin2x
+                filter_row["spin2y"] = sngl.spin2y
+                filter_row["spin2z"] = sngl.spin2z
+                filters.append(filter_row)
+        self.out.insert_static({"filter": filters})
 
         #
         # Segments
@@ -132,6 +149,22 @@ class StillSuitSink(SinkElement):
                 sims.append(sim_row)
             self.out.insert_static({"simulation": sims})
 
+    def get_username(self):
+        try:
+            return os.environ["LOGNAME"]
+        except KeyError:
+            pass
+        try:
+            return os.environ["USERNAME"]
+        except KeyError:
+            pass
+        try:
+            import pwd
+
+            return pwd.getpwuid(os.getuid())[0]
+        except (ImportError, KeyError):
+            raise KeyError
+
     def init_config_row(self, table, extra=None):
         out = {
             c["name"]: None for c in table["columns"] if not c["name"].startswith("__")
@@ -161,10 +194,22 @@ class StillSuitSink(SinkElement):
             for event, trigger in zip(
                 self.event_dict["event"], self.event_dict["trigger"]
             ):
+                # Put in chisq weighted snr
+                network_chisq_weighted_snr = 0
+                for trig in trigger:
+                    if trig is not None:
+                        chisq_weighted_snr = trig["snr"] / (
+                            (1 + max(1.0, trig["chisq"]) ** 3) / 2.0
+                        ) ** (1.0 / 5.0)
+                        trig["chisq_weighted_snr"] = chisq_weighted_snr
+                        network_chisq_weighted_snr += chisq_weighted_snr
+                event["network_chisq_weighted_snr"] = network_chisq_weighted_snr
                 self.out.insert_event({"event": event, "trigger": trigger})
         self.event_dict = {t: [] for t in self.tables}
 
         if self.at_eos:
+
+            # Write out segments
             self.segments.coalesce()
             out_segments = []
             for ifo, seg in self.segments.items():
@@ -175,7 +220,12 @@ class StillSuitSink(SinkElement):
                     segment_row["ifo"] = ifo
                     segment_row["name"] = "afterhtgate"
                     out_segments.append(segment_row)
-
             self.out.insert_static({"segment": out_segments})
+
+            # Add end time in process table
+            self.process_row["end_time"] = int(now())
+            self.out.insert_static({"process": [self.process_row]})
+
+            # Write in-memory database to file
             print("Writing out db...")
             self.out.to_file(self.trigger_output)
