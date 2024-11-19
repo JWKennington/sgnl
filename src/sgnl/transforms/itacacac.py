@@ -576,41 +576,50 @@ class Itacacac(TSTransform):
             # Populate background snr, chisq, time for each bank, ifo
             # FIXME: is stacking then copying to cpu faster?
             # FIXME: do we only need snr chisq for singles?
-            # background = {bankid: {ifo: None} for bankid, ids in
-            #   self.bankids_map.items() for ifo in ifos}
-            # # loop over banks
-            # for bankid, ids in self.bankids_map.items():
-            #     # loop over ifos
-            #     for ifo in ifos:
-            #         times = []
-            #         snrs = []
-            #         chisqs = []
-            #         template_ids = []
+            background = {
+                bankid: {ifo: None}
+                for bankid, ids in self.bankids_map.items()
+                for ifo in ifos
+            }
+            # loop over banks
+            for bankid, ids in self.bankids_map.items():
+                # loop over ifos
+                for ifo in ifos:
+                    times = []
+                    snrs = []
+                    chisqs = []
+                    template_ids = []
 
-            #         if ifo in single_masks:
-            #             if True in single_masks[ifo]:
-            #                 smask0 = single_masks[ifo].to("cpu").numpy()
-            #                 # loop over subbank ids in this bank
-            #                 for i in ids:
-            #                     smask = smask0[i]
-            #                     time = triggers[ifo][0][i][smask]
-            #                     time = (
-            #                         np.round(
-            #                             (Offset.fromsamples(time, self.rate)
-            #                               + self.offset)
-            #                             / Offset.MAX_RATE
-            #                             * 1_000_000_000
-            #                         ).astype(int)
-            #                         + Offset.offset_ref_t0
-            #                         + self.end_times[i]
-            #                     )
-            #                     times.append(time)
-            #                     snrs.append(triggers[ifo][1][i][smask])
-            #                     chisqs.append(triggers[ifo][2][i][smask])
-            #                     template_ids.append(self.template_ids_np[i][smask])
+                    if ifo in single_masks:
+                        if True in single_masks[ifo]:
+                            smask0 = single_masks[ifo].to("cpu").numpy()
+                            # loop over subbank ids in this bank
+                            for i in ids:
+                                smask = smask0[i]
+                                time = triggers[ifo][0][i][smask]
+                                time = (
+                                    np.round(
+                                        (
+                                            Offset.fromsamples(time, self.rate)
+                                            + self.offset
+                                        )
+                                        / Offset.MAX_RATE
+                                        * 1_000_000_000
+                                    ).astype(int)
+                                    + Offset.offset_ref_t0
+                                    + self.end_time_delta[i]
+                                )
+                                times.append(time)
+                                snrs.append(triggers[ifo][1][i][smask])
+                                chisqs.append(triggers[ifo][2][i][smask])
+                                template_ids.append(self.template_ids_np[i][smask])
 
-            #         background[bankid][ifo] = {"time": times, "snrs": snrs, "chisqs":
-            #             chisqs, "template_ids": template_ids}
+                    background[bankid][ifo] = {
+                        "time": times,
+                        "snrs": snrs,
+                        "chisqs": chisqs,
+                        "template_ids": template_ids,
+                    }
 
             #
             # Construct event buffers
@@ -624,7 +633,7 @@ class Itacacac(TSTransform):
                 "time": None,  # FIXME: how is time defined?
                 "sngl": clustered_coinc[3],
             }
-            # metadata["background"] = background
+            metadata["background"] = background
             if self.kafka:
                 metadata["kafka"] = maxsnrs
                 metadata["kafka"]["latency_history"] = maxlatency

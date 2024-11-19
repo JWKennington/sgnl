@@ -16,7 +16,7 @@ from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, HorizonDistance, condition  # Latency,
 
 from sgnl import simulation
-from sgnl.sinks import ImpulseSink, StillSuitSink
+from sgnl.sinks import ImpulseSink, StillSuitSink, StrikeSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
 from sgnl.transforms import Itacacac, lloid
 
@@ -216,6 +216,10 @@ def inspiral(
 
     if trigger_output is not None and os.path.exists(trigger_output):
         raise ValueError("output db exists")
+    if ranking_stat_output is not None:
+        for r in ranking_stat_output:
+            if os.path.exists(r):
+                raise ValueError("ranking stat output exists")
 
     if data_source_info.data_source == "impulse":
         if not impulse_bank:
@@ -509,60 +513,64 @@ def inspiral(
                     "StillSuitSnk:sink:trigs": "itacacac:src:trigs",
                 },
             )
-            # FIXME: horizons should connect to strike sink once strike sink is ready
-            for ifo in ifos:
-                pipeline.insert(
-                    HorizonDistance(
-                        name=ifo + "_Horizon",
-                        source_pad_names=(ifo,),
-                        sink_pad_names=(ifo,),
-                        m1=1.4,
-                        m2=1.4,
-                        fmin=10.0,
-                        fmax=1000.0,
-                        delta_f=1 / 16.0,
-                    ),
-                    NullSink(
-                        name="Null_" + ifo,
-                        sink_pad_names=(ifo,),
-                    ),
-                    link_map={
-                        ifo + "_Horizon:sink:" + ifo: spectrum_out_links[ifo],
-                        "Null_" + ifo + ":sink:" + ifo: ifo + "_Horizon:src:" + ifo,
-                    },
-                )
             for ifo in ifos:
                 pipeline.insert(
                     link_map={
                         "StillSuitSnk:sink:segments_" + ifo: source_out_links[ifo],
                     }
                 )
+            if ranking_stat_output is not None:
+                pipeline.insert(
+                    StrikeSink(
+                        name="StrikeSnk",
+                        sink_pad_names=("trigs",)
+                        + tuple(["horizon_" + ifo for ifo in ifos]),
+                        ifos=ifos,
+                        all_template_ids=sorted_bank.template_ids.numpy(),
+                        bankids_map=sorted_bank.bankids_map,
+                        ranking_stat_output=ranking_stat_output,
+                    ),
+                    link_map={
+                        "StrikeSnk:sink:trigs": "itacacac:src:trigs",
+                    },
+                )
+                for ifo in ifos:
+                    pipeline.insert(
+                        HorizonDistance(
+                            name=ifo + "_Horizon",
+                            source_pad_names=(ifo,),
+                            sink_pad_names=(ifo,),
+                            m1=1.4,
+                            m2=1.4,
+                            fmin=10.0,
+                            fmax=1000.0,
+                            delta_f=1 / 16.0,
+                            ifo=ifo,
+                        ),
+                        link_map={
+                            ifo + "_Horizon:sink:" + ifo: spectrum_out_links[ifo],
+                        },
+                    )
+                    pipeline.insert(
+                        link_map={
+                            "StrikeSnk:sink:horizon_"
+                            + ifo: ifo
+                            + "_Horizon:src:"
+                            + ifo,
+                        }
+                    )
+            else:
+                pipeline.insert(
+                    NullSink(
+                        name="NullSink",
+                        sink_pad_names=ifos,
+                    ),
+                    link_map={
+                        "NullSink:sink:" + ifo: spectrum_out_links[ifo] for ifo in ifos
+                    },
+                )
         else:
             raise ValueError("Unknown sink option")
-            # pipeline.insert(
-            #    StrikeSink(
-            #        name="StrikeSnk",
-            #        sink_pad_names=("trigs",)
-            #        + tuple(["horizon_" + ifo for ifo in ifos]),
-            #        ifos=ifos,
-            #        verbose=verbose,
-            #        all_template_ids=sorted_bank.template_ids.numpy(),
-            #        bankids_map=sorted_bank.bankids_map,
-            #        subbankids=sorted_bank.subbankids,
-            #        template_sngls=sorted_bank.sngls,
-            #        trigger_output=trigger_output,
-            #        ranking_stat_output=ranking_stat_output,
-            #    ),
-            #    link_map={
-            #        "StrikeSnk:sink:trigs": "itacacac:src:trigs",
-            #    },
-            # )
-            # for ifo in ifos:
-            #    pipeline.insert(
-            #        link_map={
-            #            "StrikeSnk:sink:horizon_" + ifo: horizon_out_links[ifo],
-            #        }
-            #    )
 
     # Plot pipeline
     if graph_name:
