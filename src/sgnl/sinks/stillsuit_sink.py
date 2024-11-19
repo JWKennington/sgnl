@@ -66,9 +66,6 @@ class StillSuitSink(SinkElement):
                 name = "--%s" % name.replace("_", "-")
                 if values is None:
                     continue
-                elif values is True or values is False:
-                    # boolen options have no value recorded
-                    values = None
                 elif isinstance(values, list):
                     for v in values:
                         param_row = self.init_config_row(self.config["process_params"])
