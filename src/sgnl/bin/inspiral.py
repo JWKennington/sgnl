@@ -408,7 +408,6 @@ def inspiral(
                 end_time_delta=sorted_bank.end_time_delta,
                 kafka=data_source_info.data_source == "devshm",
                 device=torch_device,
-                event_config=event_config,
                 coincidence_threshold=coincidence_threshold,
             ),
         )

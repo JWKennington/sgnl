@@ -8,10 +8,16 @@ from typing import Any, Dict
 import lal
 import numpy as np
 import torch
-import yaml
-from sgnevent.base import EventBuffer, EventFrame, dtype_from_config
 from sgnligo.base import now
-from sgnts.base import AdapterConfig, Array, Offset, TorchBackend, TSTransform
+from sgnts.base import (
+    AdapterConfig,
+    Array,
+    EventBuffer,
+    EventFrame,
+    Offset,
+    TorchBackend,
+    TSTransform,
+)
 
 
 def index_select(tensor, dim, index):
@@ -62,8 +68,6 @@ class Itacacac(TSTransform):
             str, the device to run the trigger finding function on
         kafka:
             bool, default False, whether to output to kafka server
-        event_config:
-            str, the config to output event buffers
         coincidence_threshold:
             float, the time difference threshold to identify coincidence triggers, in
             addition to the light-travel time, in seconds.
@@ -77,7 +81,6 @@ class Itacacac(TSTransform):
     end_time_delta: Sequence[Any] = None
     device: str = "cpu"
     kafka: bool = False
-    event_config: str = None
     coincidence_threshold: float = 0
 
     def __post_init__(self):
@@ -132,15 +135,7 @@ class Itacacac(TSTransform):
             self.autocorrelation_length, device=self.device
         ).expand(self.nsubbank, self.ntempmax, -1)
 
-        if self.event_config is not None:
-            with open(self.event_config) as f:
-                self.config = yaml.safe_load(f)
-
-            self.event_dtypes = {
-                n: dtype_from_config(self.config[n]) for n in ["trigger", "event"]
-            }
-        else:
-            self.event_dtypes = {n: None for n in ["trigger", "event"]}
+        self.event_dtypes = ["trigger", "event"]
 
         super().__post_init__()
 
