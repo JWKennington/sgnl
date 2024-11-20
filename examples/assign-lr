@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+import stillsuit
+import argparse
+import os
+
+def parse_command_line():
+    parser = argparse.ArgumentParser(
+        prog='assign-lr',
+        description='This assigns a fake LR to show how this might work for real',
+        epilog='I really hope you enjoy this program.')
+    parser.add_argument('-s', '--config-schema', help="config schema yaml file")
+    parser.add_argument('--input-db', help="the input database.")
+    parser.add_argument('--output-db', help="the database to insert into. should not exist")
+    parser.add_argument('-v', '--verbose', help="be verbose", action="store_true")
+    args = parser.parse_args()
+
+    if os.path.exists(args.output_db):
+        raise ValueError("output db exists")
+
+    return args
+
+def compute_lr(e):
+    # Replace with real LR calculation
+    return e['event']['network_snr']**2 / 2
+
+def main():
+    args = parse_command_line()
+
+    indb = stillsuit.StillSuit(config=args.config_schema, dbname=args.input_db)
+    lrs = [(e['event']['__event_id'], compute_lr(e)) for e in indb.get_events()]
+    for (eid, lr) in lrs:
+        indb.default_cursor.execute("UPDATE event SET likelihood=? WHERE __event_id==?;", (lr, eid))
+    indb.flush()
+    indb.to_file(args.output_db)
+
+if __name__ == "__main__":
+    main()

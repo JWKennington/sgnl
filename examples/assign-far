@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+import math
+import stillsuit
+import argparse
+import os
+
+def parse_command_line():
+    parser = argparse.ArgumentParser(
+        prog='assign-lr',
+        description='This assigns a fake FAR to show how this might work for real',
+        epilog='I really hope you enjoy this program.')
+    parser.add_argument('-s', '--config-schema', help="config schema yaml file")
+    parser.add_argument('--input-db', help="the input database.")
+    parser.add_argument('--output-db', help="the database to insert into. should not exist")
+    parser.add_argument('-v', '--verbose', help="be verbose", action="store_true")
+    args = parser.parse_args()
+
+    if os.path.exists(args.output_db):
+        raise ValueError("output db exists")
+
+    return args
+
+def compute_far(e):
+    # Replace with real FAR calculation
+    return math.exp(-e['event']['likelihood'])*10000
+
+def main():
+    args = parse_command_line()
+
+    indb = stillsuit.StillSuit(config=args.config_schema, dbname=args.input_db)
+    fars = [(e['event']['__event_id'], compute_far(e)) for e in indb.get_events()]
+    for (eid, far) in fars:
+        indb.default_cursor.execute("UPDATE event SET far=? WHERE __event_id==?;", (far, eid))
+    indb.flush()
+    indb.to_file(args.output_db)
+
+if __name__ == "__main__":
+    main()
