@@ -7,7 +7,8 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import correlate
-from sgnts.base import Audioadapter, Offset, TorchBackend, TSSink
+from sgnts.base import Audioadapter, Offset, TSSink
+from sgnts.base.array_ops import TorchBackend
 
 
 @dataclass

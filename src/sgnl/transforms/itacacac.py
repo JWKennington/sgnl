@@ -15,9 +15,9 @@ from sgnts.base import (
     EventBuffer,
     EventFrame,
     Offset,
-    TorchBackend,
     TSTransform,
 )
+from sgnts.base.array_ops import TorchBackend
 
 
 def index_select(tensor, dim, index):
