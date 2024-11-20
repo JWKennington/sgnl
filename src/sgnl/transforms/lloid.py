@@ -1,4 +1,5 @@
-from sgnts.base import AdapterConfig, Offset, TorchBackend
+from sgnts.base import AdapterConfig, Offset
+from sgnts.base.array_ops import TorchBackend
 from sgnts.transforms import Adder, Converter, Matmul, Resampler, SumIndex
 
 from sgnl.transforms.lloid_correlate import LLOIDCorrelate
