@@ -1,0 +1,27 @@
+# The only required options are
+#condor:
+#  accounting-group: ligo.dev.o4.cbc.uber.gstlaloffline
+#  container: /path/to/container
+
+### Example including other features ###
+#section:
+#  subsection:
+#    key: value
+#
+#list:
+#  - entry1
+#  - entry2
+#
+#condor:
+#  accounting-group: ligo.dev.o4.cbc.uber.gstlaloffline
+#  accounting-group-user: albert.einstein
+#  container: /path/to/container
+#  transfer_files: True
+#  environment:
+#    GST_DEBUG: 3
+#    another_var: value
+#  requirements:
+#    - has_avx2=?=true
+#    - TARGET.Machine=!="node1234.cluster.site"
+#  directives:
+#    MY.classad_variable: value

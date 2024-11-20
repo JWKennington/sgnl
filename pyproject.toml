@@ -13,6 +13,7 @@ dynamic = ["version"]
 dependencies = [
     # External packages
     "pandas",
+    "ezdag",
     # SGN dependencies
     "sgn",
     "sgn-ts",
@@ -39,6 +40,7 @@ Documentation = "https://docs.ligo.org/greg/sgnl"
 Issues = "https://git.ligo.org/greg/sgnl/issues"
 
 [project.scripts]
+sgnl-dagger = "sgnl.bin.dagger:main"
 sgnl-inspiral = "sgnl.bin.inspiral:main"
 sgnl-ll-dq = "sgnl.bin.ll_dq:main"
 sgnl-reference-psd = "sgnl.bin.reference_psd:main"
@@ -82,6 +84,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 sgnl = [
     "py.typed",
+    "dags/default_config.yml",
 ]
 
 [tool.setuptools_scm]
