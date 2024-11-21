@@ -1,6 +1,6 @@
-all : H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz H1L1V1-SGNL_INSPIRAL_INJ-1241738590-3835.sqlite.gz
+all : H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz H1L1V1-SGNL_INSPIRAL_INJ_C2_FAR-1241738590-3835.sqlite.gz
 
-# Data are in /home/yun-jing.huang/phd/sgn/run/offline
+# Data are in /home/yun-jing.huang/phd/sgn/run/offline on CIT
 H1L1V1-SGNL_INSPIRAL-1241738590-3835.sqlite.gz :
 	sgnl-inspiral \
 		--ht-gate-threshold 50.0 \
@@ -26,7 +26,7 @@ H1L1V1-SGNL_INSPIRAL-1241738590-3835.sqlite.gz :
 		--event-config fake_cbc.yaml \
 		--ranking-stat-output H1L1V1-SGNL_INSPIRAL_STATS-1241738590-3835.xml.gz
 
-# Inj data are in /home/yun-jing.huang/phd/sgn/run/offline-injections
+# Inj data are in /home/yun-jing.huang/phd/sgn/run/offline-injections on CIT
 H1L1V1-SGNL_INSPIRAL_INJ-1241738590-3835.sqlite.gz :
 	sgnl-inspiral \
 		--ht-gate-threshold 50.0 \
@@ -66,7 +66,22 @@ H1L1V1-SGNL_INSPIRAL_C1-1241738590-3835.sqlite.gz : H1L1V1-SGNL_INSPIRAL-1241738
 		--verbose \
 		--dbs $<
 
+H1L1V1-SGNL_INSPIRAL_INJ_C1-1241738590-3835.sqlite.gz : H1L1V1-SGNL_INSPIRAL_INJ-1241738590-3835.sqlite.gz
+	stillsuit-merge-reduce \
+		--config-schema fake_cbc.yaml \
+		--clustering-column network_chisq_weighted_snr \
+		--clustering-window 0.1 \
+		--db-to-insert-into $@ \
+		--verbose \
+		--dbs $<
+
 H1L1V1-SGNL_INSPIRAL_C1_LR-1241738590-3835.sqlite.gz: H1L1V1-SGNL_INSPIRAL_C1-1241738590-3835.sqlite.gz
+	./assign-lr \
+		--input-db $< \
+		--config-schema fake_cbc.yaml \
+		--output-db $@
+
+H1L1V1-SGNL_INSPIRAL_INJ_C1_LR-1241738590-3835.sqlite.gz: H1L1V1-SGNL_INSPIRAL_INJ_C1-1241738590-3835.sqlite.gz
 	./assign-lr \
 		--input-db $< \
 		--config-schema fake_cbc.yaml \
@@ -81,7 +96,22 @@ H1L1V1-SGNL_INSPIRAL_C2-1241738590-3835.sqlite.gz : H1L1V1-SGNL_INSPIRAL_C1_LR-1
 		--verbose \
 		--dbs $<
 
+H1L1V1-SGNL_INSPIRAL_INJ_C2-1241738590-3835.sqlite.gz : H1L1V1-SGNL_INSPIRAL_INJ_C1_LR-1241738590-3835.sqlite.gz
+	stillsuit-merge-reduce \
+		--config-schema fake_cbc.yaml \
+		--clustering-column likelihood \
+		--clustering-window 4.0 \
+		--db-to-insert-into $@ \
+		--verbose \
+		--dbs $<
+
 H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz: H1L1V1-SGNL_INSPIRAL_C2-1241738590-3835.sqlite.gz
+	./assign-far \
+		--input-db $< \
+		--config-schema fake_cbc.yaml \
+		--output-db $@
+
+H1L1V1-SGNL_INSPIRAL_INJ_C2_FAR-1241738590-3835.sqlite.gz: H1L1V1-SGNL_INSPIRAL_INJ_C2-1241738590-3835.sqlite.gz
 	./assign-far \
 		--input-db $< \
 		--config-schema fake_cbc.yaml \
@@ -89,4 +119,16 @@ H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz: H1L1V1-SGNL_INSPIRAL_C2-1
 
 
 clean:
-	rm -f H1L1V1-SGNL_INSPIRAL-1241738590-3835.sqlite.gz H1L1V1-SGNL_INSPIRAL_C1-1241738590-3835.sqlite.gz H1L1V1-SGNL_INSPIRAL_C2-1241738590-3835.sqlite.gz H1L1V1-SGNL_INSPIRAL_STATS-1241738590-3835.xml.gz H1L1V1-SGNL_INSPIRAL_C1_LR-1241738590-3835.sqlite.gz H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz
+	rm -f \
+		H1L1V1-SGNL_INSPIRAL-1241738590-3835.sqlite.gz \
+		H1L1V1-SGNL_INSPIRAL_C1-1241738590-3835.sqlite.gz \
+		H1L1V1-SGNL_INSPIRAL_C2-1241738590-3835.sqlite.gz \
+		H1L1V1-SGNL_INSPIRAL_STATS-1241738590-3835.xml.gz \
+		H1L1V1-SGNL_INSPIRAL_C1_LR-1241738590-3835.sqlite.gz \
+		H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz \
+		H1L1V1-SGNL_INSPIRAL_INJ-1241738590-3835.sqlite.gz \
+		H1L1V1-SGNL_INSPIRAL_INJ_C1-1241738590-3835.sqlite.gz \
+		H1L1V1-SGNL_INSPIRAL_INJ_C2-1241738590-3835.sqlite.gz \
+		H1L1V1-SGNL_INSPIRAL_INJ_STATS-1241738590-3835.xml.gz \
+		H1L1V1-SGNL_INSPIRAL_INJ_C1_LR-1241738590-3835.sqlite.gz \
+		H1L1V1-SGNL_INSPIRAL_INJ_C2_FAR-1241738590-3835.sqlite.gz
