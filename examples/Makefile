@@ -1,4 +1,4 @@
-all : H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz
+all : H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz H1L1V1-SGNL_INSPIRAL_INJ-1241738590-3835.sqlite.gz
 
 # Data are in /home/yun-jing.huang/phd/sgn/run/offline
 H1L1V1-SGNL_INSPIRAL-1241738590-3835.sqlite.gz :
