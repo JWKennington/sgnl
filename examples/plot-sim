@@ -1,24 +1,62 @@
 #!/usr/bin/env python3
+import itertools
 import math
 import stillsuit
 import argparse
 import os
+from ligo import segments as ligo_segments
 import matplotlib
 matplotlib.use('agg')
 from matplotlib import pyplot
+from cycler import cycler
 matplotlib.rcParams.update({
 	"font.size": 12.0,
 	"axes.titlesize": 12.0,
 	"axes.labelsize": 12.0,
 	"xtick.labelsize": 12.0,
 	"ytick.labelsize": 12.0,
-	"legend.fontsize": 10.0,
+	"legend.fontsize": 8.0,
 	"figure.dpi": 300,
+        "figure.figsize": (8,4),
 	"savefig.dpi": 300,
 	"path.simplify": True,
-	"font.family": "serif"
+	"font.family": "serif",
+        "axes.prop_cycle": cycler('color', ['r', 'g', 'b', 'c', 'm', 'orange', 'aqua'])
 })
 
+def process_segments(segments):
+    """
+    get the segments in a dictionary by on ifo combination
+    """
+    segments = ligo_segments.segmentlistdict({k: ligo_segments.segmentlist([ligo_segments.segment(*x) for x in segments[k]]) for k in segments})
+    ifos = frozenset(sorted(segments))
+    combos = []
+    level = len(ifos)
+    while level >=1:
+        combos.extend([frozenset(x) for x in itertools.combinations(ifos,level)])
+        level-=1
+    out = {}
+    for combo in combos:
+        out[combo] = segments.intersection(combo) - segments.union(ifos - combo)
+    return ligo_segments.segmentlistdict(out)
+
+def process_missed_found(_missed, _found, _segments):
+    """
+    get missed and found instruments by on ifos
+    FIXME I am sure this is stupidly slow
+    """
+    missed = {c:[] for c in _segments}
+    found = {c:[] for c in _segments}
+    for f in _found:
+        for combo in _segments:
+            if f['simulation']['geocent_end_time'] in _segments[combo]:
+                found[combo].append(f)
+    for m in _missed:
+        for combo in _segments:
+            if m['geocent_end_time'] in _segments[combo]:
+                missed[combo].append(m)
+
+    return missed, found
 
 def parse_command_line():
     parser = argparse.ArgumentParser(
@@ -33,22 +71,35 @@ def parse_command_line():
 
     return args
 
-def compute_far(e):
-    # Replace with real FAR calculation
-    return math.exp(-e['event']['likelihood'])*10000
-
 def main():
     args = parse_command_line()
 
     indb = stillsuit.StillSuit(config=args.config_schema, dbname=args.input_db)
-    missed, found = indb.get_missed_found()
-    pyplot.figure()
-    pyplot.semilogy([m['geocent_end_time']/1e9 for m in missed], [(m['snr_H1']**2 + m['snr_L1']**2 + m['snr_V1']**2)**.5 for m in missed], 'k.', label="missed")
-    pyplot.semilogy([f['simulation']['geocent_end_time']/1e9 for f in found], [(f['simulation']['snr_H1']**2 + f['simulation']['snr_L1']**2 + f['simulation']['snr_V1']**2)**.5 for f in found], 'g.', label="found")
-    pyplot.xlabel('time')
-    pyplot.ylabel('network snr')
-    pyplot.grid()
-    pyplot.legend()
+
+    segmentsdict = process_segments(indb.get_segments(name="afterhtgate"))
+
+    misseddict, founddict = process_missed_found(*indb.get_missed_found(), segmentsdict)
+
+    fig = pyplot.figure()
+    for combo in misseddict:
+        missed = misseddict[combo]
+        found = founddict[combo]
+
+        # Calculate decisive SNR
+        if len(combo) > 1:
+            missed_snr = [sorted([m['snr_%s' % c] for c in combo])[-2] for m in missed]
+            found_snr = [sorted([f['simulation']['snr_%s' % c] for c in combo])[-2] for f in found]
+        else:
+            missed_snr = [m['snr_%s' % combo[0]] for m in missed]
+            found_snr = [f['simulation']['snr_%s' % combo[0]] for f in found]
+
+        pyplot.semilogy([m['geocent_end_time']/1e9 for m in missed], missed_snr, color="black", marker="x", linestyle="None")
+        pyplot.semilogy([f['simulation']['geocent_end_time']/1e9 for f in found], found_snr, marker='o', label=",".join(combo), linestyle="None")
+        pyplot.xlabel('Time')
+        pyplot.ylabel('Decisive snr')
+        pyplot.grid()
+    pyplot.legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+    fig.tight_layout()
     pyplot.savefig(args.output_name)
 
 
