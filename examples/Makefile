@@ -1,4 +1,4 @@
-all : H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz H1L1V1-SGNL_INSPIRAL_INJ_C2_FAR-1241738590-3835.sqlite.gz
+all : H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz missed_found.png
 
 # Data are in /home/yun-jing.huang/phd/sgn/run/offline on CIT
 H1L1V1-SGNL_INSPIRAL-1241738590-3835.sqlite.gz :
@@ -117,6 +117,11 @@ H1L1V1-SGNL_INSPIRAL_INJ_C2_FAR-1241738590-3835.sqlite.gz: H1L1V1-SGNL_INSPIRAL_
 		--config-schema fake_cbc.yaml \
 		--output-db $@
 
+missed_found.png: H1L1V1-SGNL_INSPIRAL_INJ_C2_FAR-1241738590-3835.sqlite.gz
+	./plot-sim \
+		--input-db $< \
+		--output-name $@ \
+		--config-schema fake_cbc.yaml
 
 clean:
 	rm -f \
