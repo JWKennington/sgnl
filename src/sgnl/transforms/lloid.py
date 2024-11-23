@@ -191,7 +191,9 @@ def lloid(
                             slice(rate_group["ntempmax"]),
                         )
 
-        if nslice != 1:
+        if nslice == 1 or len(unique_rates) == 1:
+            output_source_links[ifo] = mmname + ":src:" + ifo
+        else:
             # final adder
             pipeline.insert(
                 Adder(
@@ -210,8 +212,6 @@ def lloid(
                 ),
             )
             output_source_links[ifo] = f"{ifo}_add_{maxrate}:src:" + ifo
-        else:
-            output_source_links[ifo] = mmname + ":src:" + ifo
 
         connected = []
         # links for upsampler and adder
