@@ -445,7 +445,7 @@ class Itacacac(TSTransform):
 
     def cluster_coincs(self, ifo_combs, all_network_snr, template_ids, triggers, snrs):
         clustered_snr, max_locations = torch.max(all_network_snr, dim=-1)
-        clustered_ifo_combs = ifo_combs.gather(1, max_locations.unsqueeze(1)).squeeze()
+        clustered_ifo_combs = ifo_combs.gather(1, max_locations.unsqueeze(1)).squeeze(-1)
         max_locations = max_locations.to("cpu").numpy()
         clustered_template_ids = template_ids[range(self.nsubbank), max_locations]
         sngls = {}
