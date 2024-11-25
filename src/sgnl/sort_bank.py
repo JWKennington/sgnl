@@ -16,7 +16,7 @@ from .svd_bank import parse_bank_files
 
 
 def group_and_read_banks(
-    svd_bank, source_ifos=None, nbank_pretend=0, nslice=-1, verbose=False
+    svd_bank, source_ifos=None, nsubbank_pretend=0, nslice=-1, verbose=False
 ):
     """
     Read a list of svd banks file names into bank objects,
@@ -46,12 +46,12 @@ def group_and_read_banks(
         )
 
     banks = {ifo: [] for ifo in ifos}
-    if nbank_pretend:
+    if nsubbank_pretend:
         # Pretend we are filtering multiple banks by copying the first bank
         #   many times
         svd_bank_url_dict = svd_banks[0]
         banks_per_svd = parse_bank_files(svd_bank_url_dict, verbose=verbose)
-        for _ in range(nbank_pretend):
+        for _ in range(nsubbank_pretend):
             for ifo in ifos:
                 banks[ifo].extend([banks_per_svd[ifo][0]])
     else:
@@ -86,7 +86,7 @@ class SortedBank:
         device="cpu",
         dtype=torch.float16,
         memory_format=torch.contiguous_format,
-        nbank_pretend=0,
+        nsubbank_pretend=0,
         nslice=-1,
         verbose=False,
     ):
@@ -97,7 +97,7 @@ class SortedBank:
 
         temp = torch.empty(1, dtype=dtype)
         self.cdtype = torch.complex(temp, temp).dtype
-        self.nbank_pretend = nbank_pretend
+        self.nsubbank_pretend = nsubbank_pretend
 
         self.bank_metadata, self.reordered_bank = self.prepare_metadata(banks)
         # Prepare tensors for LLOID methods
@@ -120,7 +120,7 @@ class SortedBank:
         """
         Determine rates and template properties across subbanks
 
-        bank_metadata.keys() = ['ifos', 'nifo', 'nbank', 'maxrate', 'unique_rates',
+        bank_metadata.keys() = ['ifos', 'nifo', 'nsubbank', 'maxrate', 'unique_rates',
         'nrates', 'nfilter_samples', 'ntempmax', 'delay_per_rate', 'sorted_rates']
 
         Arguments:
@@ -136,8 +136,8 @@ class SortedBank:
         # assume all ifos have same banks
         bank0 = bank[ifos[0]]
 
-        nbank = len(bank0)  # number of subbanks in each ifo
-        bank_metadata["nbank"] = nbank
+        nsubbank = len(bank0)  # number of subbanks in each ifo
+        bank_metadata["nsubbank"] = nsubbank
 
         # determine some properties across banks
         # determine rates
@@ -244,7 +244,7 @@ class SortedBank:
 
         ifos = bank_metadata["ifos"]
         bank0 = bank[ifos[0]]
-        nbank = len(bank0)  # number of subbanks in each ifo
+        nsubbank = len(bank0)  # number of subbanks in each ifo
         unique_rates = bank_metadata["unique_rates"]
         maxrate = bank_metadata["maxrate"]
 
@@ -253,9 +253,9 @@ class SortedBank:
         #
         sorted_unique_rates0 = []
         unique_rates_by_bank = []
-        for j in range(nbank):
+        for j in range(nsubbank):
             bk = bank0[j]
-            if self.nbank_pretend:
+            if self.nsubbank_pretend:
                 bankid = bk.bank_id + "_" + str(j)
             else:
                 bankid = bk.bank_id
@@ -288,21 +288,21 @@ class SortedBank:
                 if list(urb) == s2 and s not in sorted_unique_rates:
                     sorted_unique_rates.append(s)
 
-        # if self.nbank_pretend:
-        #    sorted_unique_rates *= self.nbank_pretend
+        # if self.nsubbank_pretend:
+        #    sorted_unique_rates *= self.nsubbank_pretend
 
         if self.verbose:
             print("sorted_unique_rates", flush=True, file=sys.stderr)
             for a in sorted_unique_rates:
                 print(a, flush=True, file=sys.stderr)
 
-        # check if nbank_pretend is true
+        # check if nsubbank_pretend is true
         # bankids = [a["bankid"] for a in sorted_unique_rates]
-        # nbank_pretend = False
+        # nsubbank_pretend = False
         # if len(bankids) > 1 and len(set(bankids)) == 1:
         #    if self.verbose:
-        #        print("nbank_pretend", flush=True, file=sys.stderr)
-        #    nbank_pretend = True
+        #        print("nsubbank_pretend", flush=True, file=sys.stderr)
+        #    nsubbank_pretend = True
 
         # reorder bankid
         bankid_order = {}
@@ -312,17 +312,17 @@ class SortedBank:
 
         reorder = {}
         # reordered bank
-        if self.nbank_pretend == 0:
+        if self.nsubbank_pretend == 0:
             for ifo in ifos:
                 reorder[ifo] = {}
-                for j in range(nbank):
+                for j in range(nsubbank):
                     bk = bank[ifo][j]
                     bankid = bk.bank_id
                     order = bankid_order[bankid]
                     reorder[ifo][order] = bk
         else:
             if self.verbose:
-                print("nbank_pretend", flush=True, file=sys.stderr)
+                print("nsubbank_pretend", flush=True, file=sys.stderr)
             for ifo in ifos:
                 reorder[ifo] = {i: b for i, b in enumerate(bank[ifo])}
 
@@ -375,7 +375,7 @@ class SortedBank:
                     if from_rate != maxrate:
                         from_bank[to_rate]["_addids"].append(a[to_rate[-1]])
 
-        sorted_rates[maxrate][()]["counts"] = nbank
+        sorted_rates[maxrate][()]["counts"] = nsubbank
 
         urates = list(unique_rates.keys())
         downpads = {r: None for r in urates}
@@ -386,7 +386,7 @@ class SortedBank:
             downpads[urate] = downpad
 
         # loop over all subbanks and update metadata in each rate group
-        for j in range(nbank):
+        for j in range(nsubbank):
             bk = reorder[ifos[0]][j]
             rates = [bf.rate for bf in bk.bank_fragments]
             # urates = np.array(sorted(set(rates), reverse=True))
@@ -433,7 +433,7 @@ class SortedBank:
                     mdata["ids"] = [j]
 
         for ifo in ifos:
-            for j in range(nbank):
+            for j in range(nsubbank):
                 bk = reorder[ifo][j]
                 rates = [bf.rate for bf in bk.bank_fragments]
                 for bf in bk.bank_fragments:
@@ -479,7 +479,7 @@ class SortedBank:
 
         ifos = bank_metadata["ifos"]
         nfilter_samples = bank_metadata["nfilter_samples"]
-        nbank = bank_metadata["nbank"]
+        nsubbank = bank_metadata["nsubbank"]
         sorted_rates = bank_metadata["sorted_rates"]
 
         # outputs
@@ -597,12 +597,14 @@ class SortedBank:
         #   Init template ids as -1 for banks with ntemp < ntempmax,
         #   the template id for empty entries will be -1
         ntempmax = bank_metadata["ntempmax"]
-        template_ids = torch.ones(size=(nbank, ntempmax // 2), dtype=torch.int32) * -1
+        template_ids = (
+            torch.ones(size=(nsubbank, ntempmax // 2), dtype=torch.int32) * -1
+        )
         subbankids = []
         sngls = []
-        end_time_delta = torch.zeros(size=(nbank,), dtype=torch.long)
+        end_time_delta = torch.zeros(size=(nsubbank,), dtype=torch.long)
         bankids_map = defaultdict(list)
-        for j in range(nbank):
+        for j in range(nsubbank):
             sngl = reordered_bank[ifos[0]][j].sngl_inspiral_table
             template_ids0 = torch.tensor([row.template_id for row in sngl])
             template_ids[j, : template_ids0.shape[0]] = template_ids0
@@ -612,7 +614,7 @@ class SortedBank:
             end_time_delta[j] = list(set(ends0))[0]
 
             subbank_id = reordered_bank[ifos[0]][j].bank_id
-            if self.nbank_pretend:
+            if self.nsubbank_pretend:
                 bank_id = subbank_id.split("_")[0] + "_" + str(j)
             else:
                 bank_id = subbank_id.split("_")[0]
@@ -628,7 +630,7 @@ class SortedBank:
         #           callable(getattr(row, a))]
         # import h5py
         # with h5py.File('sngl_inspiral_table.h5', "a") as f:
-        #    for j in range(nbank):
+        #    for j in range(nsubbank):
         #        sngl = reordered_bank[ifos[0]][j].sngl_inspiral_table
         #        for row in sngl:
         #            group = str(row.template_id)
@@ -644,15 +646,17 @@ class SortedBank:
         max_acl = max(
             reordered_bank[ifo][j].autocorrelation_bank.shape[1]
             for i, ifo in enumerate(ifos)
-            for j in range(nbank)
+            for j in range(nsubbank)
         )
         autocorrelation_banks = {}
         for ifo in ifos:
             autocorrelation_banks[ifo] = torch.zeros(
-                size=(nbank, ntempmax // 2, max_acl), device=device, dtype=self.cdtype
+                size=(nsubbank, ntempmax // 2, max_acl),
+                device=device,
+                dtype=self.cdtype,
             )
         for ifo in ifos:
-            for j in range(nbank):
+            for j in range(nsubbank):
                 acorr = reordered_bank[ifo][j].autocorrelation_bank
 
                 # this is for adjusting to the bank used for impulse test
