@@ -98,7 +98,7 @@ def parse_command_line():
         help="Only do impulse test on data from this ifo.",
     )
     group.add_argument(
-        "--nbank-pretend",
+        "--nsubbank-pretend",
         type=int,
         action="store",
         default=0,
@@ -206,7 +206,7 @@ def inspiral(
     impulse_bank: str = None,
     impulse_bankno: int = None,
     impulse_ifo: str = None,
-    nbank_pretend: int = None,
+    nsubbank_pretend: int = None,
     nslice: int = -1,
     process_params: dict = None,
 ):
@@ -295,7 +295,7 @@ def inspiral(
     banks = group_and_read_banks(
         svd_bank=svd_bank,
         source_ifos=ifos,
-        nbank_pretend=nbank_pretend,
+        nsubbank_pretend=nsubbank_pretend,
         nslice=nslice,
         verbose=True,
     )
@@ -334,7 +334,7 @@ def inspiral(
         banks=banks,
         device=torch_device,
         dtype=dtype,
-        nbank_pretend=nbank_pretend,
+        nsubbank_pretend=nsubbank_pretend,
         nslice=nslice,
         verbose=True,
     )
@@ -507,6 +507,7 @@ def inspiral(
                     program="sgnl-inspiral",
                     injection_list=injection_list,
                     is_online=data_source_info == "devshm",
+                    nsubbank_pretend=bool(nsubbank_pretend),
                 ),
                 link_map={
                     "StillSuitSnk:sink:trigs": "itacacac:src:trigs",
@@ -583,11 +584,20 @@ def inspiral(
     #
 
     print("shutdown: template bank cleanup", flush=True, file=sys.stderr)
-    for ifo in banks:
-        for bank in banks[ifo]:
+    if nsubbank_pretend:
+        for ifo in banks:
+            bank = banks[ifo][0]
             if verbose:
                 print("removing file: ", bank.template_bank_filename, file=sys.stderr)
             os.remove(bank.template_bank_filename)
+    else:
+        for ifo in banks:
+            for bank in banks[ifo]:
+                if verbose:
+                    print(
+                        "removing file: ", bank.template_bank_filename, file=sys.stderr
+                    )
+                os.remove(bank.template_bank_filename)
 
     print("shutdown: del bank", flush=True, file=sys.stderr)
     del bank
@@ -624,7 +634,7 @@ def main():
         impulse_bank=options.impulse_bank,
         impulse_bankno=options.impulse_bankno,
         impulse_ifo=options.impulse_ifo,
-        nbank_pretend=options.nbank_pretend,
+        nsubbank_pretend=options.nsubbank_pretend,
         nslice=options.nslice,
         process_params=process_params,
     )

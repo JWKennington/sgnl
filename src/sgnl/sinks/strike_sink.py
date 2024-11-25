@@ -43,11 +43,6 @@ class StrikeSink(SinkElement):
         if bufs.EOS:
             self.mark_eos(pad)
 
-            for i, bankid in enumerate(self.bankids_map):
-                # FIXME correct file name assignment
-                # write ranking stats file
-                self.ranking_stats[bankid].save(self.ranking_stat_output[i])
-
         metadata = bufs.metadata
         if "background" in metadata:
             background = metadata["background"]
@@ -83,6 +78,16 @@ class StrikeSink(SinkElement):
                                 )
                                 bg_events.append(bg_event)
                             self.ranking_stats[bankid].train_noise(bg_events)
+            #
+            # Trigger rates
+            #
+            trigger_rates = metadata["trigger_rates"]
+            for ifo, trigger_rate in trigger_rates.items():
+                for bankid in self.bankids_map:
+                    buf_seg, count = trigger_rate[bankid]
+                    self.ranking_stats[bankid].terms["P_of_tref_Dh"].triggerrates[
+                        ifo
+                    ].add_ratebin(list(buf_seg), count)
 
         if "horizon" in metadata and "trigs" not in pad.name:  # this is a horizon pad
             if bufs["data"].data is not None:  # happens for the first few buffers
@@ -106,3 +111,10 @@ class StrikeSink(SinkElement):
                     self.ranking_stats[bankid].terms["P_of_tref_Dh"].horizon_history[
                         ifo
                     ][horizon_time] = horizon
+
+    def internal(self, pad):
+        if self.at_eos:
+            for i, bankid in enumerate(self.bankids_map):
+                # FIXME correct file name assignment
+                # write ranking stats file
+                self.ranking_stats[bankid].save(self.ranking_stat_output[i])

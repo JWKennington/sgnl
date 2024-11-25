@@ -9,6 +9,7 @@ from typing import Any, Dict
 import lal
 import numpy as np
 import torch
+from ligo import segments
 from sgnligo.base import now
 from sgnts.base import (
     AdapterConfig,
@@ -531,7 +532,7 @@ class Itacacac(TSTransform):
             assert len(frame.buffers) == 1
             buf = frame.buffers[0]
             if not buf.is_gap:
-                snrs[sink_pad.name.split(":")[-1]] = buf.data
+                snrs[self.rsnks[sink_pad]] = buf.data
         self.rate = frame.sample_rate
         self.offset = frame.offset
 
@@ -549,6 +550,17 @@ class Itacacac(TSTransform):
                 self.itacacac(snrs)
             )
             ifos = triggers.keys()
+
+            # FIXME: check buf seg definition
+            trigger_rates = {ifo: {} for ifo in ifos}
+            for ifo, trig in triggers.items():
+                for bankid, ids in self.bankids_map.items():
+                    trigger_rates[ifo][bankid] = (
+                        segments.segment(ts / 1_000_000_000, te / 1_000_000_000),
+                        sum(trig[1][idd].size for idd in ids),
+                    )
+
+            metadata["trigger_rates"] = trigger_rates
 
             if self.kafka:
                 maxsnrs = {}
