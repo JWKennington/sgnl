@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import combinations
 from typing import Any, Dict
 
 import lal
@@ -105,12 +106,24 @@ class Itacacac(TSTransform):
             self.autocorrelation_banks_real[ifo] = self.autocorrelation_banks[ifo].real
             self.autocorrelation_banks_imag[ifo] = self.autocorrelation_banks[ifo].imag
 
+        combs = list(combinations(self.ifos, 2))
+        max_light_travel_time = max(light_travel_time(*c) for c in combs)
+        self.trigger_finding_overlap_samples = (
+            int((max_light_travel_time + self.coincidence_threshold) * self.sample_rate)
+            // 2
+        )
         self.padding = self.autocorrelation_length // 2
         self.adapter_config = AdapterConfig(
             stride=Offset.fromsec(self.trigger_finding_duration),
             overlap=(
-                Offset.fromsamples(self.padding, self.sample_rate),
-                Offset.fromsamples(self.padding, self.sample_rate),
+                Offset.fromsamples(
+                    self.padding + self.trigger_finding_overlap_samples,
+                    self.sample_rate,
+                ),
+                Offset.fromsamples(
+                    self.padding + self.trigger_finding_overlap_samples,
+                    self.sample_rate,
+                ),
             ),
             backend=TorchBackend,
         )
@@ -156,7 +169,11 @@ class Itacacac(TSTransform):
 
         padding = self.padding
         idi = padding
-        idf = padding + self.trigger_finding_samples
+        idf = (
+            padding
+            + self.trigger_finding_samples
+            + self.trigger_finding_overlap_samples * 2
+        )
         triggers = {}
         for ifo, snr in snrs.items():
             shape = snr.shape
@@ -445,7 +462,9 @@ class Itacacac(TSTransform):
 
     def cluster_coincs(self, ifo_combs, all_network_snr, template_ids, triggers, snrs):
         clustered_snr, max_locations = torch.max(all_network_snr, dim=-1)
-        clustered_ifo_combs = ifo_combs.gather(1, max_locations.unsqueeze(1)).squeeze(-1)
+        clustered_ifo_combs = ifo_combs.gather(1, max_locations.unsqueeze(1)).squeeze(
+            -1
+        )
         max_locations = max_locations.to("cpu").numpy()
         clustered_template_ids = template_ids[range(self.nsubbank), max_locations]
         sngls = {}
