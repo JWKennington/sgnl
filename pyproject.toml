@@ -46,6 +46,10 @@ sgnl-ll-dq = "sgnl.bin.ll_dq:main"
 sgnl-reference-psd = "sgnl.bin.reference_psd:main"
 sgnl-median-of-psds = "sgnl.bin.median_of_psds:main"
 sgnl-sim-page = "sgnl.bin.sim_page:main"
+sgnl-create-prior-diststats = "sgnl.bin.create_prior_diststats:main"
+sgnl-assign-likelihood = "sgnl.bin.assign_likelihood:main"
+sgnl-assign-far = "sgnl.bin.assign_far:main"
+sgnl-extinct-bin = "sgnl.bin.extinct_bin:main"
 
 [project.optional-dependencies]
 test = [

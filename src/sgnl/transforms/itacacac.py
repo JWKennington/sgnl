@@ -557,7 +557,7 @@ class Itacacac(TSTransform):
                 for bankid, ids in self.bankids_map.items():
                     trigger_rates[ifo][bankid] = (
                         segments.segment(ts / 1_000_000_000, te / 1_000_000_000),
-                        sum(trig[1][idd].size for idd in ids),
+                        sum(trig[idd][1].size for idd in ids),
                     )
 
             metadata["trigger_rates"] = trigger_rates
