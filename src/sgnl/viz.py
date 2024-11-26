@@ -47,6 +47,7 @@ IFO_COMBO_COLOR.update(
     {"H1,L1,V1": "#e67e22", "H1,L1": "#16a085", "L1,V1": "#7f8c8d", "H1,V1": "#bdc3c7"}
 )
 
+
 def b64():
     """
     Using pyplots global variable references to figures, save the current
@@ -60,8 +61,10 @@ def b64():
     # Encode the image in base64
     return base64.b64encode(buffer.read()).decode("utf-8")
 
-def page(_images_html = "", _modals = ""):
-    return """
+
+def page(sections=[]):
+    """Given a list of Section classes, return the html suitable for a standalone web page"""
+    out = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -71,69 +74,92 @@ def page(_images_html = "", _modals = ""):
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </head>
+
 <body>
-  <div class="container mt-4">
-    <h1 class="text-center mb-4">SGN Injection Results</h1>
-    <div class="row">
-      {_images_html}
+
+  <ul class="nav nav-tabs" id="myTab" role="tablist">
+    """
+    for n, section in enumerate(sections):
+        active = "active" if n == 0 else ""
+        selected = "true" if n == 0 else "false"
+        out += f"""
+    <li class="nav-item" role="presentation">
+      <button class="nav-link {active}" id="tab{n}" data-bs-toggle="tab" data-bs-target="#tab-pane{n}" type="button" role="tab" aria-controls="tab-pane{n}" aria-selected={selected}>{section.nav}</button>
+    </li>
+        """
+    out += """
+  </ul>
+
+  <div class="tab-content" id="myTabContent">
+    """
+    for n, section in enumerate(sections):
+        active = "active" if n == 0 else ""
+        out += f"""
+    <div class="tab-pane fade show {active}" id="tab-pane{n}" role="tabpanel" aria-labelledby="tab-pane{n}" tabindex="0">
+      <div class="container mt-4">
+        <h1 class="text-center mb-4">{section.title}</h1>
+        <div class="row">
+          {section.html}
+        </div>
+      </div>
     </div>
+        """.format(
+            section=section
+        )
+    out += """
   </div>
-{_modals}
+
 </body>
 </html>
-    """.format(_images_html = _images_html, _modals = _modals)
+    """
+    return out
 
-def image_html(_images = []):
-    # Generate HTML for the images
-    images_html = ""
-    for n, d in enumerate(_images):
-        images_html += f"""
-      <div class="col-md-6 mb-4">
-        <div class="card">
-          <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#Modal{n}">
-            <img src="data:image/png;base64,{d['img']}" class="card-img-top" alt="Image {n}">
-          </button>
-          <div class="card-body">
-            <p class="lead">
-              {d['title']}
-            </p>
-            <p class="card-text">{d['caption']}</p>
-          </div>
-        </div>
-      </div>
-      <div class="modal modal-xl fade" id="Modal{n}" tabindex="-1" aria-labelledby="exampleModalLabel{n}" aria-hidden="true">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="exampleModalLabel{n}">{d['title']}</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-              <img src="data:image/png;base64,{d['img']}" class="card-img-top" alt="Image {n}">
-            </div>
-          </div>
-        </div>
-      </div>
-        """.format(n=n,d=d)
-    return images_html
 
-#def modal_html(_images = []):
-#    # Generate HTML for the images
-#    modals = ""
-#    for n, d in enumerate(_images):
-#        modals += f"""
-#<div class="modal modal-xl fade" id="Modal{n}" tabindex="-1" aria-labelledby="exampleModalLabel{n}" aria-hidden="true">
-#  <div class="modal-dialog">
-#    <div class="modal-content">
-#      <div class="modal-header">
-#        <h5 class="modal-title" id="exampleModalLabel{n}">{d['title']}</h5>
-#        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-#      </div>
-#      <div class="modal-body">
-#        <img src="data:image/png;base64,{d['img']}" class="card-img-top" alt="Image {n}">
-#      </div>
-#    </div>
-#  </div>
-#</div>
-#        """.format(n=n, d=d)
-#    return modals
+class Section(list):
+    """Hold a list of dictionaries to describe images in a section of a webpage, e.g.,
+
+    [{'img': ..., 'title': ..., 'caption': ...}, {'img': ..., 'title': ..., 'caption': ...}]
+    """
+
+    cnt = 0
+
+    def __init__(self, title, nav):
+        self.title = title
+        self.nav = nav
+        super().__init__()
+
+    @property
+    def html(self):
+        # Generate HTML for the images
+        images_html = ""
+        for d in self:
+            Section.cnt += 1
+            images_html += f"""
+          <div class="col-md-6 mb-4">
+            <div class="card">
+              <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#Modal{Section.cnt}">
+                <img src="data:image/png;base64,{d['img']}" class="card-img-top" alt="Image {Section.cnt}">
+              </button>
+              <div class="card-body">
+                <p class="lead">
+                  {d['title']}
+                </p>
+                <p class="card-text">{d['caption']}</p>
+              </div>
+            </div>
+          </div>
+          <div class="modal modal-xl fade" id="Modal{Section.cnt}" tabindex="-1" aria-labelledby="exampleModalLabel{Section.cnt}" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="exampleModalLabel{Section.cnt}">{d['title']}</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <img src="data:image/png;base64,{d['img']}" class="card-img-top" alt="Image {Section.cnt}">
+                </div>
+              </div>
+            </div>
+          </div>
+            """
+        return images_html
