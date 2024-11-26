@@ -119,6 +119,14 @@ class Section(list):
     """Hold a list of dictionaries to describe images in a section of a webpage, e.g.,
 
     [{'img': ..., 'title': ..., 'caption': ...}, {'img': ..., 'title': ..., 'caption': ...}]
+
+    or also use a list of dictionaries with keys as the columns to include a table
+
+    [{'table': [{'col1':..., 'col2':...,},{'col1':..., 'col2':...,}], 'title': ..., 'caption': ...}, {'img': ..., 'title': ..., 'caption': ...}]
+
+    You cannot have both tables and images in the same dictionary, e.g., this is NOT allowed
+
+    [{'table': [{'col1':..., 'col2':...,},{'col1':..., 'col2':...,}], 'img':..., 'title': ..., 'caption': ...}, {'img': ..., 'title': ..., 'caption': ...}]
     """
 
     cnt = 0
@@ -134,7 +142,9 @@ class Section(list):
         images_html = ""
         for d in self:
             Section.cnt += 1
-            images_html += f"""
+            if "img" in d:
+                assert "table" not in d
+                images_html += f"""
           <div class="col-md-6 mb-4">
             <div class="card">
               <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#Modal{Section.cnt}">
@@ -161,5 +171,48 @@ class Section(list):
               </div>
             </div>
           </div>
-            """
+                """
+            elif "table" in d and d["table"]:
+                images_html += f"""
+          <div class="col-md-12 mb-4">
+            <div class="card">
+              <div class="card-body">
+                <p class="lead">
+                  {d['title']}
+                </p>
+                <table class="table">
+                  <thead>
+                    <tr>
+                """
+                for key in d["table"][0]:
+                    images_html += f"""
+                      <th scope="col">{key}</th>
+                      """
+                images_html += f"""
+                    </tr>
+                  </thead>
+                  <tbody class="table-group-divider">
+                """
+                for row in d["table"]:
+                    images_html += f"""
+                    <tr>"""
+                    for k, v in row.items():
+                        images_html += f"""
+                      <td>{v}</td>"""
+                    images_html += f"""
+                    </tr>"""
+                images_html += f"""
+                  </tbody>
+                </table>
+                """
+
+                images_html += f""" 
+                <p class="card-text">{d['caption']}</p>
+              </div>
+            </div>
+          </div>
+                """
+            else:
+                raise ValueError("%s must contain one of ('img','table')" % d)
+
         return images_html
