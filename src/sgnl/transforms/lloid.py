@@ -1,8 +1,12 @@
 from sgnts.base import AdapterConfig, Offset
 from sgnts.base.array_ops import TorchBackend
-from sgnts.transforms import Adder, Converter, Matmul, Resampler, SumIndex
+from sgnts.transforms import Adder, Amplify, Converter, Matmul, Resampler, SumIndex
 
 from sgnl.transforms.lloid_correlate import LLOIDCorrelate
+
+# See mkmultiband in gstlal/python/pipeparts/condition.py
+# and audioresample_variance_gain in gstlal/python/pipeparts/transform.py
+RESAMPLE_VARIANCE_GAIN = 0.9684700588501590213
 
 
 def lloid(
@@ -51,11 +55,18 @@ def lloid(
         for i, rate in enumerate(unique_rates[:-1]):
             rate_down = unique_rates[i + 1]
             name = f"{ifo}_down_{rate_down}"
-            sink_pad_full = name + ":sink:" + ifo
+            amp_name = f"{ifo}_amplify_{rate_down}"
+            sink_pad_full = amp_name + ":sink:" + ifo
 
             source_pad_full = name + ":src:" + ifo
 
             pipeline.insert(
+                Amplify(
+                    name=amp_name,
+                    sink_pad_names=(ifo,),
+                    source_pad_names=(ifo,),
+                    factor=1 / (RESAMPLE_VARIANCE_GAIN * rate_down / rate) ** 0.5,
+                ),
                 Resampler(
                     name=name,
                     sink_pad_names=(ifo,),
@@ -64,15 +75,17 @@ def lloid(
                     inrate=rate,
                     outrate=rate_down,
                 ),
-                link_map={sink_pad_full: prev_source_pad},
+                link_map={
+                    name + ":sink:" + ifo: amp_name + ":src:" + ifo,
+                    sink_pad_full: prev_source_pad,
+                },
             )
             prev_source_pad = source_pad_full
 
     # time segment shift
     for ifo in ifos:
         snr_slices = {r1: {} for r1 in reversed(unique_rates)}
-        final_adder_coeff_map = {}  # sinkname: scale
-        final_adder_addslices_map = {}  # sinkname: scale
+        final_adder_addslices_map = {}
 
         for from_rate in reversed(unique_rates):
             for to_rate, rate_group in sorted_rates[from_rate].items():
@@ -170,10 +183,6 @@ def lloid(
                                 sink_pad_names=(ifo, sink_name),
                                 source_pad_names=(ifo,),
                                 backend=TorchBackend,
-                                coeff_map={
-                                    ifo: 1,
-                                    sink_name: (to_rate[-1] / from_rate) ** 0.5,
-                                },
                                 addslices_map={
                                     sink_name: (
                                         rate_group["addslice"],
@@ -183,9 +192,6 @@ def lloid(
                             ),
                         )
                     else:
-                        final_adder_coeff_map[sink_name] = (
-                            to_rate[-1] / from_rate
-                        ) ** 0.5
                         final_adder_addslices_map[sink_name] = (
                             rate_group["addslice"],
                             slice(rate_group["ntempmax"]),
@@ -199,15 +205,9 @@ def lloid(
                 Adder(
                     name=f"{ifo}_add_{maxrate}",
                     sink_pad_names=(ifo,)
-                    + tuple(k for k in final_adder_coeff_map.keys()),
+                    + tuple(k for k in final_adder_addslices_map.keys()),
                     source_pad_names=(ifo,),
                     backend=TorchBackend,
-                    coeff_map=dict(
-                        {
-                            ifo: 1,
-                        },
-                        **final_adder_coeff_map,
-                    ),
                     addslices_map=final_adder_addslices_map,
                 ),
             )
