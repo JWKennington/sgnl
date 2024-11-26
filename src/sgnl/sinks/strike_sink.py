@@ -81,6 +81,8 @@ class StrikeSink(SinkElement):
             #
             # Trigger rates
             #
+            # FIXME : come up with a way to make populating the trigger rate
+            # object as part of train_noise
             trigger_rates = metadata["trigger_rates"]
             for ifo, trigger_rate in trigger_rates.items():
                 for bankid in self.bankids_map:

@@ -117,10 +117,10 @@ def parse_command_line():
         "Ranking Statistic Options", "Adjust ranking statistic behaviour"
     )
     group.add_argument(
-        "--ranking-stat-output",
+        "--output-likelihood-file",
         metavar="filename",
         action="append",
-        help="Set the name of the file to which to write ranking statistic data "
+        help="Set the name of the LIKELIHOOD_RATIO file to which to write ranking statistic data "
         "collected from triggers (optional).  Can be given more than once.  If given, "
         "exactly as many must be provided as there are --svd-bank options and they will"
         " be writen to in order.",
@@ -144,7 +144,7 @@ def parse_command_line():
         "--injections",
         action="store_true",
         help="Whether to run this as an injection job. If data-source = 'frames',"
-        " --injection-file must also be specified. Additionally, --ranking-stat-output"
+        " --injection-file must also be specified. Additionally, --output-likelihood-file"
         " must not be specified when --injections is set.",
     )
     group.add_argument(
@@ -256,7 +256,7 @@ def inspiral(
     #    trigger_output
     # ):
     #    raise ValueError(
-    #        "must supply either none or exactly as many --ranking-stat-output options
+    #        "must supply either none or exactly as many --output-likelihood-file options
     #        " as --output"
     #    )
 
@@ -271,11 +271,13 @@ def inspiral(
     #     likelihood_snapshot_interval and not ranking_stat_output
     # ) and not injections:
     #     raise ValueError(
-    #         "must set --ranking-stat-output when --likelihood-snapshot-interval is"
+    #         "must set --output-likelihood-file when --likelihood-snapshot-interval is"
     #         " set"
     #     )
     if ranking_stat_output and injections:
-        raise ValueError("Must not set --ranking-stat-output when --injections is set")
+        raise ValueError(
+            "Must not set --output-likelihood-file when --injections is set"
+        )
 
     #
     # Build pipeline
@@ -620,7 +622,7 @@ def main():
         coincidence_threshold=options.coincidence_threshold,
         event_config=options.event_config,
         trigger_output=options.trigger_output,
-        ranking_stat_output=options.ranking_stat_output,
+        ranking_stat_output=options.output_likelihood_file,
         torch_dtype=options.torch_dtype,
         torch_device=options.torch_device,
         injections=options.injections,
