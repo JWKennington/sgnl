@@ -6,7 +6,7 @@ import stillsuit
 import argparse
 import os
 from ligo.segments import segment, segmentlist, segmentlistdict
-from sgnl.pyplot import IFO_COMBO_COLOR
+from sgnl.viz import IFO_COMBO_COLOR
 
 
 @dataclass
@@ -102,7 +102,7 @@ class _Injection(list):
             name = col["name"]
             arr = numpy.zeros(len(self), dtype=type_from_sqlite(col))
             for i, row in enumerate(self):
-                arr[i] = row[table][name]
+                arr[i] = row[name]
             setattr(getattr(self, table), name, arr)
 
     def setup(self, schema, combo):
@@ -114,26 +114,26 @@ class _Injection(list):
         if len(combo) > 1:
             self.simulation.decisive_snr = numpy.array(
                 [
-                    sorted([m["simulation"]["snr_%s" % c] for c in combo])[-2]
+                    sorted([m["snr_%s" % c] for c in combo])[-2]
                     for m in self
                 ]
             )
         else:
             self.simulation.decisive_snr = numpy.array(
-                [m["simulation"]["snr_%s" % combo[0]] for m in self]
+                [m["snr_%s" % combo[0]] for m in self]
             )
 
         # Add network SNR for this ifo combo
         self.simulation.network_snr = numpy.array(
             [
-                sum([m["simulation"]["snr_%s" % c] ** 2 for c in combo]) ** 0.5
+                sum([m["snr_%s" % c] ** 2 for c in combo]) ** 0.5
                 for m in self
             ]
         )
 
         # Add floating point time column
         self.simulation.time = numpy.array(
-            [m["simulation"]["geocent_end_time"] * 1e-9 for m in self]
+            [m["geocent_end_time"] * 1e-9 for m in self]
         )
 
 
@@ -154,7 +154,7 @@ class _InjByOnIFOs(dict):
     def __init__(self, _segments, _inj, schema, cls):
         super().__init__(
             {
-                c: cls([i for i in _inj if i["simulation"]["geocent_end_time"] in s])
+                c: cls([i for i in _inj if i["geocent_end_time"] in s])
                 for c, s in _segments.items()
             }
         )
