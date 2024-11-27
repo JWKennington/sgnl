@@ -6,7 +6,7 @@ import stillsuit
 import argparse
 import os
 from ligo.segments import segment, segmentlist, segmentlistdict
-from sgnl.pyplot import IFO_COMBO_COLOR
+from sgnl.viz import IFO_COMBO_COLOR
 
 
 @dataclass
