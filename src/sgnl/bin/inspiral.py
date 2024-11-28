@@ -120,10 +120,10 @@ def parse_command_line():
         "--output-likelihood-file",
         metavar="filename",
         action="append",
-        help="Set the name of the LIKELIHOOD_RATIO file to which to write ranking statistic data "
-        "collected from triggers (optional).  Can be given more than once.  If given, "
-        "exactly as many must be provided as there are --svd-bank options and they will"
-        " be writen to in order.",
+        help="Set the name of the LIKELIHOOD_RATIO file to which to write likelihood "
+        "ratio data collected from triggers (optional).  Can be given more than once. "
+        "If given, exactly as many must be provided as there are --svd-bank options "
+        "and they will be writen to in order.",
     )
 
     group = parser.add_argument_group("Program Behaviour")
@@ -143,9 +143,9 @@ def parse_command_line():
     group.add_argument(
         "--injections",
         action="store_true",
-        help="Whether to run this as an injection job. If data-source = 'frames',"
-        " --injection-file must also be specified. Additionally, --output-likelihood-file"
-        " must not be specified when --injections is set.",
+        help="Whether to run this as an injection job. If data-source = 'frames', "
+        "--injection-file must also be specified. Additionally, "
+        "--output-likelihood-file must not be specified when --injections is set.",
     )
     group.add_argument(
         "--injection-file",
@@ -256,8 +256,8 @@ def inspiral(
     #    trigger_output
     # ):
     #    raise ValueError(
-    #        "must supply either none or exactly as many --output-likelihood-file options
-    #        " as --output"
+    #        "must supply either none or exactly as many --output-likelihood-file "
+    #        "options as --output"
     #    )
 
     if (injections and data_source_info.data_source == "frames") and not injection_file:
@@ -397,11 +397,23 @@ def inspiral(
                 )
     else:
         # connect itacacac
+
+        itacacac_pads = ("stillsuit",)
+        if ranking_stat_output is not None:
+            strike_pad = "strike"
+            itacacac_pads += (strike_pad,)
+        else:
+            strike_pad = None
+        if data_source_info.data_source == "devshm":
+            kafka_pad = "kafka"
+            itacacac_pads += (kafka_pad,)
+        else:
+            kafka_pad = None
+
         pipeline.insert(
             Itacacac(
                 name="itacacac",
                 sink_pad_names=tuple(ifos),
-                source_pad_names=("trigs",),
                 sample_rate=template_maxrate,
                 trigger_finding_duration=trigger_finding_duration,
                 autocorrelation_banks=sorted_bank.autocorrelation_banks,
@@ -411,6 +423,9 @@ def inspiral(
                 kafka=data_source_info.data_source == "devshm",
                 device=torch_device,
                 coincidence_threshold=coincidence_threshold,
+                stillsuit_pad="stillsuit",
+                strike_pad=strike_pad,
+                kafka_pad=kafka_pad,
             ),
         )
         for ifo in ifos:
@@ -435,9 +450,11 @@ def inspiral(
             pipeline.insert(
                 NullSink(
                     name="Sink",
-                    sink_pad_names=("sink",),
+                    sink_pad_names=itacacac_pads,
                 ),
-                link_map={"Sink:sink:sink": "itacacac:src:trigs"},
+                link_map={
+                    "Sink:sink:" + snk: "itacacac:src:" + snk for snk in itacacac_pads
+                },
             )
             for ifo in ifos:
                 pipeline.insert(
@@ -512,7 +529,7 @@ def inspiral(
                     nsubbank_pretend=bool(nsubbank_pretend),
                 ),
                 link_map={
-                    "StillSuitSnk:sink:trigs": "itacacac:src:trigs",
+                    "StillSuitSnk:sink:trigs": "itacacac:src:stillsuit",
                 },
             )
             for ifo in ifos:
@@ -525,15 +542,15 @@ def inspiral(
                 pipeline.insert(
                     StrikeSink(
                         name="StrikeSnk",
-                        sink_pad_names=("trigs",)
-                        + tuple(["horizon_" + ifo for ifo in ifos]),
                         ifos=ifos,
                         all_template_ids=sorted_bank.template_ids.numpy(),
                         bankids_map=sorted_bank.bankids_map,
                         ranking_stat_output=ranking_stat_output,
+                        background_pad="trigs",
+                        horizon_pads=["horizon_" + ifo for ifo in ifos],
                     ),
                     link_map={
-                        "StrikeSnk:sink:trigs": "itacacac:src:trigs",
+                        "StrikeSnk:sink:trigs": "itacacac:src:strike",
                     },
                 )
                 for ifo in ifos:

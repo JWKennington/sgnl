@@ -18,16 +18,19 @@ class event_dummy(object):
 
 @dataclass
 class StrikeSink(SinkElement):
-
     ifos: list[str] = None
     all_template_ids: Sequence[Any] = None
     bankids_map: dict[str, list] = None
     ranking_stat_output: list[str] = None
+    background_pad: str = None
+    horizon_pads: list[str] = None
 
     def __post_init__(self):
-        super().__post_init__()
-        self.cnt = {p: 0 for p in self.sink_pads}
         assert isinstance(self.ifos, list)
+        assert isinstance(self.background_pad, str)
+        assert isinstance(self.horizon_pads, list)
+        self.sink_pad_names = (self.background_pad,) + tuple(self.horizon_pads)
+        super().__post_init__()
         self.ranking_stats = {}
         for bankid, ids in self.bankids_map.items():
             bank_template_ids = self.all_template_ids[ids]
@@ -38,14 +41,14 @@ class StrikeSink(SinkElement):
                 instruments=self.ifos,
             )
 
-    def pull(self, pad, bufs):
-        self.cnt[pad] += 1
-        if bufs.EOS:
+    def pull(self, pad, frame):
+        if frame.EOS:
             self.mark_eos(pad)
 
-        metadata = bufs.metadata
-        if "background" in metadata:
-            background = metadata["background"]
+        if self.rsnks[pad] == self.background_pad:
+            background = frame["background"].data
+            if background is None:
+                return
             #
             # Background triggers
             #
@@ -59,13 +62,13 @@ class StrikeSink(SinkElement):
                         chisq = trigs["chisqs"]
                         template_id = trigs["template_ids"]
 
+                        bg_events = []
                         # loop over subbanks
                         for time0, snr0, chisq0, templateid0 in zip(
                             bgtime, snr, chisq, template_id
                         ):
                             # loop over triggers in subbanks, and send them to
                             # train_noise in a burst
-                            bg_events = []
                             for t, s, c, tid in zip(time0, snr0, chisq0, templateid0):
                                 # FIXME: is end time in seconds??
                                 bg_event = event_dummy(
@@ -77,13 +80,13 @@ class StrikeSink(SinkElement):
                                     template_id=tid,
                                 )
                                 bg_events.append(bg_event)
-                            self.ranking_stats[bankid].train_noise(bg_events)
+                        self.ranking_stats[bankid].train_noise(bg_events)
             #
             # Trigger rates
             #
             # FIXME : come up with a way to make populating the trigger rate
             # object as part of train_noise
-            trigger_rates = metadata["trigger_rates"]
+            trigger_rates = frame["trigger_rates"].data
             for ifo, trigger_rate in trigger_rates.items():
                 for bankid in self.bankids_map:
                     buf_seg, count = trigger_rate[bankid]
@@ -91,14 +94,12 @@ class StrikeSink(SinkElement):
                         ifo
                     ].add_ratebin(list(buf_seg), count)
 
-        if "horizon" in metadata and "trigs" not in pad.name:  # this is a horizon pad
-            if bufs["data"].data is not None:  # happens for the first few buffers
-                ifo = bufs["data"].data["ifo"]
-                horizon = bufs["data"].data[
-                    "horizon"
-                ]  # can also be accessed via metadata['horizon']
+        if self.rsnks[pad] in self.horizon_pads:
+            if frame["data"].data is not None:  # happens for the first few buffers
+                ifo = frame["data"].data["ifo"]
+                horizon = frame["data"].data["horizon"]
                 horizon_time = (
-                    bufs["data"].data["time"] / 1_000_000_000
+                    frame["data"].data["time"] / 1_000_000_000
                 )  # NOTE: This is the start time. Do we want the end time?
                 # FIXME: We set the same horizon history for every svd bin
                 # since the horizon distance calculation in
