@@ -73,6 +73,12 @@ class Itacacac(TSTransform):
         coincidence_threshold:
             float, the time difference threshold to identify coincidence triggers, in
             addition to the light-travel time, in seconds.
+        strike_pad:
+            str, the source pad name to output triggers to stillsuit
+        stillsuit_pad:
+            str, the source pad name to output background triggers to strike
+        kafka_pad:
+            str, the source pad name to output data to kafka
     """
 
     sample_rate: int = None
@@ -84,9 +90,18 @@ class Itacacac(TSTransform):
     device: str = "cpu"
     kafka: bool = False
     coincidence_threshold: float = 0
+    strike_pad: str = None
+    stillsuit_pad: str = None
+    kafka_pad: str = None
 
     def __post_init__(self):
 
+        assert isinstance(self.stillsuit_pad, str)
+        self.source_pad_names = (self.stillsuit_pad,)
+        if self.strike_pad is not None:
+            self.source_pad_names += (self.strike_pad,)
+        if self.kafka_pad is not None:
+            self.source_pad_names += self.kafka_pad
         self.trigger_finding_samples = self.trigger_finding_duration * self.sample_rate
         assert self.trigger_finding_samples == int(
             self.trigger_finding_samples
@@ -149,9 +164,9 @@ class Itacacac(TSTransform):
             self.autocorrelation_length, device=self.device
         ).expand(self.nsubbank, self.ntempmax, -1)
 
-        self.event_dtypes = ["trigger", "event"]
-
         super().__post_init__()
+
+        self.output_frames = {pad: None for pad in self.source_pad_names}
 
     def find_peaks_and_calculate_chisqs(self, snrs: Array) -> Dict[str, list[Array]]:
         """Find snr peaks in a given snr time series window, and obtain peak time,
@@ -219,11 +234,11 @@ class Itacacac(TSTransform):
                 dim=-1,
             )
             autocorrelation_chisq /= self.autocorrelation_norms[ifo]
-            triggers[ifo] = [
-                peak_locations,
-                peaks,
-                autocorrelation_chisq,
-            ]
+            triggers[ifo] = {
+                "peak_locations": peak_locations,
+                "snrs": peaks,
+                "chisqs": autocorrelation_chisq,
+            }
         return triggers
 
     def make_coincs(self, triggers):
@@ -233,15 +248,15 @@ class Itacacac(TSTransform):
 
         if nifo == 1:
             # return the single ifo snrs
-            all_network_snr = [t[1] for t in triggers.values()][0]
+            all_network_snr = [t["snrs"] for t in triggers.values()][0]
             ifo_combs = (
                 torch.ones_like(all_network_snr, dtype=torch.int)
                 * self.ifos_number_map[on_ifos[0]]
             )
 
         elif nifo == 2:
-            times = [t[0] for t in triggers.values()]
-            snrs = [t[1] for t in triggers.values()]
+            times = [t["peak_locations"] for t in triggers.values()]
+            snrs = [t["snrs"] for t in triggers.values()]
             coinc2_mask, single_mask1, single_mask2, all_network_snr = self.coinc2(
                 snrs, times, on_ifos
             )
@@ -309,8 +324,8 @@ class Itacacac(TSTransform):
 
     def coinc3(self, triggers):
         ifos = list(triggers.keys())
-        snrs = [t[1] for t in triggers.values()]
-        times = [t[0] for t in triggers.values()]
+        snrs = [t["snrs"] for t in triggers.values()]
+        times = [t["peak_locations"] for t in triggers.values()]
 
         snr1 = snrs[0]
         snr2 = snrs[1]
@@ -471,9 +486,9 @@ class Itacacac(TSTransform):
         sngls = {}
         for ifo, trig in triggers.items():
             sngls[ifo] = {}
-            peak_locations = trig[0][range(self.nsubbank), max_locations]
-            sngl_snr = trig[1][range(self.nsubbank), max_locations]
-            sngl_chisq = trig[2][range(self.nsubbank), max_locations]
+            peak_locations = trig["peak_locations"][range(self.nsubbank), max_locations]
+            sngl_snr = trig["snrs"][range(self.nsubbank), max_locations]
+            sngl_chisq = trig["chisqs"][range(self.nsubbank), max_locations]
 
             sngls[ifo]["time"] = (
                 np.round(
@@ -500,7 +515,12 @@ class Itacacac(TSTransform):
 
         # FIXME: is stacking then index_select faster?
         # FIXME: is stacking then copying to cpu faster?
-        return [clustered_template_ids, clustered_ifo_combs, clustered_snr, sngls]
+        return {
+            "clustered_template_ids": clustered_template_ids,
+            "clustered_ifo_combs": clustered_ifo_combs.to("cpu").numpy(),
+            "clustered_snr": clustered_snr.to("cpu").numpy(),
+            "sngls": sngls,
+        }
 
     # @torch.compile
     def itacacac(self, snrs):
@@ -511,8 +531,8 @@ class Itacacac(TSTransform):
 
         # FIXME: this part and clustered_coinc is lowering the GPU utilization
         for ifo in triggers.keys():
-            for i in range(len(triggers[ifo])):
-                triggers[ifo][i] = triggers[ifo][i].to("cpu").numpy()
+            for k, v in triggers[ifo].items():
+                triggers[ifo][k] = v.to("cpu").numpy()
 
         clustered_coinc = self.cluster_coincs(
             ifo_combs, all_network_snr, self.template_ids_np, triggers, snrs
@@ -520,7 +540,143 @@ class Itacacac(TSTransform):
 
         return triggers, ifo_combs, all_network_snr, single_masks, clustered_coinc
 
-    def transform(self, pad):
+    def output_kafka(self, triggers, clustered_coinc):
+        maxsnrs = {}
+        maxlatency = {"time": None, "data": None}
+        mincoinc_time = min(
+            float(np.min(sngls["time"])) for sngls in clustered_coinc["sngls"]
+        )
+        for ifo, trig in triggers.items():
+            snrs = triggers[ifo]["snrs"]
+            maxsnr_id = np.unravel_index(np.argmax(snrs), snrs.shape)
+            maxsnrs[ifo + "_snr_history"] = {
+                "time": [
+                    (
+                        np.round(
+                            (
+                                Offset.fromsamples(
+                                    triggers[ifo]["peak_locations"][maxsnr_id],
+                                    self.rate,
+                                )
+                                + self.offset
+                            )
+                            / Offset.MAX_RATE
+                            * 1_000_000_000
+                        ).astype(int)
+                        + Offset.offset_ref_t0
+                        + self.end_time_delta[maxsnr_id[0]]
+                    )
+                    / 1_000_000_000,
+                ],
+                "data": [
+                    triggers[ifo]["snrs"][maxsnr_id].item(),
+                ],
+            }
+        maxlatency["time"] = [mincoinc_time / 1_000_000_000]
+        maxlatency["data"] = [(now().ns() - mincoinc_time) / 1_000_000_000]
+        return {"maxsnrs": maxsnrs, "latency_history": maxlatency}
+
+    def output_background(self, triggers, single_masks, ts, te):
+        # Populate background snr, chisq, time for each bank, ifo
+        # FIXME: is stacking then copying to cpu faster?
+        # FIXME: do we only need snr chisq for singles?
+        ifos = triggers.keys()
+        background = {
+            bankid: {ifo: None}
+            for bankid, ids in self.bankids_map.items()
+            for ifo in ifos
+        }
+        # loop over banks
+        for bankid, ids in self.bankids_map.items():
+            # loop over ifos
+            for ifo in ifos:
+                times = []
+                snrs = []
+                chisqs = []
+                template_ids = []
+
+                if ifo in single_masks:
+                    if True in single_masks[ifo]:
+                        smask0 = single_masks[ifo].to("cpu").numpy()
+                        # loop over subbank ids in this bank
+                        for i in ids:
+                            smask = smask0[i]
+                            time = triggers[ifo]["peak_locations"][i][smask]
+                            time = (
+                                np.round(
+                                    (Offset.fromsamples(time, self.rate) + self.offset)
+                                    / Offset.MAX_RATE
+                                    * 1_000_000_000
+                                ).astype(int)
+                                + Offset.offset_ref_t0
+                                + self.end_time_delta[i]
+                            )
+                            times.append(time)
+                            snrs.append(triggers[ifo]["snrs"][i][smask])
+                            chisqs.append(triggers[ifo]["chisqs"][i][smask])
+                            template_ids.append(self.template_ids_np[i][smask])
+
+                background[bankid][ifo] = {
+                    "time": times,
+                    "snrs": snrs,
+                    "chisqs": chisqs,
+                    "template_ids": template_ids,
+                }
+
+        # FIXME: check buf seg definition
+        trigger_rates = {ifo: {} for ifo in ifos}
+        for ifo, trig in triggers.items():
+            for bankid, ids in self.bankids_map.items():
+                trigger_rates[ifo][bankid] = (
+                    segments.segment(ts / 1_000_000_000, te / 1_000_000_000),
+                    sum(trig["snrs"][idd].size for idd in ids),
+                )
+
+        return {
+            "background": EventBuffer(ts, te, data=background),
+            "trigger_rates": EventBuffer(ts, te, data=trigger_rates),
+        }
+
+    def output_events(self, clustered_coinc, ts, te):
+        #
+        # Construct event buffers
+        #
+        out_triggers = []
+        sngls = clustered_coinc["sngls"]
+        # Zero-out the non-coinc ifos
+        for j, c in enumerate(clustered_coinc["clustered_ifo_combs"]):
+            trigs_this_event = []
+            for ifo, ifo_num in self.ifos_number_map.items():
+                sngl = sngls[ifo]
+                if str(ifo_num) in str(c):
+                    trig = {
+                        col: sngl[col][j] for col in ["time", "snr", "chisq", "phase"]
+                    }
+                    trig["_filter_id"] = clustered_coinc["clustered_template_ids"][j]
+                    trig["ifo"] = ifo
+                    trig["epoch_start"] = ts
+                    trig["epoch_end"] = te
+                    trigs_this_event.append(trig)
+                else:
+                    trigs_this_event.append(None)
+            out_triggers.append(trigs_this_event)
+
+        out_events = [
+            {
+                "time": list(clustered_coinc["sngls"].values())[0]["time"][j],
+                "network_snr": clustered_coinc["clustered_snr"][j],
+            }
+            for j in range(clustered_coinc["clustered_ifo_combs"].shape[0])
+        ]
+
+        return {
+            "event": EventBuffer(ts, te, data=out_events),
+            "trigger": EventBuffer(ts, te, data=out_triggers),
+        }
+
+    def internal(self, pad):
+        super().internal(pad)
+
         frames = self.preparedframes
         self.preparedframes = {}
 
@@ -542,172 +698,45 @@ class Itacacac(TSTransform):
             offset0 + self.preparedoutoffsets[self.sink_pads[0]][0]["noffset"]
         )
 
-        metadata = frame.metadata
         if len(snrs.keys()) == 0:
-            event_data = {t: None for t in self.event_dtypes}
+            events = {
+                "event": EventBuffer(ts, te, data=None),
+                "trigger": EventBuffer(ts, te, data=None),
+            }
+            if self.strike_pad is not None:
+                background_events = {
+                    "background": EventBuffer(ts, te, data=None),
+                    "trigger_rates": EventBuffer(ts, te, data=None),
+                }
+            if self.kafka_pad is not None:
+                kafka_events = {
+                    "maxsnrs": EventBuffer(ts, te, data=None),
+                    "latency_history": EventBuffer(ts, te, data=None),
+                }
         else:
             triggers, ifo_combs, all_network_snr, single_masks, clustered_coinc = (
                 self.itacacac(snrs)
             )
-            ifos = triggers.keys()
+            events = self.output_events(clustered_coinc, ts, te)
 
-            # FIXME: check buf seg definition
-            trigger_rates = {ifo: {} for ifo in ifos}
-            for ifo, trig in triggers.items():
-                for bankid, ids in self.bankids_map.items():
-                    trigger_rates[ifo][bankid] = (
-                        segments.segment(ts / 1_000_000_000, te / 1_000_000_000),
-                        sum(trig[idd][1].size for idd in ids),
-                    )
-
-            metadata["trigger_rates"] = trigger_rates
-
-            if self.kafka:
-                maxsnrs = {}
-                maxlatency = {"time": None, "data": None}
-                mincoinc_time = min(
-                    float(np.min(clustered_coinc[3][ifo]["time"])) for ifo in ifos
+            if self.strike_pad is not None:
+                background_events = self.output_background(
+                    triggers, single_masks, ts, te
                 )
-                for ifo in ifos:
-                    snrs = triggers[ifo][1]
-                    maxsnr_id = np.unravel_index(np.argmax(snrs), snrs.shape)
-                    maxsnrs[ifo + "_snr_history"] = {
-                        "time": [
-                            (
-                                np.round(
-                                    (
-                                        Offset.fromsamples(
-                                            triggers[ifo][0][maxsnr_id], self.rate
-                                        )
-                                        + self.offset
-                                    )
-                                    / Offset.MAX_RATE
-                                    * 1_000_000_000
-                                ).astype(int)
-                                + Offset.offset_ref_t0
-                                + self.end_time_delta[maxsnr_id[0]]
-                            )
-                            / 1_000_000_000,
-                        ],
-                        "data": [
-                            triggers[ifo][1][maxsnr_id].item(),
-                        ],
-                    }
-                maxlatency["time"] = [mincoinc_time / 1_000_000_000]
-                maxlatency["data"] = [(now().ns() - mincoinc_time) / 1_000_000_000]
+            if self.kafka_pad is not None:
+                kafka_events = self.output_kafka(triggers, clustered_coinc)
 
-            for j in range(1, len(clustered_coinc) - 1):
-                clustered_coinc[j] = clustered_coinc[j].to("cpu").numpy()
+        self.output_frames[self.stillsuit_pad] = EventFrame(
+            events=events, EOS=frame.EOS
+        )
+        if self.strike_pad is not None:
+            self.output_frames[self.strike_pad] = EventFrame(
+                events=background_events, EOS=frame.EOS
+            )
+        if self.kafka_pad is not None:
+            self.output_frames[self.kafka_pad] = EventFrame(
+                events=kafka_events, EOS=frame.EOS
+            )
 
-            # Populate background snr, chisq, time for each bank, ifo
-            # FIXME: is stacking then copying to cpu faster?
-            # FIXME: do we only need snr chisq for singles?
-            background = {
-                bankid: {ifo: None}
-                for bankid, ids in self.bankids_map.items()
-                for ifo in ifos
-            }
-            # loop over banks
-            for bankid, ids in self.bankids_map.items():
-                # loop over ifos
-                for ifo in ifos:
-                    times = []
-                    snrs = []
-                    chisqs = []
-                    template_ids = []
-
-                    if ifo in single_masks:
-                        if True in single_masks[ifo]:
-                            smask0 = single_masks[ifo].to("cpu").numpy()
-                            # loop over subbank ids in this bank
-                            for i in ids:
-                                smask = smask0[i]
-                                time = triggers[ifo][0][i][smask]
-                                time = (
-                                    np.round(
-                                        (
-                                            Offset.fromsamples(time, self.rate)
-                                            + self.offset
-                                        )
-                                        / Offset.MAX_RATE
-                                        * 1_000_000_000
-                                    ).astype(int)
-                                    + Offset.offset_ref_t0
-                                    + self.end_time_delta[i]
-                                )
-                                times.append(time)
-                                snrs.append(triggers[ifo][1][i][smask])
-                                chisqs.append(triggers[ifo][2][i][smask])
-                                template_ids.append(self.template_ids_np[i][smask])
-
-                    background[bankid][ifo] = {
-                        "time": times,
-                        "snrs": snrs,
-                        "chisqs": chisqs,
-                        "template_ids": template_ids,
-                    }
-
-            #
-            # Construct event buffers
-            #
-
-            metadata["coincs"] = {
-                "template_ids": clustered_coinc[0],
-                "ifo_combs": clustered_coinc[1],
-                "network_snrs": clustered_coinc[2],
-                "ifos_number_map": self.ifos_number_map,
-                "time": None,  # FIXME: how is time defined?
-                "sngl": clustered_coinc[3],
-            }
-            metadata["background"] = background
-            if self.kafka:
-                metadata["kafka"] = maxsnrs
-                metadata["kafka"]["latency_history"] = maxlatency
-
-            event_data = {"trigger": [], "event": []}
-            sngls = clustered_coinc[3]
-            # Zero-out the non-coinc ifos
-            for j, c in enumerate(clustered_coinc[1]):
-                trigs_this_event = []
-                for ifo in ifos:
-                    ifo_num = self.ifos_number_map[ifo]
-                    sngl = sngls[ifo]
-                    if str(ifo_num) in str(c):
-                        trig = {
-                            col: sngl[col][j]
-                            for col in ["time", "snr", "chisq", "phase"]
-                        }
-                        trig["_filter_id"] = clustered_coinc[0][j]
-                        trig["ifo"] = ifo
-                        trig["epoch_start"] = ts
-                        trig["epoch_end"] = te
-                        trigs_this_event.append(trig)
-                    else:
-                        trigs_this_event.append(None)
-                event_data["trigger"].append(trigs_this_event)
-
-            event_data["event"] = [
-                {
-                    "time": list(clustered_coinc[3].values())[0]["time"][j],
-                    "network_snr": clustered_coinc[2][j],
-                }
-                for j in range(clustered_coinc[1].shape[0])
-            ]
-
-        # outbuf = SeriesBuffer(
-        #     offset=self.preparedoutoffsets[self.sink_pads[0]][0]["offset"],
-        #     sample_rate=frame.sample_rate,
-        #     data=None,
-        #     shape=(
-        #         self.nsubbank,
-        #         Offset.tosamples(
-        #             self.preparedoutoffsets[self.sink_pads[0]][0]["noffset"],
-        #             frame.sample_rate,
-        #         ),
-        #     ),
-        # )
-
-        # return TSFrame(buffers=[outbuf], EOS=frame.EOS, metadata=metadata)
-
-        events = {t: EventBuffer(ts, te, data=event_data[t]) for t in self.event_dtypes}
-        return EventFrame(events=events, EOS=frame.EOS, metadata=metadata)
+    def transform(self, pad):
+        return self.output_frames[self.rsrcs[pad]]
