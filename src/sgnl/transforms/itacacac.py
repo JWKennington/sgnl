@@ -168,14 +168,14 @@ class Itacacac(TSTransform):
 
         self.output_frames = {pad: None for pad in self.source_pad_names}
 
-    def find_peaks_and_calculate_chisqs(self, snrs: Array) -> Dict[str, list[Array]]:
+    def find_peaks_and_calculate_chisqs(self, snr_ts: Array) -> Dict[str, list[Array]]:
         """Find snr peaks in a given snr time series window, and obtain peak time,
         phase, and chisq
 
         Args:
-            snrs:
+            snr_ts:
                 Dict[str, Array], a dictionary of Arrays, with ifos as keys, only
-                contains snrs for ifos with nongap data
+                contains snr time series for ifos with nongap data
 
         Returns:
             Dict[str, list[Array]], a dictionary of trigger data, with ifos as keys,
@@ -190,8 +190,8 @@ class Itacacac(TSTransform):
             + self.trigger_finding_samples
             + self.trigger_finding_overlap_samples * 2
         )
-        triggers = {}
-        for ifo, snr in snrs.items():
+        triggers = {"peak_locations": {}, "snrs": {}, "chisqs": {}}
+        for ifo, snr in snr_ts.items():
             shape = snr.shape
             snr = snr.view(shape[0], shape[1] // 2, 2, shape[2])
             real = snr[..., 0, :]
@@ -234,29 +234,28 @@ class Itacacac(TSTransform):
                 dim=-1,
             )
             autocorrelation_chisq /= self.autocorrelation_norms[ifo]
-            triggers[ifo] = {
-                "peak_locations": peak_locations,
-                "snrs": peaks,
-                "chisqs": autocorrelation_chisq,
-            }
+            triggers["peak_locations"][ifo] = peak_locations
+            triggers["snrs"][ifo] = peaks
+            triggers["chisqs"][ifo] = autocorrelation_chisq
+
         return triggers
 
     def make_coincs(self, triggers):
-        on_ifos = list(triggers.keys())
+        on_ifos = list(triggers["snrs"].keys())
         nifo = len(on_ifos)
         single_masks = {}  # for snr chisq histogram
 
         if nifo == 1:
             # return the single ifo snrs
-            all_network_snr = [t["snrs"] for t in triggers.values()][0]
+            all_network_snr = triggers["snrs"][0]
             ifo_combs = (
                 torch.ones_like(all_network_snr, dtype=torch.int)
                 * self.ifos_number_map[on_ifos[0]]
             )
 
         elif nifo == 2:
-            times = [t["peak_locations"] for t in triggers.values()]
-            snrs = [t["snrs"] for t in triggers.values()]
+            times = list(triggers["peak_locations"].values())
+            snrs = list(triggers["snrs"].values())
             coinc2_mask, single_mask1, single_mask2, all_network_snr = self.coinc2(
                 snrs, times, on_ifos
             )
@@ -323,9 +322,9 @@ class Itacacac(TSTransform):
         return ifo_combs, all_network_snr, single_masks
 
     def coinc3(self, triggers):
-        ifos = list(triggers.keys())
-        snrs = [t["snrs"] for t in triggers.values()]
-        times = [t["peak_locations"] for t in triggers.values()]
+        ifos = list(triggers["snrs"].keys())
+        times = list(triggers["peak_locations"].values())
+        snrs = list(triggers["snrs"].values())
 
         snr1 = snrs[0]
         snr2 = snrs[1]
@@ -476,7 +475,9 @@ class Itacacac(TSTransform):
             all_network_snr,
         )
 
-    def cluster_coincs(self, ifo_combs, all_network_snr, template_ids, triggers, snrs):
+    def cluster_coincs(
+        self, ifo_combs, all_network_snr, template_ids, triggers, snr_ts
+    ):
         clustered_snr, max_locations = torch.max(all_network_snr, dim=-1)
         clustered_ifo_combs = ifo_combs.gather(1, max_locations.unsqueeze(1)).squeeze(
             -1
@@ -484,15 +485,20 @@ class Itacacac(TSTransform):
         max_locations = max_locations.to("cpu").numpy()
         clustered_template_ids = template_ids[range(self.nsubbank), max_locations]
         sngls = {}
-        for ifo, trig in triggers.items():
+        trig_peak_locations = triggers["peak_locations"]
+        trig_snrs = triggers["snrs"]
+        trig_chisqs = triggers["chisqs"]
+        for ifo in trig_snrs.keys():
             sngls[ifo] = {}
-            peak_locations = trig["peak_locations"][range(self.nsubbank), max_locations]
-            sngl_snr = trig["snrs"][range(self.nsubbank), max_locations]
-            sngl_chisq = trig["chisqs"][range(self.nsubbank), max_locations]
+            max_peak_locations = trig_peak_locations[ifo][
+                range(self.nsubbank), max_locations
+            ]
+            sngl_snr = trig_snrs[ifo][range(self.nsubbank), max_locations]
+            sngl_chisq = trig_chisqs[ifo][range(self.nsubbank), max_locations]
 
             sngls[ifo]["time"] = (
                 np.round(
-                    (Offset.fromsamples(peak_locations, self.rate) + self.offset)
+                    (Offset.fromsamples(max_peak_locations, self.rate) + self.offset)
                     / Offset.MAX_RATE
                     * 1_000_000_000
                 ).astype(int)
@@ -504,10 +510,10 @@ class Itacacac(TSTransform):
 
             # go back and find the phase only for the clustered coincs
             # FIXME: find the snr snippet
-            snrs0 = snrs[ifo]
+            snrs0 = snr_ts[ifo]
             snrs0 = snrs0.view(snrs0.shape[0], snrs0.shape[1] // 2, 2, snrs0.shape[2])
             snr_pairs = snrs0[range(snrs0.shape[0]), max_locations]
-            sngl_peaks = snr_pairs[range(snr_pairs.shape[0]), :, peak_locations]
+            sngl_peaks = snr_pairs[range(snr_pairs.shape[0]), :, max_peak_locations]
             real = sngl_peaks[:, 0]
             imag = sngl_peaks[:, 1]
             phase = torch.atan2(imag, real)
@@ -523,8 +529,8 @@ class Itacacac(TSTransform):
         }
 
     # @torch.compile
-    def itacacac(self, snrs):
-        triggers = self.find_peaks_and_calculate_chisqs(snrs)
+    def itacacac(self, snr_ts):
+        triggers = self.find_peaks_and_calculate_chisqs(snr_ts)
 
         # FIXME: consider edge effects
         ifo_combs, all_network_snr, single_masks = self.make_coincs(triggers)
@@ -535,7 +541,7 @@ class Itacacac(TSTransform):
                 triggers[ifo][k] = v.to("cpu").numpy()
 
         clustered_coinc = self.cluster_coincs(
-            ifo_combs, all_network_snr, self.template_ids_np, triggers, snrs
+            ifo_combs, all_network_snr, self.template_ids_np, triggers, snr_ts
         )
 
         return triggers, ifo_combs, all_network_snr, single_masks, clustered_coinc
@@ -546,16 +552,17 @@ class Itacacac(TSTransform):
         mincoinc_time = min(
             float(np.min(sngls["time"])) for sngls in clustered_coinc["sngls"]
         )
-        for ifo, trig in triggers.items():
-            snrs = triggers[ifo]["snrs"]
-            maxsnr_id = np.unravel_index(np.argmax(snrs), snrs.shape)
+        trig_snrs = triggers["snrs"]
+        trig_peak_locations = triggers["peak_locations"]
+        for ifo, snr in trig_snrs.items():
+            maxsnr_id = np.unravel_index(np.argmax(trig_snrs), trig_snrs.shape)
             maxsnrs[ifo + "_snr_history"] = {
                 "time": [
                     (
                         np.round(
                             (
                                 Offset.fromsamples(
-                                    triggers[ifo]["peak_locations"][maxsnr_id],
+                                    trig_peak_locations[ifo][maxsnr_id],
                                     self.rate,
                                 )
                                 + self.offset
@@ -569,7 +576,7 @@ class Itacacac(TSTransform):
                     / 1_000_000_000,
                 ],
                 "data": [
-                    triggers[ifo]["snrs"][maxsnr_id].item(),
+                    trig_snrs[ifo][maxsnr_id].item(),
                 ],
             }
         maxlatency["time"] = [mincoinc_time / 1_000_000_000]
@@ -580,7 +587,11 @@ class Itacacac(TSTransform):
         # Populate background snr, chisq, time for each bank, ifo
         # FIXME: is stacking then copying to cpu faster?
         # FIXME: do we only need snr chisq for singles?
-        ifos = triggers.keys()
+        trig_peak_locations = triggers["peak_locations"]
+        trig_snrs = triggers["snrs"]
+        trig_chisqs = triggers["chisqs"]
+        ifos = trig_snrs.keys()
+
         background = {
             bankid: {ifo: None}
             for bankid, ids in self.bankids_map.items()
@@ -590,10 +601,10 @@ class Itacacac(TSTransform):
         for bankid, ids in self.bankids_map.items():
             # loop over ifos
             for ifo in ifos:
-                times = []
-                snrs = []
-                chisqs = []
-                template_ids = []
+                bg_times = []
+                bg_snrs = []
+                bg_chisqs = []
+                bg_template_ids = []
 
                 if ifo in single_masks:
                     if True in single_masks[ifo]:
@@ -601,35 +612,38 @@ class Itacacac(TSTransform):
                         # loop over subbank ids in this bank
                         for i in ids:
                             smask = smask0[i]
-                            time = triggers[ifo]["peak_locations"][i][smask]
-                            time = (
+                            bg_time = trig_peak_locations[ifo][i][smask]
+                            bg_time = (
                                 np.round(
-                                    (Offset.fromsamples(time, self.rate) + self.offset)
+                                    (
+                                        Offset.fromsamples(bg_time, self.rate)
+                                        + self.offset
+                                    )
                                     / Offset.MAX_RATE
                                     * 1_000_000_000
                                 ).astype(int)
                                 + Offset.offset_ref_t0
                                 + self.end_time_delta[i]
                             )
-                            times.append(time)
-                            snrs.append(triggers[ifo]["snrs"][i][smask])
-                            chisqs.append(triggers[ifo]["chisqs"][i][smask])
-                            template_ids.append(self.template_ids_np[i][smask])
+                            bg_times.append(bg_time)
+                            bg_snrs.append(trig_snrs[ifo][i][smask])
+                            bg_chisqs.append(trig_chisqs[ifo][i][smask])
+                            bg_template_ids.append(self.template_ids_np[i][smask])
 
                 background[bankid][ifo] = {
-                    "time": times,
-                    "snrs": snrs,
-                    "chisqs": chisqs,
-                    "template_ids": template_ids,
+                    "time": bg_times,
+                    "snrs": bg_snrs,
+                    "chisqs": bg_chisqs,
+                    "template_ids": bg_template_ids,
                 }
 
         # FIXME: check buf seg definition
         trigger_rates = {ifo: {} for ifo in ifos}
-        for ifo, trig in triggers.items():
+        for ifo, snr in trig_snrs.items():
             for bankid, ids in self.bankids_map.items():
                 trigger_rates[ifo][bankid] = (
                     segments.segment(ts / 1_000_000_000, te / 1_000_000_000),
-                    sum(trig["snrs"][idd].size for idd in ids),
+                    sum(snr[idd].size for idd in ids),
                 )
 
         return {
@@ -680,7 +694,7 @@ class Itacacac(TSTransform):
         frames = self.preparedframes
         self.preparedframes = {}
 
-        snrs = {}
+        snr_ts = {}
 
         for sink_pad in self.sink_pads:
             # FIXME: consider multiple buffers
@@ -688,7 +702,7 @@ class Itacacac(TSTransform):
             assert len(frame.buffers) == 1
             buf = frame.buffers[0]
             if not buf.is_gap:
-                snrs[self.rsnks[sink_pad]] = buf.data
+                snr_ts[self.rsnks[sink_pad]] = buf.data
         self.rate = frame.sample_rate
         self.offset = frame.offset
 
@@ -698,7 +712,7 @@ class Itacacac(TSTransform):
             offset0 + self.preparedoutoffsets[self.sink_pads[0]][0]["noffset"]
         )
 
-        if len(snrs.keys()) == 0:
+        if len(snr_ts.keys()) == 0:
             events = {
                 "event": EventBuffer(ts, te, data=None),
                 "trigger": EventBuffer(ts, te, data=None),
@@ -715,7 +729,7 @@ class Itacacac(TSTransform):
                 }
         else:
             triggers, ifo_combs, all_network_snr, single_masks, clustered_coinc = (
-                self.itacacac(snrs)
+                self.itacacac(snr_ts)
             )
             events = self.output_events(clustered_coinc, ts, te)
 
