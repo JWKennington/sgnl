@@ -122,8 +122,11 @@ class Itacacac(TSTransform):
             self.autocorrelation_banks_real[ifo] = self.autocorrelation_banks[ifo].real
             self.autocorrelation_banks_imag[ifo] = self.autocorrelation_banks[ifo].imag
 
-        combs = list(combinations(self.ifos, 2))
-        max_light_travel_time = max(light_travel_time(*c) for c in combs)
+        if len(self.ifos) > 1:
+            combs = list(combinations(self.ifos, 2))
+            max_light_travel_time = max(light_travel_time(*c) for c in combs)
+        else:
+            max_light_travel_time = 0
         self.trigger_finding_overlap_samples = (
             int((max_light_travel_time + self.coincidence_threshold) * self.sample_rate)
             // 2
