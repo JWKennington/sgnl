@@ -250,7 +250,7 @@ class Itacacac(TSTransform):
 
         if nifo == 1:
             # return the single ifo snrs
-            all_network_snr = triggers["snrs"][0]
+            all_network_snr = list(triggers["snrs"].values())[0]
             ifo_combs = (
                 torch.ones_like(all_network_snr, dtype=torch.int)
                 * self.ifos_number_map[on_ifos[0]]
@@ -539,9 +539,9 @@ class Itacacac(TSTransform):
         ifo_combs, all_network_snr, single_masks = self.make_coincs(triggers)
 
         # FIXME: this part and clustered_coinc is lowering the GPU utilization
-        for ifo in triggers.keys():
-            for k, v in triggers[ifo].items():
-                triggers[ifo][k] = v.to("cpu").numpy()
+        for trig_type in triggers.keys():
+            for k, v in triggers[trig_type].items():
+                triggers[trig_type][k] = v.to("cpu").numpy()
 
         clustered_coinc = self.cluster_coincs(
             ifo_combs, all_network_snr, self.template_ids_np, triggers, snr_ts
