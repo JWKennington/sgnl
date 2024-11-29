@@ -24,6 +24,8 @@ def parse_command_line():
     parser.add_argument("-v", "--verbose", help="be verbose", action="store_true")
     args = parser.parse_args()
 
+    assert args.config_schema and os.path.exists(args.config_schema)
+
     return args
 
 
