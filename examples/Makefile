@@ -1,4 +1,4 @@
-all : H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz sgnl-sim-page.html
+all : H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz sgnl-sim-page.html sgnl-results-page.html
 
 # Data are in /home/yun-jing.huang/phd/sgn/run/offline on CIT
 START_TIME=1241738590
@@ -189,6 +189,9 @@ sgnl-sim-page.html: H1L1V1-SGNL_INSPIRAL_INJ_C2_FAR-1241738590-3835.sqlite.gz
 		--input-db $< \
 		--config-schema fake_cbc.yaml \
 		--output-html $@
+
+sgnl-results-page.html: H1L1V1-SGNL_INSPIRAL_C2_FAR-1241738590-3835.sqlite.gz
+	sgnl-results-page --input-db $< --output-html $@ --config-schema fake_cbc.yaml
 
 clean:
 	rm -f \
