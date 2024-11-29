@@ -17,7 +17,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
-### Compute FAR and FAP distributions from the likelihood CCDFs.
+# Compute FAR and FAP distributions from the likelihood CCDFs.
 
 #
 # =============================================================================
@@ -32,22 +32,12 @@ import os
 import sys
 from argparse import ArgumentParser
 
-import stillsuit
 from lal.utils import CacheEntry
 from strike.stats import far
 
+from sgnl import sgnlio
+
 process_name = "sgnl-assign-far"
-
-
-def convert_nanosec2sec(event):
-    for trigger in event["trigger"]:
-        trigger["time"] *= 1e-9
-        trigger["epoch_start"] *= 1e-9
-        trigger["epoch_end"] *= 1e-9
-    event["event"]["time"] *= 1e-9
-    # event["segment"]["start_time"] *= 1e-9
-    # event["segment"]["end_time"] *= 1e-9
-    return event
 
 
 #
@@ -205,7 +195,7 @@ def main():
                 "%d/%d: %s" % (n, len(options.input_database_file), input_database),
                 file=sys.stderr,
             )
-        indb = stillsuit.StillSuit(config=options.config_schema, dbname=input_database)
+        indb = sgnlio.SgnlDB(config=options.config_schema, dbname=input_database)
 
         #
         # Check if the FARs have already been populated in the input database
@@ -245,8 +235,7 @@ def main():
         #
 
         # FIXME : assign_fapfars is no longer used. this might harm the computation efficiency (?), in which case we might want to revisit this.
-        for event in indb.get_events():
-            event = convert_nanosec2sec(event)
+        for event in indb.get_events(nanosec_to_sec=True):
             indb.default_cursor.execute(
                 """
             UPDATE event SET far=? WHERE __event_id=?;
