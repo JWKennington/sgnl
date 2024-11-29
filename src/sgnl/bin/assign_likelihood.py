@@ -33,18 +33,14 @@ import os
 import sys
 from argparse import ArgumentParser
 
-import stillsuit
 from lal.utils import CacheEntry
-from lalburst import calc_likelihood
-from lalinspiral import thinca
 from ligo import segments
 from ligo.lw import array as ligolw_array
 from ligo.lw import ligolw, lsctables
 from ligo.lw import param as ligolw_param
-from ligo.lw import utils as ligolw_utils
-from ligo.lw.utils import process as ligolw_process
-from ligo.lw.utils import segments as ligolw_segments
-from strike.stats import far, likelihood_ratio
+from strike.stats import far
+
+from sgnl import sgnlio
 
 process_name = "sgnl-assign-likelihood"
 
@@ -210,17 +206,6 @@ def trigger_veto_func(trigger, vetoseglists):
         return False
 
 
-def convert_nanosec2sec(event):
-    for trigger in event["trigger"]:
-        trigger["time"] *= 1e-9
-        trigger["epoch_start"] *= 1e-9
-        trigger["epoch_end"] *= 1e-9
-    event["event"]["time"] *= 1e-9
-    # event["segment"]["start_time"] *= 1e-9
-    # event["segment"]["end_time"] *= 1e-9
-    return event
-
-
 #
 # Default content handler for loading RankingStat objects from XML
 # documents
@@ -292,9 +277,7 @@ def main():
         if options.verbose:
             print("%d/%d:" % (n, len(options.input_database_file)), file=sys.stderr)
         try:
-            indb = stillsuit.StillSuit(
-                config=options.config_schema, dbname=input_database
-            )
+            indb = sgnlio.SgnlDB(config=options.config_schema, dbname=input_database)
         except Exception as e:
             if options.verbose:
                 print(
@@ -377,8 +360,7 @@ def main():
         #
 
         events = []
-        for event in indb.get_events():
-            event = convert_nanosec2sec(event)
+        for event in indb.get_events(nanosec_to_sec=True):
             events += [(event["event"]["__event_id"], event["trigger"])]
 
         if options.verbose_level == "DEBUG":

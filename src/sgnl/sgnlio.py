@@ -1,11 +1,13 @@
-import numpy
-from dataclasses import dataclass
+import argparse
 import itertools
 import math
-import stillsuit
-import argparse
 import os
+from dataclasses import dataclass
+
+import numpy
+import stillsuit
 from ligo.segments import segment, segmentlist, segmentlistdict
+
 from sgnl.viz import IFO_COMBO_COLOR
 
 
@@ -69,6 +71,21 @@ class SgnlDB(stillsuit.StillSuit):
         found = _FoundByOnIFOs(_segments, _found, self.schema)
 
         return missed, found
+
+    def get_events(self, nanosec_to_sec=False, **kwargs):
+        """
+        A wrapper function of StillSuit.get_events() with additional
+        functionalities
+        """
+
+        for event in super(SgnlDB, self).get_events(**kwargs):
+            if nanosec_to_sec:
+                for trigger in event["trigger"]:
+                    trigger["time"] *= 1e-9
+                    trigger["epoch_start"] *= 1e-9
+                    trigger["epoch_end"] *= 1e-9
+                event["event"]["time"] *= 1e-9
+            yield event
 
 
 #
