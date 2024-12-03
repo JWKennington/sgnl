@@ -2,6 +2,8 @@ import argparse
 import os
 from sgnl import sgnlio
 from sgnl import viz
+import numpy
+from numpy.polynomial import Polynomial
 
 
 def parse_command_line():
@@ -12,6 +14,11 @@ def parse_command_line():
     )
     parser.add_argument("-s", "--config-schema", help="config schema yaml file")
     parser.add_argument("--input-db", help="the input database.")
+    parser.add_argument(
+        "--segments-name",
+        help="the segment name. Default = afterhtgate.",
+        default="afterhtgate",
+    )
     parser.add_argument(
         "--output-html", help="The output html page", default="plot-sim.html"
     )
@@ -29,12 +36,167 @@ def parse_command_line():
     return args
 
 
+class EffVsDist:
+    def __init__(self, m, f, mcstart=0.0, mcend=numpy.inf, order=6):
+        self.order = order
+
+        def mc(m1, m2):
+            return (m1 * m2) ** 0.6 / (m1 + m2) ** 0.2
+
+        self.dm = sorted(
+            [
+                d
+                for m1, m2, d in zip(
+                    m.simulation.mass1, m.simulation.mass2, m.simulation.distance
+                )
+                if mcstart <= mc(m1, m2) < mcend
+            ]
+        )
+        self.df = sorted(
+            [
+                d
+                for m1, m2, d in zip(
+                    f.simulation.mass1, f.simulation.mass2, f.simulation.distance
+                )
+                if mcstart <= mc(m1, m2) < mcend
+            ]
+        )
+        # self.dm = sorted(m.simulation.distance)
+        # self.df = sorted(f.simulation.distance)
+        self.Nm = None if not self else 1 + numpy.arange(len(self.dm))
+        self.Nf = None if not self else 1 + numpy.arange(len(self.df))
+        self.pm = (
+            None
+            if not self
+            else Polynomial.fit(numpy.log(self.dm), numpy.log(self.Nm), self.order)
+        )
+        self.pf = (
+            None
+            if not self
+            else Polynomial.fit(numpy.log(self.df), numpy.log(self.Nf), self.order)
+        )
+        self.dint = (
+            None
+            if not self
+            else (max(self.dm[0], self.df[0]), min(self.dm[-1], self.df[-1]))
+        )
+
+    def __bool__(self):
+        return len(self.dm) > self.order + 1 and len(self.df) > self.order + 1
+
+    def darr(self, n=100):
+        if not self:
+            return None, None
+        edges = numpy.linspace(*self.dint, n + 1)
+        deltas = edges[1:] - edges[:-1]
+        centers = edges[:-1] + deltas / 2
+        return centers, deltas
+
+    def __call__(self, d):
+        lnd = numpy.log(d)
+        if self:
+            num = k = numpy.exp(self.pf.deriv()(lnd))
+            den = N = numpy.exp(self.pf.deriv()(lnd)) + numpy.exp(self.pm.deriv()(lnd))
+            low = (N * (2 * k + 1) - numpy.sqrt(4 * N * k * (N - k) + N**2)) / (
+                2 * N * (N + 1)
+            )
+            high = (N * (2 * k + 1) + numpy.sqrt(4 * N * k * (N - k) + N**2)) / (
+                2 * N * (N + 1)
+            )
+            return num / den, low, high
+        else:
+            return (
+                0,
+                0,
+                0 if not isinstance(lnd, numpy.array) else numpy.zeros(len(lnd)),
+                numpy.zeros(len(lnd)),
+                numpy.zeros(len(lnd)),
+            )
+
+    def vt(self, t, n=100):
+        if not self:
+            return None
+        d, dx = self.darr()
+        eff_middle, eff_low, eff_high = self(d)
+
+        def f(_d, eff_of_d, _dx, t=t):
+            return (4 * numpy.pi * _d**2 * eff_of_d * _dx).sum() * t
+
+        return f(d, eff_middle, dx), f(d, eff_low, dx), f(d, eff_high, dx)
+
+
+# This function is slow because I am lazy
+def VT(
+    indb,
+    segments_name,
+    mcstart=(0, 0.5, 450.0),
+    mcend=(0.5, 450.0, numpy.inf),
+    ifars=10.0 ** numpy.arange(0, 13),
+):
+    vts = {}
+    vts_low = {}
+    vts_high = {}
+    ifars_years = ifars / 86400 / 365.25
+    for ifar in ifars:
+        misseddict, founddict = indb.missed_found_by_on_ifos(
+            far_threshold=1.0 / ifar, segments_name=segments_name
+        )
+        for combo in misseddict:
+            vts.setdefault(combo, {})
+            vts_low.setdefault(combo, {})
+            vts_high.setdefault(combo, {})
+            for mcs, mce in zip(mcstart, mcend):
+                key = "%.1f-%.1f" % (mcs, mce)
+                eff = EffVsDist(
+                    misseddict[combo], founddict[combo], mcstart=mcs, mcend=mce
+                )
+                if eff:
+                    vm, vl, vh = eff.vt(
+                        abs(misseddict[combo].segments) / 1e9 / 365.25 / 86400
+                    )
+                    vts[combo].setdefault(key, []).append(vm)
+                    vts_low[combo].setdefault(key, []).append(vl)
+                    vts_high[combo].setdefault(key, []).append(vh)
+                else:
+                    vts[combo].setdefault(key, []).append(0.0)
+                    vts_low[combo].setdefault(key, []).append(0.0)
+                    vts_high[combo].setdefault(key, []).append(0.0)
+    return vts, vts_low, vts_high
+
+
 def main():
     args = parse_command_line()
 
     indb = sgnlio.SgnlDB(config=args.config_schema, dbname=args.input_db)
+
+    # VT
+    vt_section = viz.Section("Injection derived VT", "vt")
+    ifars = 10.0 ** numpy.arange(0, 13)
+    ifars_years = ifars / (86400 * 365.25)
+    vts, vts_low, vts_high = VT(indb, args.segments_name, ifars=ifars)
+    for combo in vts:
+        fig = viz.plt.figure()
+        for mcs in vts[combo]:
+            viz.plt.loglog(ifars_years, vts[combo][mcs], label=mcs)
+            viz.plt.fill_between(
+                ifars_years, vts_low[combo][mcs], vts_high[combo][mcs], alpha=0.3
+            )
+        viz.plt.grid()
+        viz.plt.legend()
+        viz.plt.xlabel("IFAR (years)")
+        viz.plt.ylabel("VT (Mpc^3 yr)")
+        fig.tight_layout()
+        vt_section.append(
+            {
+                "img": viz.b64(),
+                "title": "VT vs FAR for %s" % ",".join(sorted(combo)),
+                "caption": "VT vs FAR computed from injections and ignoring cosmology",
+            }
+        )
+
+    # Reuse a single missed / found dictionary for the rest of the plots
     misseddict, founddict = indb.missed_found_by_on_ifos(
-        far_threshold=args.far_threshold, segments_name="afterhtgate"
+        far_threshold=args.far_threshold, segments_name=args.segments_name
     )
 
     # Summary Tables
@@ -55,7 +217,9 @@ def main():
     )
 
     # Injection distributions
-    distribution_section = viz.Section("SGN injection distributions", "injection distributions")
+    distribution_section = viz.Section(
+        "SGN injection distributions", "injection distributions"
+    )
     for xcol, ycol, xlabel, ylabel, caption, plttype, axis in [
         (
             "mass1",
@@ -65,29 +229,30 @@ def main():
             "Injected component masses",
             "loglog",
             "square",
-        ),]:
+        ),
+    ]:
 
-        fig = viz.plt.figure(figsize=(6,6))
+        fig = viz.plt.figure(figsize=(6, 6))
         for combo in misseddict:
             missed = misseddict[combo]
             found = founddict[combo]
             getattr(viz.plt, plttype)(
                 getattr(missed.simulation, xcol),
                 getattr(missed.simulation, ycol),
-                color='k',
-                marker='.',
+                color="k",
+                marker=".",
                 linestyle="None",
             )
             getattr(viz.plt, plttype)(
                 getattr(found.simulation, xcol),
                 getattr(found.simulation, ycol),
-                color='k',
-                marker='.',
+                color="k",
+                marker=".",
                 linestyle="None",
             )
         viz.plt.axis(axis)
         if axis == "square":
-            viz.plt.gca().set_aspect('equal', adjustable='box')
+            viz.plt.gca().set_aspect("equal", adjustable="box")
         viz.plt.xlabel(xlabel)
         viz.plt.ylabel(ylabel)
         viz.plt.grid()
@@ -99,7 +264,6 @@ def main():
                 "caption": caption,
             }
         )
-        
 
     # Missed / found
     missed_found_section = viz.Section("SGN missed / found injections", "missed/found")
@@ -167,7 +331,7 @@ def main():
             linestyle="None",
         )
     viz.plt.axis("square")
-    viz.plt.gca().set_aspect('equal', adjustable='box')
+    viz.plt.gca().set_aspect("equal", adjustable="box")
     viz.plt.xlabel(xlabel)
     viz.plt.ylabel(ylabel)
     viz.plt.grid()
@@ -185,7 +349,13 @@ def main():
     #    html_content = viz.page(_images_html = viz.image_html(images), _modals = viz.modal_html(images))
     # html_content = viz.page(_images_html = viz.image_html(images))
     html_content = viz.page(
-        [missed_found_section, recovered_snr_section, distribution_section, tables_section]
+        [
+            vt_section,
+            missed_found_section,
+            recovered_snr_section,
+            distribution_section,
+            tables_section,
+        ]
     )
     # Save the HTML content to a file
     with open(args.output_html, "w") as f:
