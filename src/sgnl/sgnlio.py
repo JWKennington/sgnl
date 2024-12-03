@@ -155,16 +155,18 @@ class _Injection(list):
 
 
 class _Missed(_Injection):
-    def setup(self, schema, combo):
+    def setup(self, schema, combo, segments):
         super().setup(schema, combo)
         self.color = "#000000"
         self.marker = "x"
+        self.segments = segments
 
 
 class _Found(_Injection):
-    def setup(self, schema, combo):
+    def setup(self, schema, combo, segments):
         super().setup(schema, combo)
         self.setup_table(schema, "event")
+        self.segments = segments
 
 
 class _InjByOnIFOs(dict):
@@ -176,7 +178,7 @@ class _InjByOnIFOs(dict):
             }
         )
         for c in self:
-            self[c].setup(schema, c)
+            self[c].setup(schema, c, _segments[c])
 
 
 class _FoundByOnIFOs(_InjByOnIFOs):
