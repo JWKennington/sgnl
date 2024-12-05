@@ -13,12 +13,12 @@ from sgn.apps import Pipeline
 from sgn.sinks import NullSink
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
-from sgnligo.transforms import ConditionInfo, HorizonDistance, condition  # Latency,
+from sgnligo.transforms import ConditionInfo, condition  # Latency,
 
 from sgnl import simulation
 from sgnl.sinks import ImpulseSink, StillSuitSink, StrikeSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
-from sgnl.transforms import Itacacac, lloid
+from sgnl.transforms import HorizonDistanceTracker, Itacacac, lloid
 
 
 @lsctables.use_in
@@ -542,10 +542,11 @@ def inspiral(
                 pipeline.insert(
                     StrikeSink(
                         name="StrikeSnk",
-                        ifos=ifos,
+                        ifos=data_source_info.all_analysis_ifos,
                         all_template_ids=sorted_bank.template_ids.numpy(),
                         bankids_map=sorted_bank.bankids_map,
                         ranking_stat_output=ranking_stat_output,
+                        coincidence_threshold=coincidence_threshold,
                         background_pad="trigs",
                         horizon_pads=["horizon_" + ifo for ifo in ifos],
                     ),
@@ -555,15 +556,11 @@ def inspiral(
                 )
                 for ifo in ifos:
                     pipeline.insert(
-                        HorizonDistance(
+                        HorizonDistanceTracker(
                             name=ifo + "_Horizon",
                             source_pad_names=(ifo,),
                             sink_pad_names=(ifo,),
-                            m1=1.4,
-                            m2=1.4,
-                            fmin=10.0,
-                            fmax=1000.0,
-                            delta_f=1 / 16.0,
+                            horizon_distance_funcs=sorted_bank.horizon_distance_funcs,
                             ifo=ifo,
                         ),
                         link_map={
