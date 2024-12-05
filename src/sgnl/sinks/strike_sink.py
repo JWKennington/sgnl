@@ -22,6 +22,7 @@ class StrikeSink(SinkElement):
     all_template_ids: Sequence[Any] = None
     bankids_map: dict[str, list] = None
     ranking_stat_output: list[str] = None
+    coincidence_threshold: float = None
     background_pad: str = None
     horizon_pads: list[str] = None
 
@@ -39,6 +40,7 @@ class StrikeSink(SinkElement):
             self.ranking_stats[bankid] = likelihood_ratio.LnLikelihoodRatio(
                 template_ids=bank_template_ids,
                 instruments=self.ifos,
+                delta_t=self.coincidence_threshold,
             )
 
     def pull(self, pad, frame):
@@ -113,7 +115,7 @@ class StrikeSink(SinkElement):
                     # = horizon
                     self.ranking_stats[bankid].terms["P_of_tref_Dh"].horizon_history[
                         ifo
-                    ][horizon_time] = horizon
+                    ][horizon_time] = horizon[bankid]
 
     def internal(self, pad):
         if self.at_eos:

@@ -111,6 +111,7 @@ class SortedBank:
             self.sngls,
             self.autocorrelation_banks,
             self.processed_psd,
+            self.horizon_distance_funcs,
         ) = self.prepare_tensors(self.bank_metadata, self.reordered_bank)
 
         del self.reordered_bank
@@ -604,6 +605,7 @@ class SortedBank:
         sngls = []
         end_time_delta = torch.zeros(size=(nsubbank,), dtype=torch.long)
         bankids_map = defaultdict(list)
+        horizon_distance_funcs = {}
         for j in range(nsubbank):
             sngl = reordered_bank[ifos[0]][j].sngl_inspiral_table
             template_ids0 = torch.tensor([row.template_id for row in sngl])
@@ -618,6 +620,9 @@ class SortedBank:
                 bank_id = subbank_id.split("_")[0] + "_" + str(j)
             else:
                 bank_id = subbank_id.split("_")[0]
+            horizon_distance_funcs[bank_id] = reordered_bank[ifos[0]][
+                j
+            ].horizon_distance_func
             subbankids.append(subbank_id)
             bankids_map[bank_id].append(j)
             sngl0 = {row.template_id: row for row in sngl}
@@ -682,4 +687,5 @@ class SortedBank:
             sngls,
             autocorrelation_banks,
             processed_psd,
+            horizon_distance_funcs,
         )

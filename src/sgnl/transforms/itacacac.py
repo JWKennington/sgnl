@@ -558,7 +558,7 @@ class Itacacac(TSTransform):
         trig_snrs = triggers["snrs"]
         trig_peak_locations = triggers["peak_locations"]
         for ifo, snr in trig_snrs.items():
-            maxsnr_id = np.unravel_index(np.argmax(trig_snrs), trig_snrs.shape)
+            maxsnr_id = np.unravel_index(np.argmax(snr), snr.shape)
             maxsnrs[ifo + "_snr_history"] = {
                 "time": [
                     (
@@ -645,7 +645,10 @@ class Itacacac(TSTransform):
         for ifo, snr in trig_snrs.items():
             for bankid, ids in self.bankids_map.items():
                 trigger_rates[ifo][bankid] = (
-                    segments.segment(ts / 1_000_000_000, te / 1_000_000_000),
+                    segments.segment(
+                        (ts + min(self.end_time_delta[ids])) / 1_000_000_000,
+                        te / 1_000_000_000 + 0.000000001,
+                    ),
                     sum(snr[idd].size for idd in ids),
                 )
 
