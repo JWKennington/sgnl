@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import lal
 from ligo.lw import utils as ligolw_utils
-from sgn.base import Frame, InternalPad, SinkElement, SinkPad
+from sgn.base import Frame, SinkElement, SinkPad
 
 
 def write_psd(fname, psddict, verbose=True, trap_signals=None):
@@ -31,6 +31,6 @@ class PSDSink(SinkElement):
             self.mark_eos(pad)
             self.psd[pad.name.split(":")[-1]] = frame.metadata["psd"]
 
-    def internal(self, pad: InternalPad) -> None:
+    def internal(self) -> None:
         if self.at_eos:
             write_psd(self.fname, self.psd)

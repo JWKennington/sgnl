@@ -206,7 +206,7 @@ class StillSuitSink(SinkElement):
                         segments.segment(frame.offset, frame.end_offset)
                     )
 
-    def internal(self, pad):
+    def internal(self):
         # check if there are empty buffers
         if self.event_dict["event"] is not None:
             for event, trigger in zip(
