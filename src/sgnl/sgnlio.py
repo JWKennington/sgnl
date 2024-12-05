@@ -137,7 +137,7 @@ class _Injection(list):
             )
         else:
             self.simulation.decisive_snr = numpy.array(
-                [m["simulation"]["snr_%s" % combo[0]] for m in self]
+                [m["simulation"]["snr_%s" % list(combo)[0]] for m in self]
             )
 
         # Add network SNR for this ifo combo
