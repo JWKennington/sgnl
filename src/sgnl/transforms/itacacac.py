@@ -695,8 +695,8 @@ class Itacacac(TSTransform):
             "trigger": EventBuffer(ts, te, data=out_triggers),
         }
 
-    def internal(self, pad):
-        super().internal(pad)
+    def internal(self):
+        super().internal()
 
         frames = self.preparedframes
         self.preparedframes = {}

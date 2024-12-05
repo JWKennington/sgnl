@@ -117,7 +117,7 @@ class StrikeSink(SinkElement):
                         ifo
                     ][horizon_time] = horizon[bankid]
 
-    def internal(self, pad):
+    def internal(self):
         if self.at_eos:
             for i, bankid in enumerate(self.bankids_map):
                 # FIXME correct file name assignment
