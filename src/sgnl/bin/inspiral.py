@@ -60,7 +60,7 @@ def parse_command_line():
         "--snr-min",
         metavar="snr",
         action="store",
-        type=flaot,
+        type=float,
         default=4,
         help="Set the minimum snr for identifying triggers.",
     )
