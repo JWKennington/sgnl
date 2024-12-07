@@ -57,6 +57,8 @@ class Itacacac(TSTransform):
             int, the sample rate of the snr time series
         trigger_finding_duration:
             float, the window to find snr peaks, in seconds
+        snr_min:
+            float, the minimum snr for identifying triggers
         autocorrelation_banks:
             Array, the autocorrelations of the template bank
         template_ids:
@@ -83,6 +85,7 @@ class Itacacac(TSTransform):
 
     sample_rate: int = None
     trigger_finding_duration: float = None
+    snr_min: float = 4
     autocorrelation_banks: Array = None
     template_ids: Array = None
     bankids_map: Dict[int, list[int]] = None
@@ -246,22 +249,32 @@ class Itacacac(TSTransform):
     def make_coincs(self, triggers):
         on_ifos = list(triggers["snrs"].keys())
         nifo = len(on_ifos)
-        single_masks = {}  # for snr chisq histogram
+        single_background_masks = {}  # for snr chisq histogram
 
         if nifo == 1:
             # return the single ifo snrs
-            all_network_snr = list(triggers["snrs"].values())[0]
+            snr1 = list(triggers["snrs"].values())[0]
+            snr_above_min_mask = snr1 >= self.snr_min
+            all_network_snr = snr1 * snr_above_min_mask
+            subthresh_mask = snr1 < self.snr_min
             ifo_combs = (
                 torch.ones_like(all_network_snr, dtype=torch.int)
+                * snr_above_min_mask
                 * self.ifos_number_map[on_ifos[0]]
             )
 
         elif nifo == 2:
             times = list(triggers["peak_locations"].values())
             snrs = list(triggers["snrs"].values())
-            coinc2_mask, single_mask1, single_mask2, all_network_snr = self.coinc2(
-                snrs, times, on_ifos
-            )
+            (
+                coinc2_mask,
+                single_mask1,
+                single_mask2,
+                snr1_above_min_mask,
+                snr2_above_min_mask,
+                all_network_snr,
+                subthresh_mask,
+            ) = self.coinc2(snrs, times, on_ifos)
 
             # convert ifo combination masks to numbers
             ifo_numbers = [self.ifos_number_map[ifo] for ifo in on_ifos]
@@ -270,12 +283,13 @@ class Itacacac(TSTransform):
                 + single_mask1 * ifo_numbers[0]
                 + single_mask2 * ifo_numbers[1]
             )
-            single_background_mask1 = ~coinc2_mask & ~single_mask1
-            single_background_mask2 = ~coinc2_mask & ~single_mask2
+
+            single_background_mask1 = ~coinc2_mask & snr1_above_min_mask
+            single_background_mask2 = ~coinc2_mask & snr2_above_min_mask
 
             smasks = [single_background_mask1, single_background_mask2]
             for i, ifo in enumerate(on_ifos):
-                single_masks[ifo] = smasks[i]
+                single_background_masks[ifo] = smasks[i]
 
         elif nifo == 3:
             (
@@ -286,7 +300,11 @@ class Itacacac(TSTransform):
                 single_mask1,
                 single_mask2,
                 single_mask3,
+                single_background_mask1,
+                single_background_mask2,
+                single_background_mask3,
                 all_network_snr,
+                subthresh_mask,
             ) = self.coinc3(triggers)
 
             # convert ifo combination masks to numbers
@@ -302,15 +320,6 @@ class Itacacac(TSTransform):
                 + single_mask2 * ifo_numbers[1]
                 + single_mask3 * ifo_numbers[2]
             )
-            single_background_mask1 = (
-                ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask31 & ~single_mask1
-            )
-            single_background_mask2 = (
-                ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask23 & ~single_mask2
-            )
-            single_background_mask3 = (
-                ~coinc3_mask & ~coinc2_mask23 & ~coinc2_mask31 & ~single_mask3
-            )
 
             smasks = [
                 single_background_mask1,
@@ -318,11 +327,11 @@ class Itacacac(TSTransform):
                 single_background_mask3,
             ]
             for i, ifo in enumerate(on_ifos):
-                single_masks[ifo] = smasks[i]
+                single_background_masks[ifo] = smasks[i]
         else:
             raise ValueError("nifo > 3 is not implemented")
 
-        return ifo_combs, all_network_snr, single_masks
+        return ifo_combs, all_network_snr, single_background_masks, subthresh_mask
 
     def coinc3(self, triggers):
         ifos = list(triggers["snrs"].keys())
@@ -334,13 +343,13 @@ class Itacacac(TSTransform):
         snr3 = snrs[2]
 
         # all combinations
-        coinc2_mask12, _, _, _ = self.coinc2(
+        coinc2_mask12, _, _, _, _, _, _ = self.coinc2(
             [snr1, snr2], [times[0], times[1]], [ifos[0], ifos[1]]
         )
-        coinc2_mask23, _, _, _ = self.coinc2(
+        coinc2_mask23, _, _, _, _, _, _ = self.coinc2(
             [snr2, snr3], [times[1], times[2]], [ifos[1], ifos[2]]
         )
-        coinc2_mask31, _, _, _ = self.coinc2(
+        coinc2_mask31, _, _, _, _, _, _ = self.coinc2(
             [snr1, snr3], [times[0], times[2]], [ifos[0], ifos[2]]
         )
 
@@ -409,6 +418,7 @@ class Itacacac(TSTransform):
             & ~coinc2_mask31
             & (snr1 > snr2)
             & (snr1 >= snr3)
+            & (snr1 >= self.snr_min)
         )
         single_mask2 = (
             ~coinc3_mask
@@ -417,6 +427,7 @@ class Itacacac(TSTransform):
             & ~coinc2_mask31
             & (snr2 >= snr1)
             & (snr2 > snr3)
+            & (snr2 >= self.snr_min)
         )
         single_mask3 = (
             ~coinc3_mask
@@ -425,6 +436,7 @@ class Itacacac(TSTransform):
             & ~coinc2_mask31
             & (snr3 > snr1)
             & (snr3 >= snr2)
+            & (snr3 >= self.snr_min)
         )
 
         single_snr1 = snr1 * single_mask1
@@ -441,6 +453,20 @@ class Itacacac(TSTransform):
             + single_snr3
         )
 
+        subthresh_mask = (
+            (snr1 < self.snr_min) & (snr2 < self.snr_min) & (snr3 < self.snr_min)
+        )
+
+        single_background_mask1 = (
+            ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask31 & (snr1 >= self.snr_min)
+        )
+        single_background_mask2 = (
+            ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask23 & (snr2 >= self.snr_min)
+        )
+        single_background_mask3 = (
+            ~coinc3_mask & ~coinc2_mask23 & ~coinc2_mask31 & (snr3 >= self.snr_min)
+        )
+
         return (
             coinc3_mask,
             coinc2_mask12,
@@ -449,7 +475,11 @@ class Itacacac(TSTransform):
             single_mask1,
             single_mask2,
             single_mask3,
+            single_background_mask1,
+            single_background_mask2,
+            single_background_mask3,
             all_network_snrs,
+            subthresh_mask,
         )
 
     def coinc2(self, snrs, times, ifos):
@@ -458,9 +488,13 @@ class Itacacac(TSTransform):
         snr2 = snrs[1]
         time1 = times[0]
         time2 = times[1]
-        coinc_mask = abs(time1 - time2) < dt
-        single_mask1 = (snr1 > snr2) & ~coinc_mask
-        single_mask2 = ~single_mask1 & ~coinc_mask
+        snr1_above_min_mask = snr1 >= self.snr_min
+        snr2_above_min_mask = snr2 >= self.snr_min
+        coinc_mask = (
+            (abs(time1 - time2) < dt) & snr1_above_min_mask & snr2_above_min_mask
+        )
+        single_mask1 = (snr1 > snr2) & ~coinc_mask & snr1_above_min_mask
+        single_mask2 = (snr1 <= snr2) & ~coinc_mask & snr2_above_min_mask
 
         snr_masked1 = snr1 * coinc_mask
         snr_masked2 = snr2 * coinc_mask
@@ -471,17 +505,24 @@ class Itacacac(TSTransform):
 
         all_network_snr = coinc_network_snr + single1 + single2
 
+        subthresh_mask = (snr1 < self.snr_min) & (snr2 < self.snr_min)
+
         return (
             coinc_mask,
             single_mask1,
             single_mask2,
+            snr1_above_min_mask,
+            snr2_above_min_mask,
             all_network_snr,
+            subthresh_mask,
         )
 
     def cluster_coincs(
-        self, ifo_combs, all_network_snr, template_ids, triggers, snr_ts
+        self, ifo_combs, all_network_snr, template_ids, triggers, snr_ts, subthresh_mask
     ):
         clustered_snr, max_locations = torch.max(all_network_snr, dim=-1)
+
+        mask = ~subthresh_mask.to("cpu").numpy()[range(self.nsubbank), max_locations]
         clustered_ifo_combs = ifo_combs.gather(1, max_locations.unsqueeze(1)).squeeze(
             -1
         )
@@ -491,6 +532,16 @@ class Itacacac(TSTransform):
         trig_peak_locations = triggers["peak_locations"]
         trig_snrs = triggers["snrs"]
         trig_chisqs = triggers["chisqs"]
+        if False in mask:
+            print(
+                max_locations.shape,
+                clustered_snr,
+                clustered_ifo_combs,
+                clustered_template_ids,
+                subthresh_mask.shape,
+                mask,
+                clustered_snr,
+            )
         for ifo in trig_snrs.keys():
             sngls[ifo] = {}
             max_peak_locations = trig_peak_locations[ifo][
@@ -507,9 +558,9 @@ class Itacacac(TSTransform):
                 ).astype(int)
                 + Offset.offset_ref_t0
                 + self.end_time_delta
-            )
-            sngls[ifo]["snr"] = sngl_snr
-            sngls[ifo]["chisq"] = sngl_chisq
+            )[mask]
+            sngls[ifo]["snr"] = sngl_snr[mask]
+            sngls[ifo]["chisq"] = sngl_chisq[mask]
 
             # go back and find the phase only for the clustered coincs
             # FIXME: find the snr snippet
@@ -520,14 +571,14 @@ class Itacacac(TSTransform):
             real = sngl_peaks[:, 0]
             imag = sngl_peaks[:, 1]
             phase = torch.atan2(imag, real)
-            sngls[ifo]["phase"] = phase.to("cpu").numpy()
+            sngls[ifo]["phase"] = phase.to("cpu").numpy()[mask]
 
         # FIXME: is stacking then index_select faster?
         # FIXME: is stacking then copying to cpu faster?
         return {
-            "clustered_template_ids": clustered_template_ids,
-            "clustered_ifo_combs": clustered_ifo_combs.to("cpu").numpy(),
-            "clustered_snr": clustered_snr.to("cpu").numpy(),
+            "clustered_template_ids": clustered_template_ids[mask],
+            "clustered_ifo_combs": clustered_ifo_combs.to("cpu").numpy()[mask],
+            "clustered_snr": clustered_snr.to("cpu").numpy()[mask],
             "sngls": sngls,
         }
 
@@ -535,19 +586,34 @@ class Itacacac(TSTransform):
     def itacacac(self, snr_ts):
         triggers = self.find_peaks_and_calculate_chisqs(snr_ts)
 
-        # FIXME: consider edge effects
-        ifo_combs, all_network_snr, single_masks = self.make_coincs(triggers)
+        ifo_combs, all_network_snr, single_background_masks, subthresh_mask = (
+            self.make_coincs(triggers)
+        )
 
         # FIXME: this part and clustered_coinc is lowering the GPU utilization
         for trig_type in triggers.keys():
             for k, v in triggers[trig_type].items():
                 triggers[trig_type][k] = v.to("cpu").numpy()
 
-        clustered_coinc = self.cluster_coincs(
-            ifo_combs, all_network_snr, self.template_ids_np, triggers, snr_ts
-        )
+        if False not in subthresh_mask:
+            clustered_coinc = {}
+        else:
+            clustered_coinc = self.cluster_coincs(
+                ifo_combs,
+                all_network_snr,
+                self.template_ids_np,
+                triggers,
+                snr_ts,
+                subthresh_mask,
+            )
 
-        return triggers, ifo_combs, all_network_snr, single_masks, clustered_coinc
+        return (
+            triggers,
+            ifo_combs,
+            all_network_snr,
+            single_background_masks,
+            clustered_coinc,
+        )
 
     def output_kafka(self, triggers, clustered_coinc):
         maxsnrs = {}
@@ -586,7 +652,7 @@ class Itacacac(TSTransform):
         maxlatency["data"] = [(now().ns() - mincoinc_time) / 1_000_000_000]
         return {"maxsnrs": maxsnrs, "latency_history": maxlatency}
 
-    def output_background(self, triggers, single_masks, ts, te):
+    def output_background(self, triggers, single_background_masks, ts, te):
         # Populate background snr, chisq, time for each bank, ifo
         # FIXME: is stacking then copying to cpu faster?
         # FIXME: do we only need snr chisq for singles?
@@ -609,9 +675,9 @@ class Itacacac(TSTransform):
                 bg_chisqs = []
                 bg_template_ids = []
 
-                if ifo in single_masks:
-                    if True in single_masks[ifo]:
-                        smask0 = single_masks[ifo].to("cpu").numpy()
+                if ifo in single_background_masks:
+                    if True in single_background_masks[ifo]:
+                        smask0 = single_background_masks[ifo].to("cpu").numpy()
                         # loop over subbank ids in this bank
                         for i in ids:
                             smask = smask0[i]
@@ -649,7 +715,7 @@ class Itacacac(TSTransform):
                         (ts + min(self.end_time_delta[ids])) / 1_000_000_000,
                         te / 1_000_000_000 + 0.000000001,
                     ),
-                    sum(snr[idd].size for idd in ids),
+                    np.sum(snr[ids] >= self.snr_min).item(),
                 )
 
         return {
@@ -689,6 +755,8 @@ class Itacacac(TSTransform):
             }
             for j in range(clustered_coinc["clustered_ifo_combs"].shape[0])
         ]
+        if len(out_triggers) == 0:
+            print("out events", out_events)
 
         return {
             "event": EventBuffer(ts, te, data=out_events),
@@ -735,14 +803,25 @@ class Itacacac(TSTransform):
                     "latency_history": EventBuffer(ts, te, data=None),
                 }
         else:
-            triggers, ifo_combs, all_network_snr, single_masks, clustered_coinc = (
-                self.itacacac(snr_ts)
-            )
-            events = self.output_events(clustered_coinc, ts, te)
+            (
+                triggers,
+                ifo_combs,
+                all_network_snr,
+                single_background_masks,
+                clustered_coinc,
+            ) = self.itacacac(snr_ts)
+            if len(clustered_coinc) == 0:
+                # There are no coincs
+                events = {
+                    "event": EventBuffer(ts, te, data=None),
+                    "trigger": EventBuffer(ts, te, data=None),
+                }
+            else:
+                events = self.output_events(clustered_coinc, ts, te)
 
             if self.strike_pad is not None:
                 background_events = self.output_background(
-                    triggers, single_masks, ts, te
+                    triggers, single_background_masks, ts, te
                 )
             if self.kafka_pad is not None:
                 kafka_events = self.output_kafka(triggers, clustered_coinc)
