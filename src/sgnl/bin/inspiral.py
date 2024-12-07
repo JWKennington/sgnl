@@ -57,6 +57,14 @@ def parse_command_line():
         help="Produce triggers in blocks of this duration.",
     )
     group.add_argument(
+        "--snr-min",
+        metavar="snr",
+        action="store",
+        type=flaot,
+        default=4,
+        help="Set the minimum snr for identifying triggers.",
+    )
+    group.add_argument(
         "--coincidence-threshold",
         metavar="seconds",
         action="store",
@@ -189,6 +197,7 @@ def inspiral(
     condition_info: ConditionInfo,
     svd_bank: List[str],
     trigger_finding_duration: float = 1,
+    snr_min: float = 4,
     coincidence_threshold: float = 0.005,
     event_config: str = None,
     trigger_output: str = None,
@@ -416,6 +425,7 @@ def inspiral(
                 sink_pad_names=tuple(ifos),
                 sample_rate=template_maxrate,
                 trigger_finding_duration=trigger_finding_duration,
+                snr_min=snr_min,
                 autocorrelation_banks=sorted_bank.autocorrelation_banks,
                 template_ids=sorted_bank.template_ids,
                 bankids_map=sorted_bank.bankids_map,
@@ -633,6 +643,7 @@ def main():
         condition_info=condition_info,
         svd_bank=options.svd_bank,
         trigger_finding_duration=options.trigger_finding_duration,
+        snr_min=options.snr_min,
         coincidence_threshold=options.coincidence_threshold,
         event_config=options.event_config,
         trigger_output=options.trigger_output,
