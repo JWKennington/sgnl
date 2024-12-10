@@ -69,7 +69,7 @@ class LLOIDCorrelate(TSTransform):
             self.shape[:-1] + (-1,)
         )
 
-    def transform(self, pad: SourcePad) -> TSFrame:
+    def new(self, pad: SourcePad) -> TSFrame:
         """Correlates incoming frames with filters.
 
         Args:

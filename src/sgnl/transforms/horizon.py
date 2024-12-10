@@ -18,7 +18,7 @@ class HorizonDistanceTracker(TSTransform):
     def __post_init__(self):
         super().__post_init__()
 
-    def transform(self, pad):
+    def new(self, pad):
         """
         compute horizon distance
         """
