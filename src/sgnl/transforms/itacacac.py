@@ -838,5 +838,5 @@ class Itacacac(TSTransform):
                 events=kafka_events, EOS=frame.EOS
             )
 
-    def transform(self, pad):
+    def new(self, pad):
         return self.output_frames[self.rsrcs[pad]]
