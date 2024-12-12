@@ -18,7 +18,7 @@ from sgnligo.transforms import ConditionInfo, condition  # Latency,
 from sgnl import simulation
 from sgnl.sinks import ImpulseSink, StillSuitSink, StrikeSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
-from sgnl.transforms import HorizonDistanceTracker, Itacacac, lloid
+from sgnl.transforms import HorizonDistanceTracker, Itacacac, StrikeTransform, lloid
 
 
 @lsctables.use_in
@@ -538,10 +538,27 @@ def inspiral(
                     is_online=data_source_info == "devshm",
                     nsubbank_pretend=bool(nsubbank_pretend),
                 ),
-                link_map={
-                    "StillSuitSnk:sink:trigs": "itacacac:src:stillsuit",
-                },
             )
+            if data_source_info.data_source in ["devshm", "white-realtime"]:
+                # connect LR and FAR assignment
+                pipeline.insert(
+                    StrikeTransform(
+                        name="StrikeTransform",
+                        sink_pad_names=("trigs",),
+                        source_pad_names=("trigs",),
+                    ),
+                    link_map={
+                        "StrikeTransform:sink:trigs": "itacacac:src:stillsuit",
+                        "StillSuitSnk:sink:trigs": "StrikeTransform:src:trigs",
+                    },
+                )
+            else:
+                pipeline.insert(
+                    link_map={
+                        "StillSuitSnk:sink:trigs": "itacacac:src:stillsuit",
+                    },
+                )
+
             for ifo in ifos:
                 pipeline.insert(
                     link_map={
