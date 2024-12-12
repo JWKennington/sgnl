@@ -532,16 +532,6 @@ class Itacacac(TSTransform):
         trig_peak_locations = triggers["peak_locations"]
         trig_snrs = triggers["snrs"]
         trig_chisqs = triggers["chisqs"]
-        if False in mask:
-            print(
-                max_locations.shape,
-                clustered_snr,
-                clustered_ifo_combs,
-                clustered_template_ids,
-                subthresh_mask.shape,
-                mask,
-                clustered_snr,
-            )
         for ifo in trig_snrs.keys():
             sngls[ifo] = {}
             max_peak_locations = trig_peak_locations[ifo][
