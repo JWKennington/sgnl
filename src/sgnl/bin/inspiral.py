@@ -518,7 +518,7 @@ def inspiral(
                         + "_whiten_latency": whiten_latency_out_links[ifo],
                     }
                 )
-        elif event_config is not None:
+        if event_config is not None:
             pipeline.insert(
                 StillSuitSink(
                     name="StillSuitSnk",
@@ -595,8 +595,6 @@ def inspiral(
                         "NullSink:sink:" + ifo: spectrum_out_links[ifo] for ifo in ifos
                     },
                 )
-        else:
-            raise ValueError("Unknown sink option")
 
     # Plot pipeline
     if graph_name:
