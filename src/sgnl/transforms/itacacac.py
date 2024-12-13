@@ -70,8 +70,6 @@ class Itacacac(TSTransform):
             Array, the end time correction for the snr peaks
         device:
             str, the device to run the trigger finding function on
-        kafka:
-            bool, default False, whether to output to kafka server
         coincidence_threshold:
             float, the time difference threshold to identify coincidence triggers, in
             addition to the light-travel time, in seconds.
@@ -91,7 +89,6 @@ class Itacacac(TSTransform):
     bankids_map: Dict[int, list[int]] = None
     end_time_delta: Sequence[Any] = None
     device: str = "cpu"
-    kafka: bool = False
     coincidence_threshold: float = 0
     strike_pad: str = None
     stillsuit_pad: str = None
@@ -104,7 +101,7 @@ class Itacacac(TSTransform):
         if self.strike_pad is not None:
             self.source_pad_names += (self.strike_pad,)
         if self.kafka_pad is not None:
-            self.source_pad_names += self.kafka_pad
+            self.source_pad_names += (self.kafka_pad,)
         self.trigger_finding_samples = self.trigger_finding_duration * self.sample_rate
         assert self.trigger_finding_samples == int(
             self.trigger_finding_samples
@@ -136,7 +133,7 @@ class Itacacac(TSTransform):
         )
         self.padding = self.autocorrelation_length // 2
         self.adapter_config = AdapterConfig(
-            stride=Offset.fromsec(self.trigger_finding_duration),
+            # stride=Offset.fromsec(self.trigger_finding_duration),
             overlap=(
                 Offset.fromsamples(
                     self.padding + self.trigger_finding_overlap_samples,
@@ -191,11 +188,12 @@ class Itacacac(TSTransform):
 
         padding = self.padding
         idi = padding
-        idf = (
-            padding
-            + self.trigger_finding_samples
-            + self.trigger_finding_overlap_samples * 2
-        )
+        # idf = (
+        #    padding
+        #    + self.trigger_finding_samples
+        #    + self.trigger_finding_overlap_samples * 2
+        # )
+        idf = -padding
         triggers = {"peak_locations": {}, "snrs": {}, "chisqs": {}}
         for ifo, snr in snr_ts.items():
             shape = snr.shape
@@ -605,17 +603,22 @@ class Itacacac(TSTransform):
             clustered_coinc,
         )
 
-    def output_kafka(self, triggers, clustered_coinc):
-        maxsnrs = {}
-        maxlatency = {"time": None, "data": None}
+    def output_kafka(self, triggers, clustered_coinc, ts, te):
+        kafkadata = {}
         mincoinc_time = min(
-            float(np.min(sngls["time"])) for sngls in clustered_coinc["sngls"]
+            float(np.min(sngls["time"])) for sngls in clustered_coinc["sngls"].values()
         )
+        mediancoinc_time = np.median(
+            list(
+                float(np.min(sngls["time"]))
+                for sngls in clustered_coinc["sngls"].values()
+            )
+        ).item()
         trig_snrs = triggers["snrs"]
         trig_peak_locations = triggers["peak_locations"]
         for ifo, snr in trig_snrs.items():
             maxsnr_id = np.unravel_index(np.argmax(snr), snr.shape)
-            maxsnrs[ifo + "_snr_history"] = {
+            kafkadata[ifo + "_snr_history"] = {
                 "time": [
                     (
                         np.round(
@@ -632,15 +635,21 @@ class Itacacac(TSTransform):
                         + Offset.offset_ref_t0
                         + self.end_time_delta[maxsnr_id[0]]
                     )
-                    / 1_000_000_000,
+                    / 1_000_000_000
                 ],
                 "data": [
                     trig_snrs[ifo][maxsnr_id].item(),
                 ],
             }
-        maxlatency["time"] = [mincoinc_time / 1_000_000_000]
-        maxlatency["data"] = [(now().ns() - mincoinc_time) / 1_000_000_000]
-        return {"maxsnrs": maxsnrs, "latency_history": maxlatency}
+        kafkadata["latency_history_max"] = {
+            "time": [mincoinc_time / 1_000_000_000],
+            "data": [(now().ns() - mincoinc_time) / 1_000_000_000],
+        }
+        kafkadata["latency_history_median"] = {
+            "time": [mediancoinc_time / 1_000_000_000],
+            "data": [(now().ns() - mediancoinc_time) / 1_000_000_000],
+        }
+        return {"kafka": EventBuffer(ts=ts, te=te, data=kafkadata)}
 
     def output_background(self, triggers, single_background_masks, ts, te):
         # Populate background snr, chisq, time for each bank, ifo
@@ -772,10 +781,12 @@ class Itacacac(TSTransform):
         self.offset = frame.offset
 
         offset0 = self.preparedoutoffsets[self.sink_pads[0]][0]["offset"]
-        ts = Offset.tons(offset0)
+        ts = Offset.tons(offset0) - int(
+            self.trigger_finding_overlap_samples / self.sample_rate * 1e9
+        )
         te = Offset.tons(
             offset0 + self.preparedoutoffsets[self.sink_pads[0]][0]["noffset"]
-        )
+        ) + int(self.trigger_finding_overlap_samples / self.sample_rate * 1e9)
 
         if len(snr_ts.keys()) == 0:
             events = {
@@ -789,8 +800,7 @@ class Itacacac(TSTransform):
                 }
             if self.kafka_pad is not None:
                 kafka_events = {
-                    "maxsnrs": EventBuffer(ts, te, data=None),
-                    "latency_history": EventBuffer(ts, te, data=None),
+                    "kafka": EventBuffer(ts, te, data=None),
                 }
         else:
             (
@@ -806,15 +816,19 @@ class Itacacac(TSTransform):
                     "event": EventBuffer(ts, te, data=None),
                     "trigger": EventBuffer(ts, te, data=None),
                 }
+                if self.kafka_pad is not None:
+                    kafka_events = {
+                        "kafka": EventBuffer(ts, te, data=None),
+                    }
             else:
                 events = self.output_events(clustered_coinc, ts, te)
+                if self.kafka_pad is not None:
+                    kafka_events = self.output_kafka(triggers, clustered_coinc, ts, te)
 
             if self.strike_pad is not None:
                 background_events = self.output_background(
                     triggers, single_background_masks, ts, te
                 )
-            if self.kafka_pad is not None:
-                kafka_events = self.output_kafka(triggers, clustered_coinc)
 
         self.output_frames[self.stillsuit_pad] = EventFrame(
             events=events, EOS=frame.EOS
