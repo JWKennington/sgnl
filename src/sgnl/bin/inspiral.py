@@ -13,7 +13,7 @@ from sgn.apps import Pipeline
 from sgn.sinks import NullSink
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
-from sgnligo.transforms import ConditionInfo, condition  # Latency,
+from sgnligo.transforms import ConditionInfo, Latency, condition
 
 from sgnl import simulation
 from sgnl.sinks import ImpulseSink, StillSuitSink, StrikeSink
@@ -421,7 +421,7 @@ def inspiral(
 
         pipeline.insert(
             Itacacac(
-                name="itacacac",
+                name="Itacacac",
                 sink_pad_names=tuple(ifos),
                 sample_rate=template_maxrate,
                 trigger_finding_duration=trigger_finding_duration,
@@ -430,7 +430,6 @@ def inspiral(
                 template_ids=sorted_bank.template_ids,
                 bankids_map=sorted_bank.bankids_map,
                 end_time_delta=sorted_bank.end_time_delta,
-                kafka=data_source_info.data_source == "devshm",
                 device=torch_device,
                 coincidence_threshold=coincidence_threshold,
                 stillsuit_pad="stillsuit",
@@ -441,19 +440,19 @@ def inspiral(
         for ifo in ifos:
             pipeline.insert(
                 link_map={
-                    "itacacac:sink:" + ifo: lloid_output_source_link[ifo],
+                    "Itacacac:sink:" + ifo: lloid_output_source_link[ifo],
                 }
             )
-        # if data_source == "devshm":
-        #    pipeline.insert(
-        #        Latency(
-        #            name="itacacac_latency",
-        #            sink_pad_names=("data",),
-        #            source_pad_names=("latency",),
-        #            route="all_itacacac_latency",
-        #        ),
-        #        link_map={"itacacac_latency:sink:data": "itacacac:src:trigs"},
-        #    )
+        if data_source_info.data_source == "devshm":
+            pipeline.insert(
+                Latency(
+                    name="ItacacacLatency",
+                    sink_pad_names=("data",),
+                    source_pad_names=("latency",),
+                    route="all_itacacac_latency",
+                ),
+                link_map={"ItacacacLatency:sink:data": "Itacacac:src:" + kafka_pad},
+            )
 
         # Connect sink
         if fake_sink:
@@ -463,7 +462,7 @@ def inspiral(
                     sink_pad_names=itacacac_pads,
                 ),
                 link_map={
-                    "Sink:sink:" + snk: "itacacac:src:" + snk for snk in itacacac_pads
+                    "Sink:sink:" + snk: "Itacacac:src:" + snk for snk in itacacac_pads
                 },
             )
             for ifo in ifos:
@@ -476,49 +475,54 @@ def inspiral(
                         "Null_" + ifo + ":sink:" + ifo: spectrum_out_links[ifo],
                     },
                 )
-        elif data_source_info.data_source == "devshm":
-            pipeline.insert(
-                KafkaSink(
-                    name="KafkaSnk",
-                    sink_pad_names=(
-                        "kafka",
-                        "itacacac_latency",
-                    )
-                    + tuple(ifo + "_whiten_latency" for ifo in ifos),
-                    output_kafka_server=output_kafka_server,
-                    topics=[
-                        "gstlal." + analysis_tag + "." + ifo + "_snr_history"
-                        for ifo in ifos
-                    ]
-                    + [
-                        "gstlal." + analysis_tag + ".latency_history",
-                    ]
-                    + [
-                        "gstlal." + analysis_tag + ".all_itacacac_latency",
-                    ]
-                    + [
-                        "gstlal." + analysis_tag + "." + ifo + "_whitening_latency"
-                        for ifo in ifos
-                    ],
-                    # topic="gstlal.greg_test.H1_snr_history",
-                    routes=[ifo + "_snr_history" for ifo in ifos],
-                    reduce_time=1,
-                    verbose=verbose,
-                ),
-                link_map={
-                    "KafkaSnk:sink:kafka": "itacacac:src:trigs",
-                    "KafkaSnk:sink:itacacac_latency": "itacacac_latency:src:latency",
-                },
-            )
-            for ifo in ifos:
+        elif event_config is not None:
+            if data_source_info.data_source == "devshm":
+                #
+                # Kafka Sink
+                #
                 pipeline.insert(
+                    KafkaSink(
+                        name="KafkaSnk",
+                        sink_pad_names=(
+                            "kafka",
+                            "itacacac_latency",
+                        )
+                        + tuple(ifo + "_whiten_latency" for ifo in ifos),
+                        output_kafka_server=output_kafka_server,
+                        topics=[
+                            "gstlal." + analysis_tag + "." + ifo + "_snr_history"
+                            for ifo in ifos
+                        ]
+                        + [
+                            "gstlal." + analysis_tag + ".latency_history_max",
+                        ]
+                        + [
+                            "gstlal." + analysis_tag + ".latency_history_median",
+                        ]
+                        + [
+                            "gstlal." + analysis_tag + ".all_itacacac_latency",
+                        ]
+                        + [
+                            "gstlal." + analysis_tag + "." + ifo + "_whitening_latency"
+                            for ifo in ifos
+                        ],
+                    ),
                     link_map={
-                        "KafkaSnk:sink:"
-                        + ifo
-                        + "_whiten_latency": whiten_latency_out_links[ifo],
-                    }
+                        "KafkaSnk:sink:kafka": "Itacacac:src:" + kafka_pad,
+                        "KafkaSnk:sink:itacacac_latency": "ItacacacLatency:src:latency",
+                    },
                 )
-        if event_config is not None:
+                for ifo in ifos:
+                    pipeline.insert(
+                        link_map={
+                            "KafkaSnk:sink:"
+                            + ifo
+                            + "_whiten_latency": whiten_latency_out_links[ifo],
+                        }
+                    )
+            #
+            # StillSuit - trigger output
+            #
             pipeline.insert(
                 StillSuitSink(
                     name="StillSuitSnk",
@@ -548,14 +552,14 @@ def inspiral(
                         source_pad_names=("trigs",),
                     ),
                     link_map={
-                        "StrikeTransform:sink:trigs": "itacacac:src:stillsuit",
+                        "StrikeTransform:sink:trigs": "Itacacac:src:stillsuit",
                         "StillSuitSnk:sink:trigs": "StrikeTransform:src:trigs",
                     },
                 )
             else:
                 pipeline.insert(
                     link_map={
-                        "StillSuitSnk:sink:trigs": "itacacac:src:stillsuit",
+                        "StillSuitSnk:sink:trigs": "Itacacac:src:stillsuit",
                     },
                 )
 
@@ -565,6 +569,10 @@ def inspiral(
                         "StillSuitSnk:sink:segments_" + ifo: source_out_links[ifo],
                     }
                 )
+
+            #
+            # Strike - background output
+            #
             if ranking_stat_output is not None:
                 pipeline.insert(
                     StrikeSink(
@@ -578,7 +586,7 @@ def inspiral(
                         horizon_pads=["horizon_" + ifo for ifo in ifos],
                     ),
                     link_map={
-                        "StrikeSnk:sink:trigs": "itacacac:src:strike",
+                        "StrikeSnk:sink:trigs": "Itacacac:src:strike",
                     },
                 )
                 for ifo in ifos:
