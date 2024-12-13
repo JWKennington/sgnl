@@ -11,6 +11,7 @@ from ligo.lw import ligolw, lsctables
 from ligo.lw import utils as ligolw_utils
 from sgn.apps import Pipeline
 from sgn.sinks import NullSink
+from sgn.sources import SignalEOS
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, Latency, condition
@@ -626,7 +627,8 @@ def inspiral(
         pipeline.visualize(graph_name)
 
     # Run pipeline
-    pipeline.run()
+    with SignalEOS():
+        pipeline.run()
 
     #
     # Cleanup template bank temp files
