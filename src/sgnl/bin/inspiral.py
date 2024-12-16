@@ -1,3 +1,8 @@
+"""An inspiral analysis tool built with the stream graph navigator library."""
+
+# Copyright (C) 2009-2014  Kipp Cannon, Chad Hanna, Drew Keppel
+# Copyright (C) 2024 Yun-Jing Huang
+
 from __future__ import annotations
 
 import math
