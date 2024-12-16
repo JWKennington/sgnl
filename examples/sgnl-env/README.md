@@ -77,6 +77,9 @@ CONTAINER ID   IMAGE                              COMMAND                  CREAT
 
 The default IP address that Colima uses is `192.168.64.5`.
 
+Kafka and influx have no authentication. Grafana has an admin user with password sgnl.
+
+
 ## Example commands to see that services are running:
 
 Kafka:
@@ -100,6 +103,23 @@ Grafana:
 ```
 You should be able open a browser to `http://192.168.64.5/`. 
 
+## Managing Colima
+
+Colima needs to be running for the docker commands to work. To start colima:
+```
+    colima start --vm-type vz --network-address=true
+```
+
+Status of Colima:
+```
+    colima status
+```
+This gives basic info about the VM, including its IP address.
+
+Stop Colima:
+```
+  colima stop
+```
 
 
 
