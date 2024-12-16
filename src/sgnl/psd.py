@@ -1,3 +1,8 @@
+"""A module for reading, writing, and measuring PSDs."""
+
+# Copyright (C) 2010-2013  Kipp Cannon, Chad Hanna, Leo Singer
+# Copyright (C) 2024 Anushka Doke, Yun-Jing Huang, Ryan Magee, Shio Sakon
+
 from __future__ import annotations
 
 import math
@@ -19,7 +24,7 @@ from sgnligo.transforms import Whiten
 from sgnts.sinks import FakeSeriesSink
 from sgnts.transforms import Resampler
 
-from sgnl.sinks import PSDSink
+from sgnl.sinks.psd_sink import PSDSink
 
 #
 # =============================================================================

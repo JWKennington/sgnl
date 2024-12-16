@@ -1,3 +1,7 @@
+"""A sink element that performs an impulse respose test."""
+
+# Copyright (C) 2024 Yun-Jing Huang
+
 from __future__ import annotations
 
 from dataclasses import dataclass

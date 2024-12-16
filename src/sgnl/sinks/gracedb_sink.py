@@ -5,6 +5,7 @@ from typing import Any
 from sgn.control import HTTPControlSinkElement
 from sgn.sinks import SinkElement
 
+
 @dataclass
 class GraceDBSink(HTTPControlSinkElement):
 

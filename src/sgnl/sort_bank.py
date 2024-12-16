@@ -1,6 +1,6 @@
-"""
-Sort and group svd banks and time slices by sample rates
-"""
+"""Sort and group svd banks and time slices by sample rates."""
+
+# Copyright (C) 2024 Yun-Jing Huang
 
 import itertools
 import sys

@@ -1,3 +1,8 @@
+"""An executable to measure the median of power spectral densities."""
+
+# Copyright (C) 2011 Ian Harry, Chad Hanna
+# Copyright (C) 2024 Anushka Doke, Ryan Magee, Shio Sakon
+
 from argparse import ArgumentParser
 
 import numpy

@@ -1,3 +1,7 @@
+"""An element to write out PSDs to xml files."""
+
+# Copyright (C) 2024 Anushka Doke, Ryan Magee, Shio Sakon
+
 from dataclasses import dataclass
 
 import lal

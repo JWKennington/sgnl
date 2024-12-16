@@ -1,3 +1,8 @@
+"""This module contains methods for handling simulation files."""
+
+# Copyright (C) 2010 Chad Hanna
+# Copyright (C) 2024 Yun-Jing Huang
+
 import math
 
 from lal import LIGOTimeGPS

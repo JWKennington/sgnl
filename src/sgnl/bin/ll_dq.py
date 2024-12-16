@@ -1,3 +1,9 @@
+"""An executable to track range history."""
+
+# Copyright (C) 2016 Chad Hanna
+# Copyright (C) 2019 Patrick Godwin
+# Copyright (C) 2024 Yun-Jing Huang
+
 from argparse import ArgumentParser
 
 from sgn.apps import Pipeline

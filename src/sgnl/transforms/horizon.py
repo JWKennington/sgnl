@@ -1,3 +1,7 @@
+"""An element to track horizon distance for incoming PSDs."""
+
+# Copyright (C) 2024 Becca Ewing, Yun-Jing Huang
+
 from __future__ import annotations
 
 from collections.abc import Callable

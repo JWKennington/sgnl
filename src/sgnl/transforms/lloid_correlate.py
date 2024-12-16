@@ -1,3 +1,10 @@
+"""An element that performs cross-correlation of input data with filters, with certain
+time delays and padding for upsampling and downsampling
+"""
+
+# Copyright (C) 2009-2015 Kipp Cannon
+# Copyright (C) 2024 Yun-Jing Huang
+
 from dataclasses import dataclass
 
 from lal import LIGOTimeGPS

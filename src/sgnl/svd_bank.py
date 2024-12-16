@@ -1,3 +1,9 @@
+"""This module contains methods for reading in SVD bank files."""
+
+# Copyright (C) 2009 Kipp Cannon, Chad Hanna
+# Copyright (C) 2010 Kipp Cannon, Chad Hanna, Leo Singer
+# Copyright (C) 2024 Yun-Jing Huang
+
 import tempfile
 import warnings
 from collections.abc import Sequence

@@ -1,3 +1,7 @@
+"""A sink element to write out triggers to likelihood ratio class in strike."""
+
+# Copyright (C) 2024 Yun-Jing Huang, Prathamesh Joshi, Leo Tsukada
+
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any

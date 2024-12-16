@@ -1,3 +1,5 @@
+# Copyright (C) 2024 Chad Hanna
+
 import base64
 import io
 import itertools
