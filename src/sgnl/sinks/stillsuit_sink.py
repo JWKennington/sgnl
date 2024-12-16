@@ -1,3 +1,7 @@
+"""A sink element to write triggers into a sqlite database."""
+
+# Copyright (C) 2024 Yun-Jing Huang
+
 import os
 import socket
 from dataclasses import dataclass

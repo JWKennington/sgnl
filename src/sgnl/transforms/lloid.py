@@ -1,3 +1,11 @@
+"""A module for building SGN graphs of the LLOID algorithm
+(https://arxiv.org/abs/1107.2665)
+"""
+
+# Copyright (C) 2009-2013 Kipp Cannon, Chad Hanna, Drew Keppel
+# Copyright (C) 2021 Patrick Godwin
+# Copyright (C) 2024 Yun-Jing Huang
+
 from sgnts.base import AdapterConfig, Offset
 from sgnts.base.array_ops import TorchBackend
 from sgnts.transforms import Adder, Amplify, Converter, Matmul, Resampler, SumIndex

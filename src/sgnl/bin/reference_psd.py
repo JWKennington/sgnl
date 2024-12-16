@@ -1,3 +1,8 @@
+"""An executable to measure the power spectral density of time-series data."""
+
+# Copyright (C) 2010 Kipp Cannon, Chad Hanna, Leo Singer
+# Copyright (C) 2024 Anushka Doke, Yun-Jing Huang, Ryan Magee, Shio Sakon
+
 from __future__ import annotations
 
 from argparse import ArgumentParser

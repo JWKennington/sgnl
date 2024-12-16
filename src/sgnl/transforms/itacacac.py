@@ -1,3 +1,12 @@
+"""An inspiral trigger, autocorrelation chisq, and coincidence, and clustering
+element
+"""
+
+# Copyright (C) 2011 Chad Hanna, Kipp Cannon
+# Copyright (C) 2018 Cody Messick, Alex Pace
+# Copyright (C) 2019 Cody Messick
+# Copyright (C) 2024 Yun-Jing Huang
+
 from __future__ import annotations
 
 import math
