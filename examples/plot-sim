@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
+import argparse
 import itertools
 import math
-import stillsuit
-import argparse
 import os
-from ligo import segments as ligo_segments
+
 import matplotlib
+import stillsuit
+from ligo import segments as ligo_segments
 
 matplotlib.use("agg")
-from matplotlib import pyplot
 from cycler import cycler
+from matplotlib import pyplot
 
 matplotlib.rcParams.update(
     {

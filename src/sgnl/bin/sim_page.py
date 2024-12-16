@@ -1,9 +1,10 @@
 import argparse
 import os
-from sgnl import sgnlio
-from sgnl import viz
+
 import numpy
 from numpy.polynomial import Polynomial
+
+from sgnl import sgnlio, viz
 
 
 def parse_command_line():
