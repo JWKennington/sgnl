@@ -10,6 +10,7 @@ import torch
 from ligo.lw import ligolw, lsctables
 from ligo.lw import utils as ligolw_utils
 from sgn.apps import Pipeline
+from sgn.control import HTTPControl
 from sgn.sinks import NullSink
 from sgn.sources import SignalEOS
 from sgnligo.sinks import KafkaSink
@@ -17,7 +18,7 @@ from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, Latency, condition
 
 from sgnl import simulation
-from sgnl.sinks import ImpulseSink, StillSuitSink, StrikeSink
+from sgnl.sinks import GraceDBSink, ImpulseSink, StillSuitSink, StrikeSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
 from sgnl.transforms import HorizonDistanceTracker, Itacacac, StrikeTransform, lloid
 
@@ -590,6 +591,10 @@ def inspiral(
                         "StrikeSnk:sink:trigs": "Itacacac:src:strike",
                     },
                 )
+                pipeline.insert(
+                    GraceDBSink(name="gracedb", sink_pad_names=("event",)),
+                    link_map={"gracedb:sink:event": "StrikeTransform:src:trigs"},
+                )
                 for ifo in ifos:
                     pipeline.insert(
                         HorizonDistanceTracker(
@@ -627,7 +632,7 @@ def inspiral(
         pipeline.visualize(graph_name)
 
     # Run pipeline
-    with SignalEOS():
+    with HTTPControl() as control:
         pipeline.run()
 
     #

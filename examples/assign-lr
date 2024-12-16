@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-import stillsuit
 import argparse
 import os
+
+import stillsuit
+
 
 def parse_command_line():
     parser = argparse.ArgumentParser(

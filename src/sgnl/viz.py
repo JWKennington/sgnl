@@ -1,6 +1,7 @@
-import io
 import base64
+import io
 import itertools
+
 import matplotlib
 
 matplotlib.use("agg")
@@ -237,6 +238,7 @@ class Section(list):
                 raise ValueError("%s must contain one of ('img','table')" % d)
 
         return images_html
+
 
 def logo_data():
     return """iVBORw0KGgoAAAANSUhEUgAAAJYAAAC5CAYAAADK+8YBAAAMO2lDQ1BJQ0MgcHJv
