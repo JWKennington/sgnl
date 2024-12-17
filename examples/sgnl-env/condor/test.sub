@@ -1,0 +1,28 @@
+universe = vanilla
+request_cpus   = 1
+request_memory = 400
+request_disk   = 1000
+
+want_graceful_removal = True
+kill_sig = 15
+getenv = False
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT_OR_EVICT
+success_exit_code = 0
+preserve_relative_paths = True
+notification = never
+
+output  = $(cluster)-$(process).out
+error   = $(cluster)-$(process).err
+log     = $(cluster)-$(process).log
+transfer_output_files = foo-$(cluster)-$(process).txt
+executable=test.sh
+arguments = $(cluster)-$(process)
+
+###
+###
+###
+queue 1
+
+
+

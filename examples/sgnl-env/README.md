@@ -1,4 +1,4 @@
-### SGNL Service Environment
+# SGNL Service Environment
 
 The SGNSL Service Environment consists of a docker compose file running a set of
 services useful for developing and testing SGNL.
@@ -16,13 +16,13 @@ always looks for configuration in the current directory.
 
 ## Requirements 
 
-# Macports
+### Macports
 
 Brew might also work.
 
 To install macports, see: https://www.macports.org/install.php
 
-# Docker/Colima
+### Docker/Colima
 
 Docker runs as root, but, under Mac, a virtual machine is used to run docker and all docker commands on the bas Mac operating system are run as a normal user.
 
@@ -48,6 +48,42 @@ To install docker under Mac:
 ```
    docker ps
    docker run hello-world
+```
+
+### Condor
+
+The documentation for setting up condor locally is [here](https://htcondor.readthedocs.io/en/latest/getting-htcondor/install-linux-as-user.html).
+The quick start is:
+```
+  curl -fsSL https://get.htcondor.org | /bin/bash -s -- --download
+  tar xvzf condor.tar.gz
+  mv condor-*stripped condor
+  cd condor
+  ./bin/make-personal-from-tarball
+```
+
+You will now have a condor installation. Every time that you login (maybe setup your .bash_profile), run:
+```
+  . ~/condor/condor.sh
+```
+
+To start HTCondor:
+```
+  condor_master
+```
+
+Test that things are working:
+```
+  condor_status
+  condor_q
+```
+
+Try submitting a job. In the sgnl-env directory:
+```
+      cd condor
+      condor_submit test.sub
+      condor_q
+      condor_status
 ```
 
 ## Run the services
