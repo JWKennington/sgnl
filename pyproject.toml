@@ -51,6 +51,8 @@ sgnl-assign-likelihood = "sgnl.bin.assign_likelihood:main"
 sgnl-assign-far = "sgnl.bin.assign_far:main"
 sgnl-extinct-bin = "sgnl.bin.extinct_bin:main"
 sgnl-mock-gracedb-server = "sgnl.bin.mock_gracedb_server:main"
+sgnl-ll-inspiral-event-uploader = "sgnl.bin.ll_inspiral_event_uploader:main"
+sgnl-ll-inspiral-event-plotter = "sgnl.bin.ll_inspiral_event_plotter:main"
 
 [project.optional-dependencies]
 test = [
