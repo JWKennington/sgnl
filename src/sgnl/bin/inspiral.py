@@ -1,7 +1,7 @@
 """An inspiral analysis tool built with the stream graph navigator library."""
 
-# Copyright (C) 2009-2014  Kipp Cannon, Chad Hanna, Drew Keppel
-# Copyright (C) 2024 Yun-Jing Huang
+# Copyright (C) 2009-2014 Kipp Cannon, Chad Hanna, Drew Keppel
+# Copyright (C) 2024      Yun-Jing Huang
 
 from __future__ import annotations
 
@@ -369,7 +369,7 @@ def inspiral(
             data_source=data_source_info.data_source,
             input_sample_rate=data_source_info.input_sample_rate,
             input_links=source_out_links,
-            whiten_latency=data_source_info.data_source == "devshm",
+            whiten_latency=output_kafka_server is not None,
         )
     else:
         spectrum_out_links = None
@@ -420,7 +420,7 @@ def inspiral(
             itacacac_pads += (strike_pad,)
         else:
             strike_pad = None
-        if data_source_info.data_source == "devshm":
+        if output_kafka_server is not None:
             kafka_pad = "kafka"
             itacacac_pads += (kafka_pad,)
         else:
@@ -450,7 +450,7 @@ def inspiral(
                     "Itacacac:sink:" + ifo: lloid_output_source_link[ifo],
                 }
             )
-        if data_source_info.data_source == "devshm":
+        if output_kafka_server is not None:
             pipeline.insert(
                 Latency(
                     name="ItacacacLatency",
@@ -483,7 +483,7 @@ def inspiral(
                     },
                 )
         elif event_config is not None:
-            if data_source_info.data_source == "devshm":
+            if output_kafka_server is not None:
                 #
                 # Kafka Sink
                 #
@@ -497,20 +497,20 @@ def inspiral(
                         + tuple(ifo + "_whiten_latency" for ifo in ifos),
                         output_kafka_server=output_kafka_server,
                         topics=[
-                            "gstlal." + analysis_tag + "." + ifo + "_snr_history"
+                            "sgnl." + analysis_tag + "." + ifo + "_snr_history"
                             for ifo in ifos
                         ]
                         + [
-                            "gstlal." + analysis_tag + ".latency_history_max",
+                            "sgnl." + analysis_tag + ".latency_history_max",
                         ]
                         + [
-                            "gstlal." + analysis_tag + ".latency_history_median",
+                            "sgnl." + analysis_tag + ".latency_history_median",
                         ]
                         + [
-                            "gstlal." + analysis_tag + ".all_itacacac_latency",
+                            "sgnl." + analysis_tag + ".all_itacacac_latency",
                         ]
                         + [
-                            "gstlal." + analysis_tag + "." + ifo + "_whitening_latency"
+                            "sgnl." + analysis_tag + "." + ifo + "_whitening_latency"
                             for ifo in ifos
                         ],
                     ),

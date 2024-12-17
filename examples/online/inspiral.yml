@@ -1,0 +1,1125 @@
+### configuration file for monitoring
+
+#--------------------------------------------------------------
+### schema configuration
+
+schemas:
+  far_history:
+    measurement: far_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: min
+
+  far_history_across_jobs:
+    measurement: far_history_across_jobs
+    column: data
+    aggregate: min
+
+  likelihood_history:
+    measurement: likelihood_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  coinc:
+    measurement: coinc
+    column:
+      - combined_far
+      - snr
+    far: 1e-2
+    far_key: combined_far
+    time_key: end
+
+  inj_coinc:
+    measurement: inj_coinc
+    column:
+      - combined_far
+      - snr
+    far: 1e-2
+    far_key: combined_far
+    time_key: end
+
+  triggers:
+    measurement: triggers
+    column:
+      - combined_far
+      - snr
+    far: 1e-2
+    far_key: combined_far
+    time_key: end
+
+  ram_history:
+    measurement: ram_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  uptime:
+    measurement: uptime
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: min
+
+  snr_history:
+    measurement: snr_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  H1_snr_history:
+    measurement: H1_snr_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  L1_snr_history:
+    measurement: L1_snr_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  V1_snr_history:
+    measurement: V1_snr_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  latency_history_max:
+    measurement: latency_history_max
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  latency_history_median:
+    measurement: latency_history_median
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: median
+
+  H1_before_whitener_latency:
+    measurement: H1_before_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  L1_before_whitener_latency:
+    measurement: L1_before_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  V1_before_whitener_latency:
+    measurement: V1_before_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  H1_after_whitener_latency:
+    measurement: H1_after_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  L1_after_whitener_latency:
+    measurement: L1_after_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  V1_after_whitener_latency:
+    measurement: V1_after_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  H1_multiband_minrate_latency:
+    measurement: H1_multiband_minrate_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  L1_multiband_minrate_latency:
+    measurement: L1_multiband_minrate_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  V1_multiband_minrate_latency:
+    measurement: V1_multiband_minrate_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  H1_whitening_latency:
+    measurement: H1_whitening_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  L1_whitening_latency:
+    measurement: L1_whitening_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  V1_whitening_latency:
+    measurement: V1_whitening_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  H1_datasource_latency:
+    measurement: H1_datasource_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  L1_datasource_latency:
+    measurement: L1_datasource_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  V1_datasource_latency:
+    measurement: V1_datasource_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  H1_snrSlice_latency:
+    measurement: H1_snrSlice_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  L1_snrSlice_latency:
+    measurement: L1_snrSlice_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  V1_snrSlice_latency:
+    measurement: V1_snrSlice_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  all_itacacac_latency:
+    measurement: all_itacacac_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  H1_strain_dropped:
+    measurement: H1_strain_dropped
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  L1_strain_dropped:
+    measurement: L1_strain_dropped
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  V1_strain_dropped:
+    measurement: V1_strain_dropped
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  H1_whitehtsegments:
+    measurement: H1_whitehtsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  L1_whitehtsegments:
+    measurement: L1_whitehtsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  V1_whitehtsegments:
+    measurement: V1_whitehtsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  H1_statevectorsegments:
+    measurement: H1_statevectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  L1_statevectorsegments:
+    measurement: L1_statevectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  V1_statevectorsegments:
+    measurement: V1_statevectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  H1_dqvectorsegments:
+    measurement: H1_dqvectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  L1_dqvectorsegments:
+    measurement: L1_dqvectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  V1_dqvectorsegments:
+    measurement: V1_dqvectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  heartbeat:
+    measurement: heartbeat
+    tag: heartbeat_tag
+    tag_key: heartbeat_tag
+    column: data
+    aggregate: None
+    heartbeat_tag:
+      - tag1
+
+  snr_history_across_jobs:
+    measurement: snr_history_across_jobs
+    column: data
+    aggregate: max
+
+  likelihood_history_across_jobs:
+    measurement: likelihood_history_across_jobs
+    column: data
+    aggregate: max
+
+  latency_history_across_jobs:
+    measurement: latency_history_across_jobs
+    column: data
+    aggregate: max
+
+  statevector_segments:
+    measurement: H1_statevectorsegments_across_jobs
+    schema1:
+      measurement: H1_statevectorsegments_across_jobs
+      column: data
+      aggregate: min
+      name: H1
+    schema2:
+      measurement: L1_statevectorsegments_across_jobs
+      column: data
+      aggregate: min
+      name: L1
+    schema3:
+      measurement: V1_statevectorsegments_across_jobs
+      column: data
+      aggregate: min
+      name: V1
+
+  ht_gate_segments:
+    measurement: H1_whitehtsegments_across_jobs
+    schema1:
+      measurement: H1_whitehtsegments_across_jobs
+      column: data
+      aggregate: min
+      name: H1
+    schema2:
+      measurement: L1_whitehtsegments_across_jobs
+      column: data
+      aggregate: min
+      name: L1
+    schema3:
+      measurement: V1_whitehtsegments_across_jobs
+      column: data
+      aggregate: min
+      name: V1
+
+  snr_by_ifo:
+    measurement: H1_snr_history_across_jobs
+    schema1:
+      measurement: H1_snr_history_across_jobs
+      column: data
+      aggregate: max
+      name: H1
+    schema2:
+      measurement: L1_snr_history_across_jobs
+      column: data
+      aggregate: max
+      name: L1
+    schema3:
+      measurement: V1_snr_history_across_jobs
+      column: data
+      aggregate: max
+      name: V1
+
+  noise:
+    measurement: noise
+    column: data
+    tag: ifo
+    tag_key: ifo
+    aggregate: max
+    ifo:
+      - H1
+      - L1
+      - V1
+
+  inj_noise:
+    measurement: inj_noise
+    column: data
+    tag: ifo
+    tag_key: ifo
+    aggregate: max
+    ifo:
+      - H1
+      - L1
+      - V1
+
+  range_history:
+    measurement: range_history
+    column: data
+    tag: ifo
+    tag_key: ifo
+    aggregate: max
+    ifo:
+      - H1
+      - L1
+      - V1
+
+  inj_range_history:
+    measurement: inj_range_history
+    column: data
+    tag: ifo
+    tag_key: ifo
+    aggregate: max
+    ifo:
+      - H1
+      - L1
+      - V1
+
+  inj_far_history:
+    measurement: inj_far_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: min
+
+  inj_far_history_across_jobs:
+    measurement: inj_far_history_across_jobs
+    column: data
+    aggregate: min
+
+  inj_likelihood_history:
+    measurement: inj_likelihood_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_ram_history:
+    measurement: inj_ram_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_uptime:
+    measurement: inj_uptime
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: min
+
+  inj_snr_history:
+    measurement: inj_snr_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_H1_snr_history:
+    measurement: inj_H1_snr_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_L1_snr_history:
+    measurement: inj_L1_snr_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_V1_snr_history:
+    measurement: inj_V1_snr_history
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_latency_history_max:
+    measurement: inj_latency_history_max
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+
+
+  inj_latency_history_median:
+    measurement: inj_latency_history_median
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: median
+
+  inj_H1_before_whitener_latency:
+    measurement: inj_H1_before_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_L1_before_whitener_latency:
+    measurement: inj_L1_before_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_V1_before_whitener_latency:
+    measurement: inj_V1_before_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_H1_after_whitener_latency:
+    measurement: inj_H1_after_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_L1_after_whitener_latency:
+    measurement: inj_L1_after_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_V1_after_whitener_latency:
+    measurement: inj_V1_after_whitener_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_H1_multiband_minrate_latency:
+    measurement: inj_H1_multiband_minrate_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_L1_multiband_minrate_latency:
+    measurement: inj_L1_multiband_minrate_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_V1_multiband_minrate_latency:
+    measurement: inj_V1_multiband_minrate_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_H1_whitening_latency:
+    measurement: inj_H1_whitening_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_L1_whitening_latency:
+    measurement: inj_L1_whitening_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_V1_whitening_latency:
+    measurement: inj_V1_whitening_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_H1_datasource_latency:
+    measurement: inj_H1_datasource_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_L1_datasource_latency:
+    measurement: inj_L1_datasource_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_V1_datasource_latency:
+    measurement: inj_V1_datasource_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_H1_snrSlice_latency:
+    measurement: inj_H1_snrSlice_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_L1_snrSlice_latency:
+    measurement: inj_L1_snrSlice_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_V1_snrSlice_latency:
+    measurement: inj_V1_snrSlice_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_all_itacac_latency:
+    measurement: inj_all_itacac_latency
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_H1_strain_dropped:
+    measurement: inj_H1_strain_dropped
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_L1_strain_dropped:
+    measurement: inj_L1_strain_dropped
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_V1_strain_dropped:
+    measurement: inj_V1_strain_dropped
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_H1_whitehtsegments:
+    measurement: inj_H1_whitehtsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_L1_whitehtsegments:
+    measurement: inj_L1_whitehtsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_V1_whitehtsegments:
+    measurement: inj_V1_whitehtsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_H1_statevectorsegments:
+    measurement: inj_H1_statevectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_L1_statevectorsegments:
+    measurement: inj_L1_statevectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_V1_statevectorsegments:
+    measurement: inj_V1_statevectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_H1_dqvectorsegments:
+    measurement: inj_H1_dqvectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_L1_dqvectorsegments:
+    measurement: inj_L1_dqvectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_V1_dqvectorsegments:
+    measurement: inj_V1_dqvectorsegments
+    column: data
+    tags:
+      - svdbin
+      - job
+      - fmax
+    tag_key: svdbin
+    aggregate: max
+
+  inj_snr_history_across_jobs:
+    measurement: inj_snr_history_across_jobs
+    column: data
+    aggregate: max
+
+  inj_likelihood_history_across_jobs:
+    measurement: inj_likelihood_history_across_jobs
+    column: data
+    aggregate: max
+
+  inj_latency_history_across_jobs:
+    measurement: inj_latency_history_across_jobs
+    column: data
+    aggregate: max
+
+  inj_statevector_segments:
+    measurement: inj_H1_statevectorsegments_across_jobs
+    schema1:
+      measurement: inj_H1_statevectorsegments_across_jobs
+      column: data
+      aggregate: min
+      name: H1
+    schema2:
+      measurement: inj_L1_statevectorsegments_across_jobs
+      column: data
+      aggregate: min
+      name: L1
+    schema3:
+      measurement: inj_V1_statevectorsegments_across_jobs
+      column: data
+      aggregate: min
+      name: V1
+
+  inj_ht_gate_segments:
+    measurement: inj_H1_whitehtsegments_across_jobs
+    schema1:
+      measurement: inj_H1_whitehtsegments_across_jobs
+      column: data
+      aggregate: min
+      name: H1
+    schema2:
+      measurement: inj_L1_whitehtsegments_across_jobs
+      column: data
+      aggregate: min
+      name: L1
+    schema3:
+      measurement: inj_V1_whitehtsegments_across_jobs
+      column: data
+      aggregate: min
+      name: V1
+
+  inj_snr_by_ifo:
+    measurement: inj_H1_snr_history_across_jobs
+    schema1:
+      measurement: inj_H1_snr_history_across_jobs
+      column: data
+      aggregate: max
+      name: H1
+    schema2:
+      measurement: inj_L1_snr_history_across_jobs
+      column: data
+      aggregate: max
+      name: L1
+    schema3:
+      measurement: inj_V1_snr_history_across_jobs
+      column: data
+      aggregate: max
+      name: V1
+
+  event_uploader_heartbeat:
+    measurement: event_uploader_heartbeat
+    tag: heartbeat_tag
+    tag_key: heartbeat_tag
+    column: data
+    aggregate: min
+
+  event_plotter_heartbeat:
+    measurement: event_plotter_heartbeat
+    tag: heartbeat_tag
+    tag_key: heartbeat_tag
+    column: data
+    aggregate: min
+
+  inj_event_uploader_heartbeat:
+    measurement: inj_event_uploader_heartbeat
+    tag: heartbeat_tag
+    tag_key: heartbeat_tag
+    column: data
+    aggregate: min
+
+  inj_event_plotter_heartbeat:
+    measurement: inj_event_plotter_heartbeat
+    tag: heartbeat_tag
+    tag_key: heartbeat_tag
+    column: data
+    aggregate: min
+
+  pastro_uploader_heartbeat:
+    measurement: pastro_uploader_heartbeat
+    tag: heartbeat_tag
+    tag_key: heartbeat_tag
+    column: data
+    aggregate: min
+
+  inj_pastro_uploader_heartbeat:
+    measurement: inj_pastro_uploader_heartbeat
+    tag: heartbeat_tag
+    tag_key: heartbeat_tag
+    column: data
+    aggregate: min
+
+  marginalize_likelihoods_online_heartbeat:
+    measurement: marginalize_likelihoods_online_heartbeat
+    tag: heartbeat_tag
+    tag_key: heartbeat_tag
+    column: data
+    aggregate: min
+
+  trigger_counter_heartbeat:
+    measurement: trigger_counter_heartbeat
+    tag: heartbeat_tag
+    tag_key: heartbeat_tag
+    column: data
+    aggregate: min
+
+#--------------------------------------------------------------
+### data backend configuration
+
+backends:
+  default:
+    backend: influxdb
+    db:  # FIXME
+    hostname:  # FIXME
+    port: 8086
+    auth: true
+    https: true
+    check_certs: false
+
