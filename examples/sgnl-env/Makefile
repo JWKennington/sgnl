@@ -1,8 +1,11 @@
 start: start_docker start_services
-	echo "starting docker and services"
+	sgnl-mock-gracedb-server
 
-stop: stop_docker stop_services
-	echo "stopping docker and services"
+view:
+	sleep 2
+	open http://localhost
+	sleep 2
+	open http://127.0.0.1:5000/
 
 install_docker: grafana_data influx_data kafka_data zoo_data zoo_logs
 	port install colima docker docker-compose-plugin
@@ -17,7 +20,7 @@ zoo_data zoo_logs:
 	mkdir -p $@
 
 start_docker:
-	   colima start --vm-type vz --network-address=true
+	colima start --vm-type vz --network-address=true
 
 stop_docker:
 	colima stop
