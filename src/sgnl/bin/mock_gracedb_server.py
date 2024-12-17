@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, Request, request, json, jsonify, render_template_string
 import io
 import sqlite3
 import uuid
@@ -12,6 +12,14 @@ from ligo.lw import lsctables
 from ligo.lw import array
 from ligo.lw import param
 from sgnl import viz
+from flask_accept import accept
+
+
+class CustomRequest(Request):
+    def __init__(self, *args, **kwargs):
+        super(CustomRequest, self).__init__(*args, **kwargs)
+        self.max_form_parts = 32 * 1024 * 1024
+        self.max_form_memory_size = 32 * 1024 * 1024
 
 @lsctables.use_in
 @array.use_in
@@ -20,7 +28,17 @@ class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
 	pass
 
 app = Flask(__name__)
+app.request_class = CustomRequest
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 DATABASE = 'gracedb_test.db'
+
+#@app.before_request
+#def print_headers():
+#    
+#    print (request.accept_encodings)
+#    print("Request Headers:")
+#    for key, value in request.headers.items():
+#        print(f"{key}: {value}")
 
 # Initialize the SQLite database
 def init_db():
@@ -83,7 +101,7 @@ def execute_query(query, args=(), fetchone=False, fetchall=False):
 
 def parse_ligo_lw(file_contents, graceid):
     """Parse LIGO_LW XML and extract fields to store in the database."""
-    fileobj = io.BytesIO(file_contents)
+    fileobj = file_contents #io.BytesIO(file_contents)
     xmldoc = ligolw_utils.load_fileobj(fileobj, contenthandler = LIGOLWContentHandler)
     coinc_table_row = lsctables.CoincTable.get_table(xmldoc)[0]
     coinc_inspiral_row = lsctables.CoincInspiralTable.get_table(xmldoc)[0]
@@ -103,30 +121,69 @@ def parse_ligo_lw(file_contents, graceid):
         fields.append((graceid, "%s time" % row.ifo, float(row.end)))
     #fields.append((graceid, "instruments", coinc_table_row.instruments))
 
-    return fields, extra_event_info
+    return fields, extra_event_info, xmldoc
 
-@app.route('/api/events', methods=['POST'])
+
+@app.route('/api/', methods=['GET'])
+def api():
+    data = {
+        "links": {
+            "events": "http://127.0.0.1:5000/api/events/",
+        },
+        "templates": {
+            "event-detail-template": "http://127.0.0.1:5000/api/events/{graceid}",
+            "event-log-template": "http://127.0.0.1:5000/api/events/{graceid}/log/",
+            "event-log-detail-template": "http://127.0.0.1:5000/api/events/{graceid}/log/{N}",
+            "files-template": "http://127.0.0.1:5000/api/events/{graceid}/files/{filename}",
+        },
+    "groups": [
+        "CBC",
+    ],
+    "pipelines": [
+        "SGN",
+    ],
+    "searches": [
+        "MOCK",
+    ],
+    "labels": [
+        "MOCK INJ",
+        "MOCK"
+    ],
+    }
+    response = app.response_class(
+        response=json.dumps(data),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+
+@app.route('/api/events/', methods=['POST'])
 def create_event():
-    data = request.json
-    required_fields = ['group', 'pipeline', 'search', 'labels', 'offline', 'filename', 'filecontents']
+    data = request.form.to_dict()
+    #required_fields = ['group', 'pipeline', 'search', 'labels', 'offline', 'filename', 'filecontents']
+    required_fields = ['group', 'pipeline', 'search', 'labels', 'offline', 'eventFile']
 
     if not all(field in data for field in required_fields):
         return jsonify({"error": "Missing required fields."}), 400
+    data['filename'] = data['eventFile']
+    del data['eventFile']
 
     graceid = f"T{uuid.uuid4().hex[:8]}"
-    filecontents = base64.b64decode(data['filecontents'])
+    #filecontents = base64.b64decode(data['filecontents'])
+    filecontents = request.files['eventFile']
 
     # Parse LIGO_LW XML file contents
-    try:
-        fields, extra_event_info = parse_ligo_lw(filecontents, graceid)
-    except Exception as e:
-        return jsonify({"error": f"Failed to parse LIGO_LW XML: {str(e)}"}), 400
+    fields, extra_event_info, xmldoc = parse_ligo_lw(filecontents, graceid)
+    
+    b64xml = io.BytesIO()
+    ligolw_utils.write_fileobj(xmldoc, b64xml)
 
     # Insert the event into the database
     execute_query("""INSERT INTO events (graceid, "group", pipeline, search, labels, offline, filename, filecontents, instruments, ifos, far, likelihood, snr) \
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                   (graceid, data['group'], data['pipeline'], data['search'], data['labels'], data['offline'],
-                   data['filename'], filecontents, extra_event_info['instruments'], extra_event_info['ifos'], extra_event_info['combined_far'], extra_event_info['likelihood'], extra_event_info['snr'],))
+                   data['filename'], base64.b64encode(b64xml.read()).decode('utf-8'), extra_event_info['instruments'], extra_event_info['ifos'], extra_event_info['combined_far'], extra_event_info['likelihood'], extra_event_info['snr'],))
 
     # Insert extracted fields into the event_fields table
     for field in fields:
@@ -136,6 +193,7 @@ def create_event():
 
 @app.route('/api/events/<graceid>/logs', methods=['POST'])
 def write_log(graceid):
+    print (request.headers)
     data = request.json
     if 'message' not in data:
         return jsonify({"error": "Missing required field 'message'."}), 400
