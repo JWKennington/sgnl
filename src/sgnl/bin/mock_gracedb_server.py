@@ -32,13 +32,6 @@ app.request_class = CustomRequest
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 DATABASE = 'gracedb_test.db'
 
-#@app.before_request
-#def print_headers():
-#    
-#    print (request.accept_encodings)
-#    print("Request Headers:")
-#    for key, value in request.headers.items():
-#        print(f"{key}: {value}")
 
 # Initialize the SQLite database
 def init_db():
@@ -101,7 +94,7 @@ def execute_query(query, args=(), fetchone=False, fetchall=False):
 
 def parse_ligo_lw(file_contents, graceid):
     """Parse LIGO_LW XML and extract fields to store in the database."""
-    fileobj = file_contents #io.BytesIO(file_contents)
+    fileobj = file_contents
     xmldoc = ligolw_utils.load_fileobj(fileobj, contenthandler = LIGOLWContentHandler)
     coinc_table_row = lsctables.CoincTable.get_table(xmldoc)[0]
     coinc_inspiral_row = lsctables.CoincInspiralTable.get_table(xmldoc)[0]
@@ -119,7 +112,6 @@ def parse_ligo_lw(file_contents, graceid):
         fields.append((graceid, "%s snr" % row.ifo, row.snr))
         fields.append((graceid, "%s chisq" % row.ifo, row.chisq))
         fields.append((graceid, "%s time" % row.ifo, float(row.end)))
-    #fields.append((graceid, "instruments", coinc_table_row.instruments))
 
     return fields, extra_event_info, xmldoc
 
@@ -162,7 +154,6 @@ def api():
 @app.route('/api/events/', methods=['POST'])
 def create_event():
     data = request.form.to_dict()
-    #required_fields = ['group', 'pipeline', 'search', 'labels', 'offline', 'filename', 'filecontents']
     required_fields = ['group', 'pipeline', 'search', 'labels', 'offline', 'eventFile']
 
     if not all(field in data for field in required_fields):
@@ -172,8 +163,6 @@ def create_event():
 
     conn = sqlite3.connect(DATABASE)
     graceid = "T%05d" % conn.cursor().execute("SELECT COUNT(*) FROM events").fetchone()[0] 
-    #graceid = f"T{uuid.uuid4().hex[:8]}"
-    #filecontents = base64.b64decode(data['filecontents'])
     filecontents = request.files['eventFile']
 
     # Parse LIGO_LW XML file contents
@@ -199,10 +188,6 @@ def write_event_log(graceid):
     if request.method == "POST":
         data = request.form.to_dict()
         filecontents = request.files['upload']
-        #b64file = io.BytesIO(filecontents.read())
-        #b64file.seek(0)
-    
-        #filecontents = base64.b64decode(data['filecontents']) if 'filecontents' in data else None
     
         execute_query("INSERT INTO logs (graceid, comment, filename, filecontents, tag_names) \
                        VALUES (?, ?, ?, ?, ?)",
