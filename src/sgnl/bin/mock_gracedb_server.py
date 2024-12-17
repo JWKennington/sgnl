@@ -53,7 +53,7 @@ def init_db():
                         labels TEXT,
                         offline BOOLEAN,
                         filename TEXT,
-                        filecontents BLOB,
+                        filecontents TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         instruments TEXT,
                         ifos TEXT,
@@ -62,15 +62,15 @@ def init_db():
                         snr REAL
                     )''')
         c.execute('''CREATE TABLE logs (
-                        logid INTEGER PRIMARY KEY AUTOINCREMENT,
                         graceid TEXT,
-                        message TEXT,
+                        N INTEGER,
+                        comment TEXT,
+                        created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        issuer DEFAULT "sgn mockery",
                         filename TEXT,
-                        filecontents BLOB,
-                        tag_name TEXT,
-                        display_name TEXT,
-                        label TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        filecontents TEXT,
+                        file_version TEXT,
+                        tag_names TEXT,
                         FOREIGN KEY(graceid) REFERENCES events(graceid)
                     )''')
         c.execute('''CREATE TABLE event_fields (
@@ -135,6 +135,7 @@ def api():
             "event-log-template": "http://127.0.0.1:5000/api/events/{graceid}/log/",
             "event-log-detail-template": "http://127.0.0.1:5000/api/events/{graceid}/log/{N}",
             "files-template": "http://127.0.0.1:5000/api/events/{graceid}/files/{filename}",
+            "superevent-log-list-template": "https://gracedb.ligo.org/api/superevents/{superevent_id}/logs/",
         },
     "groups": [
         "CBC",
@@ -169,15 +170,17 @@ def create_event():
     data['filename'] = data['eventFile']
     del data['eventFile']
 
-    graceid = f"T{uuid.uuid4().hex[:8]}"
+    conn = sqlite3.connect(DATABASE)
+    graceid = "T%05d" % conn.cursor().execute("SELECT COUNT(*) FROM events").fetchone()[0] 
+    #graceid = f"T{uuid.uuid4().hex[:8]}"
     #filecontents = base64.b64decode(data['filecontents'])
     filecontents = request.files['eventFile']
 
     # Parse LIGO_LW XML file contents
     fields, extra_event_info, xmldoc = parse_ligo_lw(filecontents, graceid)
-    
     b64xml = io.BytesIO()
     ligolw_utils.write_fileobj(xmldoc, b64xml)
+    b64xml.seek(0)
 
     # Insert the event into the database
     execute_query("""INSERT INTO events (graceid, "group", pipeline, search, labels, offline, filename, filecontents, instruments, ifos, far, likelihood, snr) \
@@ -191,26 +194,34 @@ def create_event():
 
     return jsonify({"graceid": graceid}), 201
 
-@app.route('/api/events/<graceid>/logs', methods=['POST'])
-def write_log(graceid):
-    print (request.headers)
-    data = request.json
-    if 'message' not in data:
-        return jsonify({"error": "Missing required field 'message'."}), 400
+@app.route('/api/events/<graceid>/log/', methods=['POST', 'GET'])
+def write_event_log(graceid):
+    if request.method == "POST":
+        data = request.form.to_dict()
+        filecontents = request.files['upload']
+        #b64file = io.BytesIO(filecontents.read())
+        #b64file.seek(0)
+    
+        #filecontents = base64.b64decode(data['filecontents']) if 'filecontents' in data else None
+    
+        execute_query("INSERT INTO logs (graceid, comment, filename, filecontents, tag_names) \
+                       VALUES (?, ?, ?, ?, ?)",
+                      (graceid, data['comment'], data.get('filename'), base64.b64encode(filecontents.read()).decode('utf-8'),
+                       ','.join(data.get('tag_name', []))))
+    
+        return jsonify({"graceid": graceid}), 201
 
-    filecontents = base64.b64decode(data['filecontents']) if 'filecontents' in data else None
+    else:
+        return jsonify({"graceid": graceid}), 201
 
-    execute_query("INSERT INTO logs (graceid, message, filename, filecontents, tag_name, display_name, label) \
-                   VALUES (?, ?, ?, ?, ?, ?, ?)",
-                  (graceid, data['message'], data.get('filename'), filecontents,
-                   ','.join(data.get('tag_name', [])), ','.join(data.get('displayName', [])), data.get('label')))
-
+@app.route('/api/superevents/<graceid>/logs', methods=['POST'])
+def _dummy_logs(graceid):
     return jsonify({"graceid": graceid}), 201
 
 @app.route('/')
 def homepage():
     events = execute_query("""SELECT graceid, far, likelihood, ifos, instruments, "group", pipeline, search, labels, offline, filename, created_at FROM events""", fetchall=True)
-    _logs = execute_query("SELECT graceid, message, filename, created_at FROM logs", fetchall=True)
+    _logs = execute_query("SELECT graceid, comment, filename, created FROM logs", fetchall=True)
     event_fields = execute_query("SELECT graceid, field_name, field_value FROM event_fields", fetchall=True)
     fields = {e[0]:{} for e in events}
     logs = {e[0]:[] for e in events}
