@@ -1,10 +1,11 @@
-all: inspiral scald #event_uploader event_plotter
+all: inspiral range scald #event_uploader event_plotter
 
-H1_SVD_BANK=/ligo/home/ligo.org/yun-jing.huang/phd/benchmark/gstlal-benchmarking/run23_o4banks/H1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
-L1_SVD_BANK=/ligo/home/ligo.org/yun-jing.huang/phd/benchmark/gstlal-benchmarking/run23_o4banks/L1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
-V1_SVD_BANK=/ligo/home/ligo.org/yun-jing.huang/phd/benchmark/gstlal-benchmarking/run23_o4banks/V1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
+H1_SVD_BANK=../../tests/data/H1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
+L1_SVD_BANK=../../tests/data/L1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
+V1_SVD_BANK=../../tests/data/V1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
+EVENT_CONFIG=../../config/fake_cbc.yaml
 
-KAFKA_SERVER= # FIXME
+KAFKA_SERVER=localhost-v4:9196
 GRACEDB_GROUP=CBC
 GRACEDB_PIPELINE=SGN
 GRACEDB_SEARCH=MOCK
@@ -23,9 +24,64 @@ inspiral:
 		--svd-bank ${H1_SVD_BANK} \
 		--svd-bank ${L1_SVD_BANK} \
 		--svd-bank ${V1_SVD_BANK} \
-		--event-config fake_cbc.yaml \
+		--event-config ${EVENT_CONFIG} \
 		--trigger-output out.sqlite \
 		--output-likelihood-file likelihood_ratio.xml.gz \
+		--output-kafka-server ${KAFKA_SERVER} \
+		--analysis-tag ${TAG}
+
+scald:
+	scald aggregate \
+		--config inspiral.yml \
+		--uri kafka://${TAG}-collect@${KAFKA_SERVER} \
+		--data-type timeseries \
+		--topic sgnl.${TAG}.latency_history_max \
+		--topic sgnl.${TAG}.H1_whitening_latency \
+		--topic sgnl.${TAG}.L1_whitening_latency \
+		--topic sgnl.${TAG}.V1_whitening_latency \
+		--topic sgnl.${TAG}.H1_snr_history \
+		--topic sgnl.${TAG}.L1_snr_history \
+		--topic sgnl.${TAG}.V1_snr_history \
+		--topic sgnl.${TAG}.range_history \
+		--schema latency_history_max \
+		--schema H1_whitening_latency \
+		--schema L1_whitening_latency \
+		--schema V1_whitening_latency \
+		--schema H1_snr_history \
+		--schema L1_snr_history \
+		--schema V1_snr_history \
+		--schema range_history
+
+
+range: h1_range l1_range v1_range
+
+h1_range:
+	sgnl-ll-dq \
+		--data-source white-realtime \
+		--psd-fft-length 4 \
+		--input-sample-rate 16384 \
+		--channel-name H1=FAKE \
+		--scald-config inspiral.yml \
+		--output-kafka-server ${KAFKA_SERVER} \
+		--analysis-tag ${TAG}
+
+l1_range:
+	sgnl-ll-dq \
+		--data-source white-realtime \
+		--psd-fft-length 4 \
+		--input-sample-rate 16384 \
+		--channel-name L1=FAKE \
+		--scald-config inspiral.yml \
+		--output-kafka-server ${KAFKA_SERVER} \
+		--analysis-tag ${TAG}
+
+v1_range:
+	sgnl-ll-dq \
+		--data-source white-realtime \
+		--psd-fft-length 4 \
+		--input-sample-rate 16384 \
+		--channel-name V1=FAKE \
+		--scald-config inspiral.yml \
 		--output-kafka-server ${KAFKA_SERVER} \
 		--analysis-tag ${TAG}
 
@@ -99,12 +155,3 @@ plot_dtdphi_plots:
 		--verbose \
 		--gracedb-service-url ${GRACEDB_URL}
 
-scald: scald_latency
-
-scald_latency:
-	scald aggregate \
-		--config inspiral.yml \
-		--uri kafka://${TAG}-collect@${KAFKA_SERVER} \
-		--data-type timeseries \
-		--topic sgnl.${TAG}.latency_history_max \
-		--schema latency_history_max \

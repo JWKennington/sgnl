@@ -31,7 +31,6 @@ class HorizonDistanceTracker(TSTransform):
         # incoming frame handling
         frame = self.preparedframes[self.sink_pads[0]]
         EOS = frame.EOS
-        metadata = frame.metadata
         shape = frame.shape
         offset = frame.offset
         metadata = frame.metadata
@@ -51,24 +50,28 @@ class HorizonDistanceTracker(TSTransform):
                     for bankid, func in self.horizon_distance_funcs.items()
                 }
             else:
-                dist = self.horizon_distance_funcs(psd, 8)
+                dist = self.horizon_distance_funcs(psd, 8)[0]
+
             data = {}
-            data["horizon"] = dist
-            data["time"] = ts
-            data["ifo"] = self.ifo
+            if self.range is True:
+                data["range_history"] = {
+                    "time": [float(ts / 1e9)],
+                    "data": [float(dist / 2.25)],
+                }
+            else:
+                data["horizon"] = dist
+                data["time"] = ts
+                data["ifo"] = self.ifo
         else:
             dist = None
             data = None
 
-        metadata["psd_name"] = "'%s'" % pad.name
-        metadata["horizon"] = dist
-        if self.range and dist is not None:
-            metadata["range"] = dist / 2.25
-
-        events = {"data": EventBuffer(ts, te, data)}
+        if self.range is True:
+            events = {"kafka": EventBuffer(ts, te, data)}
+        else:
+            events = {"data": EventBuffer(ts, te, data)}
 
         return EventFrame(
             events=events,
-            metadata=metadata,
             EOS=EOS,
         )

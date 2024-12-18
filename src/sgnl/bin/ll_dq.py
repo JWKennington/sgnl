@@ -9,14 +9,18 @@ from argparse import ArgumentParser
 from sgn.apps import Pipeline
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
-from sgnligo.transforms import ConditionInfo, HorizonDistance, condition
+from sgnligo.transforms import ConditionInfo, condition
 from sgnts.sinks import FakeSeriesSink
+
+from sgnl.psd import HorizonDistance
+from sgnl.transforms import HorizonDistanceTracker
 
 
 def parse_command_line():
     parser = ArgumentParser(description=__doc__)
 
     DataSourceInfo.append_options(parser)
+    ConditionInfo.append_options(parser)
 
     parser.add_argument(
         "--scald-config",
@@ -38,7 +42,7 @@ def parse_command_line():
     )
     parser.add_argument(
         "--horizon-approximant",
-        type="string",
+        type=str,
         default="IMRPhenomD",
         help="Specify a waveform approximant to use while calculating the horizon'\
         ' distance and range. Default is IMRPhenomD.",
@@ -46,7 +50,7 @@ def parse_command_line():
     parser.add_argument(
         "--horizon-f-min",
         metavar="Hz",
-        type="float",
+        type=float,
         default=15.0,
         help="Set the frequency at which the waveform model is to begin for the'\
         ' horizon distance and range calculation. Default is 15 Hz.",
@@ -54,17 +58,10 @@ def parse_command_line():
     parser.add_argument(
         "--horizon-f-max",
         metavar="Hz",
-        type="float",
+        type=float,
         default=900.0,
         help="Set the upper frequency cut off for the waveform model used in the'\
         ' horizon distance and range calculation. Default is 900 Hz.",
-    )
-    parser.add_argument(
-        "--kafka-reduce-time",
-        metavar="seconds",
-        type=int,
-        default=1,
-        help="Time to reduce data to send to kafka.",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Be verbose (optional)."
@@ -84,7 +81,6 @@ def ll_dq(
     horizon_approximant,
     horizon_f_min,
     horizon_f_max,
-    kafka_reduce_time,
     verbose,
 ):
     #
@@ -132,16 +128,19 @@ def ll_dq(
     )
 
     pipeline.insert(
-        HorizonDistance(
+        HorizonDistanceTracker(
             name="Horizon",
             source_pad_names=("horizon",),
             sink_pad_names=("spectrum",),
-            m1=1.4,
-            m2=1.4,
-            fmin=horizon_f_min,
-            fmax=horizon_f_max,
+            horizon_distance_funcs=HorizonDistance(
+                m1=1.4,
+                m2=1.4,
+                f_min=horizon_f_min,
+                f_max=horizon_f_max,
+                delta_f=1 / 16.0,
+            ),
             range=True,
-            delta_f=1 / 16.0,
+            ifo=ifo,
         ),
         FakeSeriesSink(
             name="HoftSnk",
@@ -152,14 +151,12 @@ def ll_dq(
             name="HorizonSnk",
             sink_pad_names=("horizon",),
             output_kafka_server=output_kafka_server,
-            topic="gstlal." + analysis_tag + "." + ifo + "_range_history",
-            route="range_history",
-            metadata_key="range",
-            tags=[
+            topics=[
+                "sgnl." + analysis_tag + ".range_history",
+            ],
+            tag=[
                 ifo,
             ],
-            reduce_time=kafka_reduce_time,
-            verbose=verbose,
         ),
     )
 
@@ -185,12 +182,11 @@ def main():
         data_source_info,
         condition_info,
         options.scald_config,
-        options.otuput_kafka_server,
+        options.output_kafka_server,
         options.analysis_tag,
         options.horizon_approximant,
         options.horizon_f_min,
         options.horizon_f_max,
-        options.kafka_reduce_time,
         options.verbose,
     )
 
