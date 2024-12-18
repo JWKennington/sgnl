@@ -1116,10 +1116,10 @@ schemas:
 backends:
   default:
     backend: influxdb
-    db:  # FIXME
-    hostname:  # FIXME
+    db: sgnl
+    hostname: localhost-v4
     port: 8086
-    auth: true
-    https: true
+    auth: false
+    https: false
     check_certs: false
 

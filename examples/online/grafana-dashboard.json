@@ -1,0 +1,3434 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 126,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Jobs",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://ldas-jobs.gwave.ics.psu.edu/grafana/d/jobs/jobs-dashboard"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "stability dash",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://ldas-jobs.gwave.ics.psu.edu/grafana/d/E1Ys5mDVz/jacob-stability-dashboard?orgId=1"
+    }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 3,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "log": 10,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": 1200000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max H1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#ee0000",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max L1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#4aa4ff",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max V1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#9b59b6",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max H1 injection"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#ee0000",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max L1 injection"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#4aa4ff",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max V1 injection"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#9b59b6",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kafka OK"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "hidden"
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 20
+              },
+              {
+                "id": "custom.lineStyle"
+              },
+              {
+                "id": "custom.spanNulls",
+                "value": 1200000
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "always"
+              },
+              {
+                "id": "custom.gradientMode",
+                "value": "opacity"
+              },
+              {
+                "id": "custom.scaleDistribution",
+                "value": {
+                  "type": "linear"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kafka Not OK"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "hidden"
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 20
+              },
+              {
+                "id": "custom.lineStyle"
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "always"
+              },
+              {
+                "id": "custom.gradientMode",
+                "value": "opacity"
+              },
+              {
+                "id": "custom.spanNulls",
+                "value": 1200000
+              },
+              {
+                "id": "custom.scaleDistribution",
+                "value": {
+                  "type": "linear"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "alias": "max H1",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"H1_snr_history\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "max L1",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"L1_snr_history\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "max V1",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"V1_snr_history\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "value"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "mean"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "max H1 injection",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"inj_H1_snr_history\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "max L1 injection",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"inj_L1_snr_history\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "E",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "max V1 injection",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"inj_V1_snr_history\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "F",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "Kafka OK",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT last(\"data\") FROM \"\".\"heartbeat\" WHERE \"data\" = 1 AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "G",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "Kafka Not OK",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT last(\"data\") + 1 FROM \"\".\"heartbeat\" WHERE \"data\" = 0 AND $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "H",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "SNR History",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 3,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "H1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#ee0000",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "L1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#4aa4ff",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "V1"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#9b59b6",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 4,
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "gwistat",
+          "url": "https://online.ligo.org/"
+        }
+      ],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "alias": "[[tag_ifo]]",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "query": "SELECT max(\"data\") FROM \"1s\".\"range_history\" WHERE $timeFilter GROUP BY time($__interval), \"ifo\" fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Range History",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "grafana"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 31,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "# Helpful Links:\n\n# analysis name: ${analysis}\n\n**RRT Base Dashboard**: [here](https://ldas-jobs.gwave.ics.psu.edu/grafana/d/rrt-base/rapid-response-base-dashboard?orgId=1&refresh=5s)\n\n**GraceDB**: [latest GstLAL events](https://gracedb.ligo.org/latest/?query=gstlal&query_type=E&get_neighbors=&results_format=)\n\n**gwistat**: [online.igwn.org](https://online.igwn.org/)\n\n**All Sky Test Suite Dashboard**: [here](https://gstlal.ligo.caltech.edu/grafana/d/ccRx6r1Vk/test-suite-main?orgId=1&refresh=10s)\n\n",
+        "mode": "markdown"
+      },
+      "pluginVersion": "9.4.7",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "description": "Displays OK if a heartbeat has been received from the job in the last 5 minutes, DOWN otherwise.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 6
+      },
+      "id": 33,
+      "options": {
+        "config": "",
+        "layout": "",
+        "onclick": "console.log(data)\nwindow.updateVariables({query:{'var-project':'test'}, partial: true})",
+        "script": "\n// Static vars\n// guess the job tag based on the analysis name\nvar analysis = variables.analysis\nif (analysis.includes(\"edward\")) {\n  var tag = \"edward_o4b\"\n}\nelse if (analysis.includes(\"jacob\")) {\n  var tag = \"jacob_o4b\"\n}\nelse if (analysis.includes(\"charlie\")) {\n  if (analysis.includes(\"cit\")) {\n    var tag = \"charlie_cit_o4b\"\n  }\n  else {\n    var tag = \"charlie_icds_o4b\"\n  }\n  \n}\nelse if (analysis.includes(\"alice\")) {\n  if (analysis.includes(\"fft8\")) {\n    var tag = \"alice_o4b_fft8\"\n  }\n  else {\n    var tag = \"alice_o4b\"\n  }\n}\n  \nelse if (analysis.includes(\"rick\")){\n  var tag = \"rick_o4b\"\n}\n\n// jobs to display on the table \nvar jobs = [\"marginalize likelihoods\",\n  \"trigger counter\",\n  \"event uploader\",\n  \"pastro uploader\",\n  \"event plotter \" + tag + \"-1\",\n  \"event plotter \" + tag + \"-2\",\n  \"event plotter \" + tag + \"-3\",\n  \"event plotter \" + tag + \"-4\",\n  \"event plotter \" + tag + \"-5\",\n];\nvar max_jobs = jobs.length\n\n// colors\nvar default_color = 'red'\nvar ok_color = 'limegreen'\nvar down_color = 'red'\n\n// table formatting\nvar col_widths = [20, 10, 10]; \nvar header_labels = [[\"<b>Job</b>\"], [\"<b>Status</b>\"], [\"<b>Inj Status</b>\"]]; \nvar text_font = \"Times New Roman\"\n\n// Jobs queried\nvar num_series = data.series.length\nfor (i=0; i< data.series.length; i++) {\n  console.log(data.series[i].name)\n}\n\nvar status_color = new Array(max_jobs)\nvar table_status = new Array(max_jobs)  \nvar inj_status_color = new Array(max_jobs)\nvar inj_table_status = new Array(max_jobs)  \n\n// Fill table with values\nfor (i = 0; i < max_jobs; i++) {\n  status_color[i] = default_color\n  \n  table_status[i] = 'DOWN'\n  if (i==0 || i ==1) {\n    inj_table_status[i] = 'NULL'\n    inj_status_color[i] = 'grey'\n  }\n  else if (tag == \"jacob_v2\" || tag == \"rick_o4b_mdc26\" || tag == \"edward_v2\") {\n    inj_table_status[i] = 'DOWN'\n    inj_status_color[i] = default_color\n  }\n  else {\n    inj_table_status[i] = 'NULL'\n    inj_status_color[i] = 'grey'\n  }\n  var this_name = jobs[i]\n  var last_value = 0\n  var inj_last_value = 0\n  // now iterate over series and find the one\n  // corresponding to this row\n  for (j=0; j < data.series.length; j ++) {\n    if (data.series[j].name === this_name) {\n      these_values = data.series[j].fields[1].values.buffer\n      // remove nulls\n      these_values = these_values.filter(item => item !== null)\n      // get the latest\n      last_value = these_values[these_values.length - 1]\n    }\n    else if (data.series[j].name === \"inj \"+this_name) {\n      inj_these_values = data.series[j].fields[1].values.buffer\n      // remove nulls\n      inj_these_values = inj_these_values.filter(item => item !== null)\n      // get the latest\n      inj_last_value = inj_these_values[inj_these_values.length - 1]\n    }\n  }\n  if (last_value == 1) {\n    status_color[i] = ok_color\n    table_status[i] = 'OK'\n  }\n  if (inj_last_value == 1) {\n    inj_status_color[i] = ok_color\n    inj_table_status[i] = 'OK'\n  }\n}\n\n// Table starts\nvar values = [\n      jobs,\n      table_status, \n      inj_table_status,\n]\n\nvar table_format = [{\n  type: 'table',\n  columnwidth: col_widths,\n  header: {\n    values: header_labels,\n    height: 10,\n    align: \"center\",\n    line: {width: 0, color: '#CBC3E3'},\n    fill: {color: \"#CBC3E3\"},\n    font: {family: text_font, size: 14, color: \"black\"},\n  },\n  cells: {\n    values: values,\n    align: \"center\",\n    height: 25,\n    line: {color: \"white\", width: 2},\n    fill: {color: ['white', status_color, inj_status_color] },\n    font: {family: text_font, size: 14, color: [\"black\"]}\n  },\n}]\n\nvar layout = {\n  font: {family: \"Times New Roman\", size: 12, color: [\"black\"]},\n  margin: {r:1,l:1,t:0,b:0},\n}\n\nreturn {\n  data: table_format,\n  layout\n}"
+      },
+      "pluginVersion": "9.4.7",
+      "targets": [
+        {
+          "alias": "marginalize likelihoods",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "marginalize_likelihoods_online_heartbeat",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT last(\"data\") FROM \"1s\".\"marginalize_likelihoods_online_heartbeat\" WHERE time >= now() - 5m and time <= now() GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "H",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "trigger counter",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "heartbeat_tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "trigger_counter_heartbeat",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT last(\"data\") FROM \"1s\".\"trigger_counter_heartbeat\" WHERE time >= now() - 5m and time <= now() GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "G",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "event plotter [[tag_heartbeat_tag]]",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "heartbeat_tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "event_plotter_heartbeat",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT last(\"data\") FROM \"1s\".\"event_plotter_heartbeat\" WHERE time >= now() - 5m and time <= now() GROUP BY \"heartbeat_tag\", time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "event uploader",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "heartbeat_tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "event_uploader_heartbeat",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT last(\"data\") FROM \"1s\".\"event_uploader_heartbeat\" WHERE time >= now() - 5m and time <= now() GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "pastro uploader",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "heartbeat_tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "pastro_uploader_heartbeat",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT last(\"data\") FROM \"1s\".\"pastro_uploader_heartbeat\" WHERE time >= now() - 5m and time <= now() GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "inj event plotter [[tag_heartbeat_tag]]",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "heartbeat_tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": true,
+          "measurement": "inj_event_plotter_heartbeat",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "refId": "D",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "inj event uploader",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "heartbeat_tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": true,
+          "measurement": "inj_event_uploader_heartbeat",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "refId": "E",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "inj pastro uploader",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "heartbeat_tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": true,
+          "measurement": "inj_pastro_uploader_heartbeat",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "refId": "F",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "inj event uploader",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "heartbeat_tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "event_uploader_heartbeat",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT last(\"data\") FROM \"1s\".\"inj_event_uploader_heartbeat\" WHERE time >= now() - 5m and time <= now() GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "I",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "inj pastro uploader",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "heartbeat_tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "pastro_uploader_heartbeat",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT last(\"data\") FROM \"1s\".\"inj_pastro_uploader_heartbeat\" WHERE time >= now() - 5m and time <= now() GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "J",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": []
+        },
+        {
+          "alias": "inj event plotter [[tag_heartbeat_tag]]",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "heartbeat_tag"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "event_plotter_heartbeat",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT last(\"data\") FROM \"1s\".\"inj_event_plotter_heartbeat\" WHERE time >= now() - 5m and time <= now() GROUP BY \"heartbeat_tag\", time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "K",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": []
+        }
+      ],
+      "type": "ae3e-plotly-panel"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 3,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 3,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "injection likelihood"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#e0b400",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "likelihood"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 7
+      },
+      "id": 6,
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "FAR and Likelihood Dashboard",
+          "url": "https://ldas-jobs.gwave.ics.psu.edu/grafana/d/WWrPHaWVk/far-and-likelihood-dashboard?orgId=1&refresh=30s&var-DashDatasource=${analysis}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "alias": "injection likelihood",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "inj_likelihood_history_across_svdbins",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT max(\"data\") FROM \"1s\".\"inj_likelihood_history_across_svdbins\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "max"
+              }
+            ]
+          ]
+        },
+        {
+          "alias": "likelihood",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "measurement": "likelihood_history_across_svdbins",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT max(\"data\") FROM \"1s\".\"likelihood_history_across_svdbins\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "max"
+              }
+            ]
+          ],
+          "tags": []
+        }
+      ],
+      "title": "Likelihood History",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 3,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "log": 10,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": 1200000,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 5,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "median"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "max injection"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "solid"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "median injection"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 7
+      },
+      "id": 9,
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "Latency Dashboard",
+          "url": "https://ldas-jobs.gwave.ics.psu.edu/grafana/d/lMkhhQiVk/latency-dashboard?var-DashDatasource=${analysis}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "alias": "max injection",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"inj_latency_history_max_across_svdbins\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "median injection",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"inj_latency_history_median_across_svdbins\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "max",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"latency_history_max_across_svdbins\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "median",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"latency_history_median_across_svdbins\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "all_itacacac_latency",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"all_itacacac_latency\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "I",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "max",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"latency_history_max\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "E",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "median",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"latency_history_median\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "J",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "H1_whitening_latency",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"H1_whitening_latency\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "F",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "L1_whitening_latency",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"L1_whitening_latency\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "G",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "V1_whitening_latency",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") FROM \"$ginterval\".\"V1_whitening_latency\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "H",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Latency History",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "description": "False alarm rate history for all jobs. The analysis will not start assigning FARs until it has been calculating likelihoods for ~several hours.\nFAR thresholds:\n\nPurple: 1 per hr (gracedb upload threshold)\n\nBlue: 2 per day\n\nYellow: 1 per 5 months (Signif Alert Threshold)",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 3,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 3,
+            "pointSize": 4,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "#EAB839",
+                "value": -7.1189
+              },
+              {
+                "color": "#6ed0e0",
+                "value": -4.6355
+              },
+              {
+                "color": "super-light-purple",
+                "value": -3.5563
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "injection min far"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#E0B400",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "min far"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "LOG10(min inj far)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "semi-dark-yellow",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "LOG10(min far)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 14
+      },
+      "id": 7,
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "FAR and Likelihood Dashboard",
+          "url": "https://ldas-jobs.gwave.ics.psu.edu/grafana/d/WWrPHaWVk/far-and-likelihood-dashboard?orgId=1&refresh=30s&var-DashDatasource=${analysis}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "alias": "LOG10(min inj far)",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "inj_far_history_across_svdbins",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT LOG10(min(\"data\")) FROM \"1s\".\"inj_far_history_across_svdbins\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "min"
+              }
+            ]
+          ]
+        },
+        {
+          "alias": "LOG10(min far)",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "inj_far_history_across_svdbins",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT LOG10(min(\"data\")) FROM \"1s\".\"far_history_across_svdbins\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "min"
+              }
+            ]
+          ]
+        }
+      ],
+      "title": "FAR History",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 14
+      },
+      "id": 29,
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "FAR and Likelihood Dashboard",
+          "url": "https://ldas-jobs.gwave.ics.psu.edu/grafana/d/WWrPHaWVk/far-and-likelihood-dashboard?orgId=1&refresh=30s&var-DashDatasource=${analysis}"
+        }
+      ],
+      "options": {
+        "config": {
+          "displayModeBar": false
+        },
+        "data": [
+          {
+            "line": {
+              "color": "#2c3e50"
+            }
+          }
+        ],
+        "layout": "",
+        "onclick": "// console.log(data)\nwindow.updateVariables({query:{'var-project':'test'}, partial: true})",
+        "script": "//\n// If we have no data, print an error message.\n//\nif (data.series.length < 1) {\n  return { \n     \"data\": {},\n     \"config\": {},\n     \"layout\": {\n         \"xaxis\": {\n           \"visible\": false\n         },\n         \"yaxis\": {\n           \"visible\": false\n         },\n         \"annotations\": [\n           {\n             \"text\": \"No data\",\n             \"xref\": \"paper\",\n             \"yref\": \"paper\",\n             \"y\": 0.6,\n             \"showarrow\": false,\n              \"font\": {\n                 \"size\": 20\n              }\n           }\n         ]\n     }\n  }\n}\n\n// Incoming data is a timeseries of ifar values for events at time t.\nvar m = data.series[0].fields[1].values.buffer\n\n// Get an estimate of the duration spanned from the data \nvar time = data.series[0].fields[0].values.buffer\nvar smallest = Math.min.apply(null, time.filter(function(n) { return !isNaN(n); }));\nvar biggest = Math.max.apply(null, time.filter(function(n) { return !isNaN(n); }));\nvar duration_days = (biggest - smallest) / 1000 / 86400.\nvar far_thresh = 10000. //FIXME don't hard code this\n\nvar analysis = variables.analysis\nvar trials;\nif (analysis.includes(\"edward\") || analysis.includes(\"jacob\") || analysis.includes(\"charlie\")) {\n    trials = 2;\n} else {\n    trials = 1;\n}\nconsole.log(\"Trials factor: \" + trials);\n  \nvar num_expected = Math.ceil(duration_days * far_thresh)\nconsole.log(\"duration in days:\", duration_days)\n// make an expected array\nvar num_expected_array = Array.from(Array(num_expected).keys()).reverse()\nvar expected_ifar = Array.from(num_expected_array, x => duration_days / x / trials)\n\n\n// Create a new list that only contains unique values.\n// Note, we are discarding infinite values.\ntmpvals = new Set(m)\ntmpvals.delete(Infinity)\nmvals = [...tmpvals]\nmvals.sort((a,b) => parseFloat(a) - parseFloat(b))\n\n// Create a map of values to the number of times that the \n// value occurs in m.\ncounts = new Map()\nfor (i=0; i < m.length; i++) {\n    if (counts.get(m[i]) === undefined) {\n        counts.set(m[i], 1);\n    } else {\n        tmp = counts.get(m[i]);\n        counts.set(m[i], parseInt(tmp) + 1);\n    }\n}\n\n// Construct the variables to plot.\n// Note: we are plotting \"number with ifars less than or equal to\"\n// So we loop through the list and \"add greater than\"\n//\nvar x = new Array(2*m.length)\nvar n = new Array(2*m.length)\nfor (i=0; i < mvals.length; i++) {\n    //console.log(\"counts.get(\" + mvals[i] + \") = \" + counts.get(mvals[i]))\n    x[2*i] = mvals[i]\n    x[(2*i) + 1] = x[2*i]\n    n[2*i] = counts.get(mvals[i])\n}\n\nfor (i=(mvals.length - 2); i>1; i--) {\n    n[2*i] = n[2*i] + n[2*(i+1)]\n    //console.log(\"after: n[2*\" + i + \"] = \" + n[2*i])\n    n[(2*i) + 1] = n[2*i]\n}\n\nx = x.slice(1)\nn = n.slice(0,-1)\n\nvar s = {\n  x: x,\n  y: n,\n  name: 'candidates',\n  type: 'line',\n};\n\nvar s2 = {\n  x: expected_ifar,\n  y: num_expected_array,\n  name: 'expected: '+duration_days.toFixed(1) + ' days with trials factor ' + trials.toFixed(1),\n  type: 'line'\n}\n\nvar layout = {\n  showlegend: true,\n  legend: {\n    \"orientation\": \"h\",\n    y: -0.2,\n  },\n  annotations: [\n    {\n      showarrow: false,\n      text: \"Number of Events\",\n      textangle: -90,\n      x: -0.07,\n      xanchor: \"right\",\n      xref: \"paper\",\n      y: 0.5,\n      yanchor: \"right\",\n      yref: \"paper\"\n    },\n    {\n      showarrow: false,\n      text: \"Inverse False Alarm Rate (day)\",\n      x: 0.5,\n      xanchor: \"top\",\n      xref: \"paper\",\n      y: -0.07,\n      yanchor: \"top\",\n      yref: \"paper\"\n    }\n  ],\n  font: {\n    color: \"darkgrey\"\n  },\n  margin: {\n    b: 50,\n    t: 0,\n    r: 0,\n    l: 50\n  },\n  paper_bgcolor: \"rgba(0,0,0,0)\",\n  plot_bgcolor: \"rgba(0,0,0,0)\",\n  xaxis: {\n    autorange: true,\n    gridcolor: \"rgba(128,128,128,255)\",\n    type: \"log\",\n  },\n  yaxis: {\n    autorange: true,\n    gridcolor: \"rgba(128,128,128,255)\",\n    type: \"log\",\n    tick0:1,\n    dtick: 1,\n  },\n  hovermode: \"closest\"\n}\n\nvar config = {\n  displayModeBar: false\n}\n\nreturn {\n    data : [ s, s2 ],\n    config : config,\n    layout : layout\n}\n\n// return {data:[ s ]};\n"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "query": "SELECT 1. / (86400*data) as ifar FROM \"10s\".\"far_history_across_svdbins\" WHERE $timeFilter",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "IFAR ",
+      "type": "ae3e-plotly-panel"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 16,
+        "y": 14
+      },
+      "id": 19,
+      "options": {
+        "onclick": "console.log(data)\nwindow.updateVariables({query:{'var-project':'test'}, partial: true})",
+        "script": "//\n// If we have no data, print an error message.\n//\nif (data.series.length < 1) {\n  return { \n     \"data\": {},\n     \"config\": {},\n     \"layout\": {\n         \"xaxis\": {\n           \"visible\": false\n         },\n         \"yaxis\": {\n           \"visible\": false\n         },\n         \"annotations\": [\n           {\n             \"text\": \"No data\",\n             \"xref\": \"paper\",\n             \"yref\": \"paper\",\n             \"y\": 0.6,\n             \"showarrow\": false,\n              \"font\": {\n                 \"size\": 20\n              }\n           }\n         ]\n     }\n  }\n}\n\nconsole.log(data)\nvar trace = {\n  x: data.series[0].fields[0].values.buffer,\n  y: data.series[0].fields[1].values.buffer\n};\n\nlatest_metric = Math.max.apply(Math, data.series[0].fields[0].values.buffer);\ncurrent_time = new Date().getTime(); // milliseconds since since midnight Jan 1 1970\ndiff = (current_time - latest_metric) / 1000\n\nconsole.log(latest_metric)\nconsole.log(current_time)\nconsole.log('diff (seconds): ' + diff)\n\nvar data = [\n  {\n    domain: { x: [-10, 10], y: [-10, 10] },\n    value: diff,\n    type: \"indicator\",\n    mode: \"gauge+number\",\n    gauge: {\n      axis: { range: [0, 60] },\n       bar: { color: \"limegreen\" },\n  }\n    },\n];\n\nvar layout = {\n  font: { color: \"black\", family: \"Arial\", size: 15},\n  width: 300, \n  height: 300,\n  margin: {b:50, l: 20, t: 1},\n}\n\nreturn {\n  data: data,\n  layout: layout\n};"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "query": "SELECT first(ram) FROM (SELECT last(\"data\") as ram FROM \"1s\".\"ram_history\" WHERE $timeFilter);",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT first(ram) FROM (SELECT last(\"data\") as ram FROM \"1s\".\"inj_ram_history\" WHERE $timeFilter);",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Max time since last metric",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
+      "type": "ae3e-plotly-panel"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "links": [],
+          "mappings": [],
+          "max": 6,
+          "min": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 4
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 20,
+        "y": 14
+      },
+      "id": 21,
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "RAM dashboard`",
+          "url": "https://ldas-jobs.gwave.ics.psu.edu/grafana/d/iOqKuXJ4z/ram-dashboard?orgId=1&refresh=1m&var-DashDatasource=${analysis}&"
+        }
+      ],
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "9.4.7",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "query": "SELECT max(\"data\") as \"RAM\" FROM \"$ginterval\".\"ram_history_across_svdbins\"  WHERE $timeFilter fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT max(\"data\") as \"RAM\" FROM \"$ginterval\".\"inj_ram_history_across_svdbins\"  WHERE $timeFilter fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "RAM usage max across jobs",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        }
+      ],
+      "type": "gauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 27,
+      "panels": [],
+      "title": "Injection Recovery",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "description": "Orange: Missed (> 8.0)\nLight Blue: Missed (< 8.0)\nDark Blue: Found",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "points",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 8,
+            "scaleDistribution": {
+              "log": 10,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text"
+              },
+              {
+                "color": "text",
+                "value": 8
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "found (< 4.0)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "semi-dark-purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "found (> 4.0)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "missed (>= 8.0)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "missed (< 8.0)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "super-light-blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "found (>= 4.0)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "dark-blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "found"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#1250b0",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "H1 ON"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#ee0000",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 10
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 1,
+                        "text": "OFF"
+                      },
+                      "90": {
+                        "index": 0,
+                        "text": "ON"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.spanNulls",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "L1 ON"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#4aa4ff",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 10
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 1,
+                        "text": "OFF"
+                      },
+                      "100": {
+                        "index": 0,
+                        "text": "ON"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.spanNulls",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 22
+      },
+      "id": 35,
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "Test Suite Full Dashboard",
+          "url": "https://ldas-jobs.gwave.ics.psu.edu/grafana/d/Mxk-ATIIz/test-suite-main?orgId=1&refresh=1m"
+        }
+      ],
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "alias": "missed (>= 8.0)",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "is_recovered"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "decisive_snr",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT \n    \"decisive_snr\" AS \"Dec. SNR\"\nFROM \"1s\".\"triggers\", \"missed_triggers\" WHERE (\"combined_far\" >= $far\nAND\n\"decisive_snr\" > 8.0\nAND\n((\"sim_mass1\" < 3.0 AND \"sim_mass2\" < 3.0 )\nOR\n(\"sim_mass1\" + \"sim_mass2\" <= 400 AND \"sim_mass1\" >= 3.0 AND \"sim_spin1z\" < 0.99 AND \"sim_spin1z\" > -0.99 AND \"sim_mass2\" < 3.0 AND \"sim_mass1\" / \"sim_mass2\" <= 20)\nOR\n(\"sim_mass1\" + \"sim_mass2\" <= 400 AND \"sim_mass1\" >= 3.0 AND \"sim_spin1z\" < 0.99 AND \"sim_spin1z\" > -0.99 AND \"sim_mass2\" >= 3.0 AND \"sim_spin2z\" < 0.99 AND \"sim_spin2z\" > -0.99 AND \"injchi_p\" < 0.001 AND \"sim_mass1\" / \"sim_mass2\" <= 20))) AND $timeFilter",
+          "rawQuery": true,
+          "refId": "decisive snr",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "is_recovered",
+              "operator": "=",
+              "value": "missed"
+            }
+          ]
+        },
+        {
+          "alias": "missed (< 8.0)",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "is_recovered"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "decisive_snr",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT \n    \"decisive_snr\" AS \"Dec. SNR\"\nFROM \"1s\".\"triggers\", \"missed_triggers\" WHERE (\"combined_far\" >= $far\nAND\n\"decisive_snr\" < 8.0\nAND\n ((\"sim_mass1\" < 3.0 AND \"sim_mass2\" < 3.0 )\nOR\n(\"sim_mass1\" + \"sim_mass2\" <= 400 AND \"sim_mass1\" >= 3.0 AND \"sim_spin1z\" < 0.99 AND \"sim_spin1z\" > -0.99 AND \"sim_mass2\" < 3.0 AND \"sim_mass1\" / \"sim_mass2\" <= 20)\nOR\n(\"sim_mass1\" + \"sim_mass2\" <= 400 AND \"sim_mass1\" >= 3.0 AND \"sim_spin1z\" < 0.99 AND \"sim_spin1z\" > -0.99 AND \"sim_mass2\" >= 3.0 AND \"sim_spin2z\" < 0.99 AND \"sim_spin2z\" > -0.99 AND \"injchi_p\" < 0.001 AND \"sim_mass1\" / \"sim_mass2\" <= 20))) AND $timeFilter",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "is_recovered",
+              "operator": "=",
+              "value": "missed"
+            }
+          ]
+        },
+        {
+          "alias": "found",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "is_recovered"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "decisive_snr",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT \n    \"decisive_snr\" AS \"Dec. SNR\"\nFROM \"1s\".\"triggers\", \"missed_triggers\" WHERE (\"combined_far\" < $far\nAND\n((\"sim_mass1\" < 3.0 AND \"sim_mass2\" < 3.0 )\nOR\n(\"sim_mass1\" + \"sim_mass2\" <= 400 AND \"sim_mass1\" >= 3.0 AND \"sim_spin1z\" < 0.99 AND \"sim_spin1z\" > -0.99 AND \"sim_mass2\" < 3.0 AND \"sim_mass1\" / \"sim_mass2\" <= 20)\nOR\n(\"sim_mass1\" + \"sim_mass2\" <= 400 AND \"sim_mass1\" >= 3.0 AND \"sim_spin1z\" < 0.99 AND \"sim_spin1z\" > -0.99 AND \"sim_mass2\" >= 3.0 AND \"sim_spin2z\" < 0.99 AND \"sim_spin2z\" > -0.99 AND \"injchi_p\" < 0.001 AND \"sim_mass1\" / \"sim_mass2\" <= 20))) AND $timeFilter",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "is_recovered",
+              "operator": "=",
+              "value": "missed"
+            }
+          ]
+        },
+        {
+          "alias": "H1 ON",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT 90 * max(\"data\") FROM \"$ginterval\".\"H1_statevectorsegments\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "L1 ON",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT 100*max(\"data\") FROM \"$ginterval\".\"L1_statevectorsegments\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Decisive injected SNR vs. time (Bank cut)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "description": "FIXME: this calculation is finnicky. If any of the queries (found, missed, insig) return no data it will not work. This can happen if the time range is short or if the FAR threshold is too high or low.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "noValue": "NaN",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "green",
+                "value": 0.7
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 22
+      },
+      "id": 37,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^found / total$/",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.4.7",
+      "targets": [
+        {
+          "alias": "found",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT count(decisive_snr) AS found FROM \"1s\".\"triggers\" WHERE ($timeFilter AND decisive_snr > 8 AND \"combined_far\" < $far) fill(0);",
+          "rawQuery": true,
+          "refId": "found",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "insig",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT count(decisive_snr) AS insig FROM \"1s\".\"triggers\" WHERE ($timeFilter AND decisive_snr > 8 AND \"combined_far\" >= $far) fill(0);",
+          "rawQuery": true,
+          "refId": "insig",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "missed",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "hide": false,
+          "query": "SELECT count(decisive_snr) AS missed FROM \"missed_triggers\" WHERE ($timeFilter AND decisive_snr > 8 AND \"combined_far\" >= $far) fill(0);",
+          "rawQuery": true,
+          "refId": "missed",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Injection recovery efficiency (all above dec. SNR 8)",
+      "transformations": [
+        {
+          "id": "concatenate",
+          "options": {}
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": "insig",
+              "reducer": "sum",
+              "right": "missed"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "total",
+            "binary": {
+              "left": "insig  missed",
+              "reducer": "sum",
+              "right": "found"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": "found",
+              "operator": "/",
+              "reducer": "sum",
+              "right": "total"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 22
+      },
+      "id": 39,
+      "options": {
+        "config": {
+          "displayModeBar": false
+        },
+        "data": [
+          {
+            "line": {
+              "color": "rgb(150, 217, 141)"
+            }
+          }
+        ],
+        "layout": "",
+        "onclick": "// console.log(data)\nwindow.updateVariables({query:{'var-project':'test'}, partial: true})",
+        "script": "//\n// If we have no data, print an error message.\n//\nif (data.series.length < 1) {\n  return { \n     \"data\": {},\n     \"config\": {},\n     \"layout\": {\n         \"xaxis\": {\n           \"visible\": false\n         },\n         \"yaxis\": {\n           \"visible\": false\n         },\n         \"annotations\": [\n           {\n             \"text\": \"No data\",\n             \"xref\": \"paper\",\n             \"yref\": \"paper\",\n             \"y\": 0.6,\n             \"showarrow\": false,\n              \"font\": {\n                 \"size\": 20\n              }\n           }\n         ]\n     }\n  }\n}\n\n// Organize incoming data into dictionary structure, keyed by p_{source}\n// each sub-dict is keyed by true source so eg, input_data[p_BNS][NSBH] is the \n// fraction of p_BNS assigned to NSBH injections and so on.\nvar input_data = {\n  \"p_BNS\": {\n    \"BNS\": 0.,\n    \"NSBH\": 0,\n    \"BBH\": 0,\n  },\n  \"p_NSBH\": {\n    \"BNS\": 0. ,\n    \"NSBH\": 0,\n    \"BBH\": 0,\n  },\n  \"p_BBH\": {\n    \"BNS\": 0. ,\n    \"NSBH\": 0,\n    \"BBH\": 0,\n  },\n  \"p_Terrestrial\": {\n    \"BNS\": 0. ,\n    \"NSBH\": 0,\n    \"BBH\": 0\n  }\n};\n\n// Iterate through data series, we expect 12. \n// ie (num p_{source}) x (num sources) = \n// 4 (p_BBH, p_BNS, p_NSBH, p_Terr) x 3 (BBH, BNS, NSBH)\nexpected_measurements = [\"p_BBH\", \"p_BNS\", \"p_NSBH\", \"p_Terrestrial\"]\nfor (i=0; i<data.series.length; i++){\n  meas = String(data.series[i].name.match(/p_.*/)).split(' ')[0]\n  source = String(data.series[i].name.match(/{source: [A-Z]+/)).split(' ')[1]\n\n  if (expected_measurements.includes(meas)) {\n    input_data[meas][source] = input_data[meas][source] + data.series[i].fields[1].values.buffer.reduce((partialSum, a) => partialSum + a, 0);\n  }\n  else {\n    console.log('skipping measurement ' + meas )\n  }\n}\n\nvar data = {\n  type: \"sankey\",\n  orientation: \"h\",\n  node: {\n    pad: 15,\n    thickness: 30,\n    line: {\n      color: \"black\",\n      width: 0.5\n    },\n    label: [\"BNS\", \"NSBH\", \"BBH\", \"BNS\", \"NSBH\", \"BBH\", \"Terr\"],\n   color: ['#a6cee3','#1f78b4','#b2df8a','#a6cee3','#1f78b4','#b2df8a','#33a02c'],\n      },\n\n  link: {\n    source: [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2],\n    target: [3, 4, 5, 6, 3, 4, 5, 6, 3, 4, 5, 6],\n    value:  [input_data[\"p_BNS\"][\"BNS\"], input_data[\"p_NSBH\"][\"BNS\"], input_data[\"p_BBH\"][\"BNS\"], input_data[\"p_Terrestrial\"][\"BNS\"], input_data[\"p_BNS\"][\"NSBH\"], input_data[\"p_NSBH\"][\"NSBH\"], input_data[\"p_BBH\"][\"NSBH\"], input_data[\"p_Terrestrial\"][\"NSBH\"], input_data[\"p_BNS\"][\"BBH\"], input_data[\"p_NSBH\"][\"BBH\"], input_data[\"p_BBH\"][\"BBH\"], input_data[\"p_Terrestrial\"][\"BBH\"]],\n    color: ['#a6cee3','#a6cee3','#a6cee3','#a6cee3', '#1f78b4', '#1f78b4', '#1f78b4', '#1f78b4', '#b2df8a', '#b2df8a', '#b2df8a', '#b2df8a']\n  }\n}\n\nvar data = [data]\n\nvar layout = {\n  font: {\n    size: 10\n  }\n}\n\nvar config = {\n  displayModeBar: false\n}\n\nreturn {\n    data : data,\n    config : config,\n    layout : layout\n}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "source"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "p_BNS",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "query": "SELECT last(*) FROM \"1s\".\"source_class\" WHERE (\"name\"  =~ /^$pastro_name$/ AND \"combined_far\" < $far) AND $timeFilter GROUP BY time($__interval), \"source\" fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "last"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "name",
+              "operator": "=",
+              "value": "superevents"
+            }
+          ]
+        }
+      ],
+      "title": "p(astro) sankey diagram",
+      "type": "ae3e-plotly-panel"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DashDatasource}"
+      },
+      "description": "Sensitive volume-time of the search in cubic Mpc-years. Calculated by counting the fraction of found injections (based on a FAR threshold of 2/day) multiplied the total injected VT. ",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 6,
+            "scaleDistribution": {
+              "log": 10,
+              "type": "log"
+            },
+            "showPoints": "always",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "BBH"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#b2df8a",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NSBH"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#1f78b4",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "BNS"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#a6cee3",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "expected BNS"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#a6cee3",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "expected NSBH"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#1f78b4",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "expected BBH"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    10,
+                    10
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#b2df8a",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 29
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "alias": "[[tag_source]]",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "source"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "vt",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "refId": "A",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "max"
+              }
+            ]
+          ],
+          "tags": [
+            {
+              "key": "far",
+              "operator": "=",
+              "value": "subthreshold oneperhour twoperday"
+            }
+          ]
+        },
+        {
+          "alias": "expected [[tag_source]]",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DashDatasource}"
+          },
+          "groupBy": [
+            {
+              "params": [
+                "$__interval"
+              ],
+              "type": "time"
+            },
+            {
+              "params": [
+                "source"
+              ],
+              "type": "tag"
+            },
+            {
+              "params": [
+                "null"
+              ],
+              "type": "fill"
+            }
+          ],
+          "hide": false,
+          "measurement": "exp_vt",
+          "orderByTime": "ASC",
+          "policy": "1s",
+          "refId": "B",
+          "resultFormat": "time_series",
+          "select": [
+            [
+              {
+                "params": [
+                  "data"
+                ],
+                "type": "field"
+              },
+              {
+                "params": [],
+                "type": "max"
+              }
+            ]
+          ],
+          "tags": []
+        }
+      ],
+      "title": "VT at 2/day (Mpc3 yr)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "revision": 1,
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "greg_test_icds",
+          "value": "greg_test_icds"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "analysis",
+        "options": [
+          {
+            "selected": true,
+            "text": "greg_test_icds",
+            "value": "greg_test_icds"
+          }
+        ],
+        "query": "greg_test_icds",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "greg_test_icds",
+          "value": "greg_test_icds"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "label": "Dashboard Datasource",
+        "multi": false,
+        "name": "DashDatasource",
+        "options": [],
+        "query": "influxdb",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "$analysis",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "1s",
+          "value": "1s"
+        },
+        "datasource": {
+          "type": "grafana-simple-json-datasource",
+          "uid": "cg-370H4k"
+        },
+        "definition": "{\"from\": $__from, \"to\": $__to}",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "ginterval",
+        "options": [],
+        "query": "{\"from\": $__from, \"to\": $__to}",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "0.0000000772000000",
+          "value": "0.0000000772000000"
+        },
+        "datasource": {
+          "type": "grafana-simple-json-datasource",
+          "uid": "MIdTHyRIk"
+        },
+        "definition": "{\"far\": \"$far_threshold\"}",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "far",
+        "options": [],
+        "query": "{\"far\": \"$far_threshold\"}",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "isNone": true,
+          "selected": false,
+          "text": "None",
+          "value": ""
+        },
+        "datasource": {
+          "type": "influxdb",
+          "uid": "${DashDatasource}"
+        },
+        "definition": "SHOW TAG VALUES WITH KEY = \"name\"",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "pastro_name",
+        "options": [],
+        "query": "SHOW TAG VALUES WITH KEY = \"name\"",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "1",
+          "value": "1"
+        },
+        "datasource": {
+          "type": "grafana-simple-json-datasource",
+          "uid": "sqOpvrQ4k"
+        },
+        "definition": "{\"analysis\": \"$analysis\"}",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "trials_factor",
+        "options": [],
+        "query": "{\"analysis\": \"$analysis\"}",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "7.72e-8",
+          "value": "7.72e-8"
+        },
+        "description": "FAR threshold for counting injections as found. Default is 2/day",
+        "hide": 0,
+        "name": "far_threshold",
+        "options": [
+          {
+            "selected": true,
+            "text": "7.72e-8",
+            "value": "7.72e-8"
+          }
+        ],
+        "query": "7.72e-8",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Main Analysis Dashboard greg",
+  "uid": "XZ2rqyXSz",
+  "version": 12,
+  "weekStart": ""
+}
