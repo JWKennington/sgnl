@@ -111,33 +111,32 @@ CONTAINER ID   IMAGE                              COMMAND                  CREAT
 57b9b0d24d56   grafana/grafana:9.4.7              "/run.sh"                48 minutes ago   Up 48 minutes             grafana
 ```
 
-The default IP address that Colima uses is `192.168.64.5`.
-
 Kafka and influx have no authentication. Grafana has an admin user with password sgnl.
-
 
 ## Example commands to see that services are running:
 
 Kafka:
 
 ```
-  kcat -b 192.168.64.5:9196 -L
-  kcat -b 192.168.64.5:9196 -P -t test
-  kcat -b 192.168.64.5:9196 -C -t test
+  kcat -b localhost-v4:9196 -L
+  kcat -b localhost-v4:9196 -P -t test
+  kcat -b localhost-v4:9196 -C -t test
 ```
+
+If `localhost-v4` doesn't work, try `make hostalias` or use `127.0.0.1` instead of `localhost-v4`. 
 
 Influx:
 ```
-  curl http://192.168.64.5:8086/health
-  curl http://192.168.64.5:8086/query?pretty=true --data-urlencode "q=create database sgnl"
-  curl http://192.168.64.5:8086/query?pretty=true --data-urlencode "q=show databases"  
+  curl http://localhost:8086/health
+  curl http://localhost:8086/query?pretty=true --data-urlencode "q=create database sgnl"
+  curl http://localhost:8086/query?pretty=true --data-urlencode "q=show databases"  
 ```
 
 Grafana:
 ```
-  curl http://192.168.64.5/api/health
+  curl http://localhost/api/health
 ```
-You should be able open a browser to `http://192.168.64.5/`. 
+You should be able open a browser to `http://localhost/`. 
 
 ## Managing Colima
 

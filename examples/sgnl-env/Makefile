@@ -7,7 +7,7 @@ view:
 	sleep 2
 	open http://127.0.0.1:5000/
 
-install_docker: grafana_data influx_data kafka_data zoo_data zoo_logs
+install_docker: grafana_data influx_data kafka_data zoo_data zoo_logs hostalias
 	port install colima docker docker-compose-plugin
 
 grafana_data:
@@ -30,3 +30,6 @@ start_services:
 
 stop_services:
 	docker compose down
+
+hostalias:
+	sudo  bash -c  'echo "127.0.0.1 localhost-v4"  >> /etc/hosts'
