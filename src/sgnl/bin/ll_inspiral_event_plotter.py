@@ -23,12 +23,7 @@ from collections import OrderedDict
 from enum import Enum
 from xml.sax import SAXParseException
 
-import matplotlib
 import numpy
-
-from sgnl.plots import set_matplotlib_cache_directory
-
-set_matplotlib_cache_directory()
 from lal import LIGOTimeGPS, series
 from ligo.gracedb.rest import DEFAULT_SERVICE_URL as DEFAULT_GRACEDB_URL
 from ligo.gracedb.rest import GraceDb, HTTPError
@@ -37,13 +32,12 @@ from ligo.lw import ligolw, lsctables
 from ligo.lw import param as ligolw_param
 from ligo.lw import utils as ligolw_utils
 from ligo.scald import utils
-from strike.stats import far
-from strike.stats.plots import dtdphi as plotdtdphi
-from strike.stats.plots import far as plotfar
 
-from sgnl import events, svd_bank
-from sgnl.gracedb import FakeGracedbClient, upload_fig
-from sgnl.plots import psd as plotpsd
+from sgnl.plots import set_matplotlib_cache_directory
+
+set_matplotlib_cache_directory()  # FIXME: I don't know if this needs to be done here
+
+import matplotlib  # noqa: E402
 
 matplotlib.rcParams.update(
     {
@@ -58,11 +52,20 @@ matplotlib.rcParams.update(
         "text.usetex": True,
     }
 )
-from matplotlib import figure
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib import figure  # noqa: E402
+from matplotlib.backends.backend_agg import (  # noqa: E402
+    FigureCanvasAgg as FigureCanvas,
+)
 
 matplotlib.use("agg")
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt  # noqa: E402
+from strike.stats import far  # noqa: E402
+from strike.stats.plots import dtdphi as plotdtdphi  # noqa: E402
+from strike.stats.plots import far as plotfar  # noqa: E402
+
+from sgnl import events, svd_bank  # noqa: E402
+from sgnl.gracedb import FakeGracedbClient, upload_fig  # noqa: E402
+from sgnl.plots import psd as plotpsd  # noqa: E402
 
 
 # -------------------------------------------------
