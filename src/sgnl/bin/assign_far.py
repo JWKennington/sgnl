@@ -72,10 +72,9 @@ def parse_command_line():
             lalapps_path2cache for information on how to produce a LAL cache file.",
     )
     parser.add_argument(
-        "-l",
-        "--input-likelihood-file",
+        "--input-rankingstatpdf-file",
         metavar="filename",
-        help="Set the name of the xml file containing the marginalized likelihood (required).",
+        help="Set the name of the input RANK_STAT_PDF file (required).",
     )
     parser.add_argument(
         "-f",
@@ -88,8 +87,8 @@ def parse_command_line():
 
     process_params = options.__dict__.copy()
 
-    if options.input_likelihood_file is None:
-        raise ValueError("must set --input-likelihood-file")
+    if options.input_rankingstatpdf_file is None:
+        raise ValueError("must set --input-rankingstatpdf-file")
 
     if not options.input_database_file:
         raise ValueError("must provide at least one database file to process")
@@ -143,12 +142,12 @@ def main():
     #
 
     rankingstatpdf = far.RankingStatPDF.load(
-        options.input_likelihood_file, verbose=options.verbose
+        options.input_rankingstatpdf_file, verbose=options.verbose
     )
     if (rankingstatpdf.zero_lag_lr_lnpdf.array == 0).all():
         raise ValueError(
             "A zerolag histogram is not stored in %s. Make sure to run extinct-bin program in advance and point to post-extinction dist-stat-pdf file."
-            % options.input_likelihood_file
+            % options.input_rankingstatpdf_file
         )
 
     #
