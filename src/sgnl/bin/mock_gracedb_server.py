@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
+import base64
+import io
+import os
+import sqlite3
+import uuid
+
 from flask import (
     Flask,
     Request,
     Response,
-    request,
     json,
     jsonify,
     render_template_string,
+    request,
 )
-import io
-import sqlite3
-import uuid
-import os
-import base64
-from ligo.lw import utils as ligolw_utils
-from ligo.lw import ligolw
-from ligo.lw import table
-from ligo.lw import lsctables
-from ligo.lw import array
-from ligo.lw import param
-from sgnl import viz
 from flask_accept import accept
+from ligo.lw import array, ligolw, lsctables, param, table
+from ligo.lw import utils as ligolw_utils
+
+from sgnl import viz
 
 
 class CustomRequest(Request):
@@ -184,10 +182,8 @@ def download_coinc(graceid):
 @app.route("/api/events/", methods=["POST"])
 def create_event():
     data = request.form.to_dict()
-    required_fields = ["group", "pipeline", "search", "labels", "offline", "eventFile"]
-
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields."}), 400
+    if "labels" not in data:
+        data["labels"] = ""
     data["filename"] = data["eventFile"]
     del data["eventFile"]
 

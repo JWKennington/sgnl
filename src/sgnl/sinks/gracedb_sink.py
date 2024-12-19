@@ -1,27 +1,22 @@
+import base64
+import io
+import json
+import os
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
-import time
-import os
-import io
-import json
-import base64
 
-from sgn.control import HTTPControlSinkElement
-from sgn.sinks import SinkElement
-from sgnl.viz import logo_data
-
-from ligo.gracedb.rest import GraceDb
 from confluent_kafka import Producer
-
 from lal import LIGOTimeGPS
+from ligo.gracedb.rest import GraceDb
+from ligo.lw import array, ligolw, lsctables, param, table
 from ligo.lw import utils as ligolw_utils
 from ligo.lw.utils import process as ligolw_process
-from ligo.lw import ligolw
-from ligo.lw import table
-from ligo.lw import lsctables
-from ligo.lw import array
-from ligo.lw import param
+from sgn.control import HTTPControlSinkElement
+from sgn.sinks import SinkElement
+
+from sgnl.viz import logo_data
 
 
 @dataclass
