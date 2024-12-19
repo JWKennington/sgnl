@@ -597,7 +597,13 @@ def inspiral(
                     },
                 )
                 pipeline.insert(
-                    GraceDBSink(name="gracedb", sink_pad_names=("event",)),
+                    GraceDBSink(
+                        name="gracedb",
+                        template_sngls=sorted_bank.sngls,
+                        on_ifos=ifos,
+                        process_params=process_params,
+                        sink_pad_names=("event",),
+                    ),
                     link_map={"gracedb:sink:event": "StrikeTransform:src:trigs"},
                 )
                 for ifo in ifos:

@@ -17,7 +17,10 @@ dependencies = [
     "sgn",
     "sgn-ts",
     "sgn-ligo",
+    "flask",# FIXME remove this once we move the gracedb mock server out of here.
+    "ligo-scald",
 ]
+
 requires-python = ">=3.9"
 authors = [
     { name = "Chad Hanna", email = "crh184@psu.edu" },
