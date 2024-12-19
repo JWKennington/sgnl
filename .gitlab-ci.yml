@@ -13,22 +13,36 @@ include:
         - "3.9"
         - "3.10"
         - "3.11"
-  - component: git.ligo.org/computing/gitlab/components/sphinx/apidoc@1
+  - component: git.ligo.org/computing/gitlab/components/mkdocs/build@1
     inputs:
       image: python:3.12
-      module_dir: "src/sgnl"
-      sphinx_sourcedir: "docs"
+      project_dir: "."
       requirements: ".[docs]"
-  - component: git.ligo.org/computing/gitlab/components/sphinx/build@1
-    inputs:
-      image: python:3.12
-      sphinx_sourcedir: "docs"
-      requirements: ".[docs]"
-  - component: git.ligo.org/computing/gitlab/components/sphinx/pages@1
+  - component: git.ligo.org/computing/gitlab/components/mkdocs/pages@1
     inputs:
       pages_when: "default"
 
+
 python_test:
+  before_script:
+    - echo "Manually installing system dependencies"
+    - |
+      apt-get update
+      apt-get install git-lfs
+    - echo "Manually installing dependencies"
+    - |
+      pip install lalsuite
+      pip install torch
+      pip install gwpy
+    - echo "Installing SGN Family libraries excluding Strike"
+    - |
+      pip install -r build_requirements.txt
+    - echo "Setting up strike data"
+    - |
+      strike-config set --setup
+    
+
+mkdocs:
   before_script:
     - echo "Manually installing dependencies"
     - |
@@ -38,4 +52,3 @@ python_test:
     - echo "Installing SGN Family libraries"
     - |
       pip install -r build_requirements.txt
-

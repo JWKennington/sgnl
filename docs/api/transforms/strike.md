@@ -1,0 +1,1 @@
+::: sgnl.transforms.strike
