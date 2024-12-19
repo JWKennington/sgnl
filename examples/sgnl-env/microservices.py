@@ -317,7 +317,7 @@ def homepage():
 ## Accept a POST like: {"target":"{\"from\": 1660076939153, \"to\": 1660081939153}"}
 ## Return a retention period string like: ["1s"]
 ##
-@app.route('/cgi-bin/interval', methods=['POST'])
+@app.route('/cgi-bin/interval', methods=['GET','POST'])
 def interval():
   intervals = [10000, 1000, 100, 10, 1]
   seconds   = 5
@@ -347,7 +347,7 @@ def interval():
 ## science notation to decimal so that influxql
 ## can read it
 ##
-@app.route('/cgi-bin/test/far_threshold', methods=['POST'])
+@app.route('/cgi-bin/test/far_threshold', methods=['GET','POST'])
 def far_threshold():
   data = request.form.to_dict()
   target = data["target"]
@@ -364,7 +364,7 @@ def far_threshold():
 ## Get analysis key and determine trials factor
 ## 2 if analysis is checkerboarded, 1 otherwise
 ##
-@app.route('/cgi-bin/test/trials_factor', methods=['POST'])
+@app.route('/cgi-bin/test/trials_factor', methods=['GET','POST'])
 def trials_factor():
   data = request.form.to_dict()
   keys = data["analysis"]
