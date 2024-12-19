@@ -5,9 +5,11 @@ import time
 import os
 import io
 import json
+import base64
 
 from sgn.control import HTTPControlSinkElement
 from sgn.sinks import SinkElement
+from sgnl.viz import logo_data
 
 from ligo.gracedb.rest import GraceDb
 from confluent_kafka import Producer
@@ -20,6 +22,7 @@ from ligo.lw import table
 from ligo.lw import lsctables
 from ligo.lw import array
 from ligo.lw import param
+
 
 @dataclass
 class GraceDBSink(HTTPControlSinkElement):
@@ -133,6 +136,18 @@ def publish_gracedb(client, xmldoc):
     )
     print("Created Event:", resp.json())
 
+    # Write a log for the created event
+    graceid = resp.json()["graceid"]
+    log = client.writeLog(
+        object_id=graceid,
+        message="This is a test log.",
+        filename="sgn.png",
+        filecontents=base64.b64decode(logo_data()),
+        tag_name=["plot"],
+        displayName=["plot"],
+    )
+    print("Written Log:", log)
+
 
 def min_far_event(events, triggers, thresh):
     if not events:
@@ -147,6 +162,7 @@ def min_far_event(events, triggers, thresh):
 # Below is code required to make a correctly formatted LIGO_LW XML Document
 # FIXME It is likely to be slower than we want and might still have bugs.
 #
+
 
 @lsctables.use_in
 @array.use_in
@@ -275,5 +291,3 @@ def event_trigs_to_coinc_xmldoc(event, trigs, sngls_dict, on_ifos, process_param
     coinc_def_table = add_table_with_n_rows(xmldoc, lsctables.CoincDefTable, 1)
 
     return xmldoc
-
-
