@@ -84,7 +84,7 @@ services:
   sgnl-services:
     container_name: sgnl-services
     hostname: sgnl-services
-    image: containers.ligo.org/greg/sgnl-microservices:0.0.1
+    image: containers.ligo.org/greg/sgnl-microservices:0.0.2
     restart: unless-stopped
     ports:
       - "5000:5000"
