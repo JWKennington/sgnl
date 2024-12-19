@@ -1,1 +1,6 @@
 *~
+kafka_data/
+grafana_data/
+influx_data/
+zoo_logs/
+zoo_data/

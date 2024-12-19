@@ -46,6 +46,7 @@ services:
     image: influxdb:1.8.10
     container_name: influxdb
     hostname: influxdb
+    user: root    
     ports:
       - "8088:8088"
       - "8086:8086"
@@ -68,6 +69,7 @@ services:
     hostname: grafana
     image: grafana/grafana:9.4.7
     restart: unless-stopped
+    user: root    
     ports:
       - "80:80"
     volumes:
@@ -86,8 +88,11 @@ services:
     hostname: sgnl-services
     image: containers.ligo.org/greg/sgnl-microservices:0.0.2
     restart: unless-stopped
+    user: root    
     ports:
       - "5000:5000"
+    volumes:
+      - ./microservices.py:/services/microservices.py  
     logging:
         driver: "json-file"
         options:
