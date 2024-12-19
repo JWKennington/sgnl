@@ -80,3 +80,16 @@ services:
           max-size: "50m"
           max-file: "5"
 
+
+  sgnl-services:
+    container_name: sgnl-services
+    hostname: sgnl-services
+    image: containers.ligo.org/greg/sgnl-microservices:0.0.1
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    logging:
+        driver: "json-file"
+        options:
+          max-size: "50m"
+          max-file: "5"
