@@ -33,7 +33,7 @@ from ligo.lw import param as ligolw_param
 from ligo.lw import utils as ligolw_utils
 from ligo.scald import utils
 
-from sgnl.plots import set_matplotlib_cache_directory
+from sgnl.plots.util import set_matplotlib_cache_directory
 
 set_matplotlib_cache_directory()  # FIXME: I don't know if this needs to be done here
 
@@ -60,8 +60,8 @@ from matplotlib.backends.backend_agg import (  # noqa: E402
 matplotlib.use("agg")
 from matplotlib import pyplot as plt  # noqa: E402
 from strike.stats import far  # noqa: E402
-from strike.stats.plots import dtdphi as plotdtdphi  # noqa: E402
-from strike.stats.plots import far as plotfar  # noqa: E402
+#from strike.plots.stats import dtdphi as plotdtdphi  # noqa: E402
+#from strike.plots.stats import far as plotfar  # noqa: E402
 
 from sgnl import events, svd_bank  # noqa: E402
 from sgnl.gracedb import FakeGracedbClient, upload_fig  # noqa: E402

@@ -17,7 +17,6 @@ from ligo.lw import utils as ligolw_utils
 from sgn.apps import Pipeline
 from sgn.control import HTTPControl
 from sgn.sinks import NullSink
-from sgn.sources import SignalEOS
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, Latency, condition
@@ -141,6 +140,44 @@ def parse_command_line():
         "and they will be writen to in order.",
     )
 
+    group = parser.add_argument_group("GracedB Options", "Adjust GracedB interaction")
+    group.add_argument(
+        "--gracedb-far-threshold",
+        metavar="Hertz",
+        type=float,
+        default=-1,
+        help="False-alarm rate threshold for gracedb uploads in Hertz (default = do not"
+        "upload to gracedb).",
+    )
+    group.add_argument(
+        "--gracedb-group",
+        metavar="name",
+        default="Test",
+        help="Gracedb group to which to upload events (default is Test).",
+    )
+    group.add_argument(
+        "--gracedb-pipeline",
+        metavar="name",
+        default="SGNL",
+        help="Name of pipeline to provide in GracedB uploads (default is SGNL).",
+    )
+    group.add_argument(
+        "--gracedb-search",
+        metavar="name",
+        default="MOCK",
+        help="Name of search to provide in GracedB uploads (default is MOCK).",
+    )
+    group.add_argument(
+        "--gracedb-label",
+        action="append",
+        help="Labels to apply to gracedb uploads. Can be applied multiple times.",
+    )
+    group.add_argument(
+        "--gracedb-service-url",
+        metavar="url",
+        help="Set the GraceDB service url.",
+    )
+
     group = parser.add_argument_group("Program Behaviour")
     group.add_argument(
         "--torch-device",
@@ -190,6 +227,13 @@ def parse_command_line():
         "is test.",
     )
     group.add_argument(
+        "--job-tag",
+        metavar="tag",
+        help="Set the string to identify this job and register the resources it"
+        "provides on a node.  Should be 4 digits of the form 0001, 0002, etc.;  may not"
+        'contain "." nor "-".',
+    )
+    group.add_argument(
         "--graph-name", metavar="filename", help="Plot pipieline graph to graph_name."
     )
     group.add_argument("--fake-sink", action="store_true", help="Connect to a NullSink")
@@ -215,7 +259,14 @@ def inspiral(
     injection_file: str = None,
     reconstruct_inj_segments: bool = False,
     analysis_tag: str = "test",
+    job_tag: str = None,
     output_kafka_server: str = None,
+    gracedb_far_threshold: float = -1,
+    gracedb_group: str = "Test",
+    gracedb_pipeline: str = "SGNL",
+    gracedb_search: str = "MOCK",
+    gracedb_label: list[str] = None,
+    gracedb_service_url: str = None,
     fake_sink: bool = False,
     verbose: bool = False,
     graph_name: str = None,
@@ -602,6 +653,15 @@ def inspiral(
                         template_sngls=sorted_bank.sngls,
                         on_ifos=ifos,
                         process_params=process_params,
+                        output_kafka_server=output_kafka_server,
+                        far_thresh=gracedb_far_threshold,
+                        gracedb_group=gracedb_group,
+                        gracedb_pipeline=gracedb_pipeline,
+                        gracedb_search=gracedb_search,
+                        gracedb_label=gracedb_label,
+                        gracedb_service_url=gracedb_service_url,
+                        analysis_tag=analysis_tag,
+                        job_tag=job_tag,
                         sink_pad_names=("event",),
                     ),
                     link_map={"gracedb:sink:event": "StrikeTransform:src:trigs"},
@@ -643,7 +703,7 @@ def inspiral(
         pipeline.visualize(graph_name)
 
     # Run pipeline
-    with HTTPControl() as control:
+    with HTTPControl():
         pipeline.run()
 
     #
@@ -695,7 +755,14 @@ def main():
         injection_file=options.injection_file,
         reconstruct_inj_segments=options.reconstruct_inj_segments,
         analysis_tag=options.analysis_tag,
+        job_tag=options.job_tag,
         output_kafka_server=options.output_kafka_server,
+        gracedb_far_threshold=options.gracedb_far_threshold,
+        gracedb_group=options.gracedb_group,
+        gracedb_pipeline=options.gracedb_pipeline,
+        gracedb_search=options.gracedb_search,
+        gracedb_label=options.gracedb_label,
+        gracedb_service_url=options.gracedb_service_url,
         fake_sink=options.fake_sink,
         verbose=options.verbose,
         graph_name=options.graph_name,

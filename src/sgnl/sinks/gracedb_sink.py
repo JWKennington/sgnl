@@ -1,34 +1,37 @@
 import base64
 import io
 import json
-import os
+import sys
 import time
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 
 from confluent_kafka import Producer
 from lal import LIGOTimeGPS
 from ligo.gracedb.rest import GraceDb
-from ligo.lw import array, ligolw, lsctables, param, table
+from ligo.lw import array, ligolw, lsctables, param
 from ligo.lw import utils as ligolw_utils
 from ligo.lw.utils import process as ligolw_process
 from sgn.control import HTTPControlSinkElement
-from sgn.sinks import SinkElement
 
 from sgnl.viz import logo_data
 
 
 @dataclass
 class GraceDBSink(HTTPControlSinkElement):
-    """A sink that will turn the lowest FAR event into a gracedb upload, if it passes the threshold"""
+    """A sink that will turn the lowest FAR event into a gracedb upload, if it passes
+    the threshold
+    """
 
-    far_thresh: float = 1e-6
+    far_thresh: float = -1
     output_kafka_server: str = None
-    gracedb_server: str = "http://127.0.0.1:5000/api/"
+    gracedb_service_url: str = None
+    gracedb_group: str = "Test"
+    gracedb_pipeline: str = "SGNL"
+    gracedb_search: str = "MOCK"
+    gracedb_label: list[str] = None
     template_sngls: list = None
     analysis_tag: str = "mockery"
-    job_tag: str = "mockingly"
+    job_tag: str = None
     on_ifos: list = None
     process_params: dict = None
 
@@ -43,21 +46,23 @@ class GraceDBSink(HTTPControlSinkElement):
                 self.sngls_dict[tid] = sngl
 
         assert not (
-            self.output_kafka_server is not None and self.gracedb_server is not None
+            self.output_kafka_server is not None
+            and self.gracedb_service_url is not None
         )
 
         self.start_time = time.time()
 
         # set up kafka producer or a gracedb client
         if self.output_kafka_server is not None:
+            print("sending events to kafka")
             self.client = Producer(
                 {
                     "bootstrap.servers": self.output_kafka_server,
                     "message.max.bytes": 20971520,
                 }
             )
-        elif self.gracedb_server is not None:
-            self.client = GraceDb(self.gracedb_server)
+        elif self.gracedb_service_url is not None:
+            self.client = GraceDb(self.gracedb_service_url)
         else:
             self.client = None
 
@@ -70,7 +75,7 @@ class GraceDBSink(HTTPControlSinkElement):
         HTTPControlSinkElement.exchange_state(self.name, self.state)
 
         # send event data to kafka or gracedb
-        if self.client:
+        if self.client and self.state["far-threshold"] > 0:
 
             event, trigs = min_far_event(
                 self.events["event"].data,
@@ -85,9 +90,20 @@ class GraceDBSink(HTTPControlSinkElement):
                 if self.output_kafka_server:
                     publish_kafka(self.client, xmldoc, self.job_tag, self.analysis_tag)
                 else:
-                    publish_gracedb(self.client, xmldoc)
+                    publish_gracedb(
+                        self.client,
+                        xmldoc,
+                        self.gracedb_group,
+                        self.gracedb_pipeline,
+                        self.gracedb_search,
+                        self.gracedb_label,
+                    )
 
                 self.start_time = time.time()
+
+        if self.at_eos and self.output_kafka_server is not None:
+            print("shutdown: flush kafka client", flush=True, file=sys.stderr)
+            self.client.flush()
 
 
 def publish_kafka(client, xmldoc, job_tag, analysis_tag):
@@ -116,16 +132,16 @@ def publish_kafka(client, xmldoc, job_tag, analysis_tag):
     )
 
 
-def publish_gracedb(client, xmldoc):
+def publish_gracedb(client, xmldoc, group, pipeline, search, labels):
     """Send the xml doc to gracedb directly"""
     message = io.BytesIO()
     ligolw_utils.write_fileobj(xmldoc, message)
     resp = client.createEvent(
-        group="CBC",
-        pipeline="SGN",
+        group=group,
+        pipeline=pipeline,
         filename="coinc.xml",
-        search="MOCK",
-        labels="MOCK",
+        search=search,
+        labels=labels,
         offline=False,
         filecontents=message.getvalue(),
     )
@@ -170,7 +186,7 @@ def add_table_with_n_rows(xmldoc, tblcls, n):
     """Given an xmldoc tree and a table class, add the table with n rows
     initialized to 0 for numeric types and "" for string types"""
     table = lsctables.New(tblcls)
-    for i in range(n):
+    for _ in range(n):
         row = table.RowType()
         for col, _type in table.validcolumns.items():
             col = col.split(":")[-1]
@@ -198,7 +214,8 @@ def col_map(row, datadict, mapdict, funcdict):
 
 
 def ns_to_gps(ns):
-    # Cast ns GPS to LIGOTimeGPS - we are using the lal verison and that doesn't automatically do this? :(
+    # Cast ns GPS to LIGOTimeGPS - we are using the lal verison and that doesn't
+    # automatically do this? :(
     return LIGOTimeGPS(int(ns // 1_000_000_000), int(ns % 1_000_000_000))
 
 

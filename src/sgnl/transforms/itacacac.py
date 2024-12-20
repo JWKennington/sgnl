@@ -745,7 +745,8 @@ class Itacacac(TSTransform):
                 ifo_num = self.ifos_number_map[ifo]
                 if str(ifo_num) in str(c):
                     trig = {
-                        col: sngl[col][j] for col in ["time", "snr", "chisq", "phase"]
+                        col: sngl[col][j].item()
+                        for col in ["time", "snr", "chisq", "phase"]
                     }
                     trig["_filter_id"] = clustered_coinc["clustered_template_ids"][j]
                     trig["ifo"] = ifo
@@ -759,7 +760,7 @@ class Itacacac(TSTransform):
         out_events = [
             {
                 "time": list(clustered_coinc["sngls"].values())[0]["time"][j],
-                "network_snr": clustered_coinc["clustered_snr"][j],
+                "network_snr": clustered_coinc["clustered_snr"][j].item(),
             }
             for j in range(clustered_coinc["clustered_ifo_combs"].shape[0])
         ]
