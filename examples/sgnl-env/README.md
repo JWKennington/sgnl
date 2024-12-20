@@ -224,6 +224,14 @@ The typical analysis dashboard requires some helper datasources (the same for al
   make datasources
 ```
 
+Once the datasources are created in Grafana you might want to take an existing production Dashboard
+and import it into your local grafana. To export a dashboard:
+
+1. Visit the dashboard in grafana and
+click on the export button (it is next to the star at the top of the dashboard). Click 'Export'
+and make sure that `Export for sharing externally` is toggled on. Save to a file.
+
+2. Visit your local grafana and hover over the Dashboard icon (four squares) and click on 'Import'. You will be prompted to upload a file. You will be prompted for some information about the new dashboard including the data sources that it should use.
 
 ## How it all fits together
 
