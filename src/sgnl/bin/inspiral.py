@@ -609,9 +609,26 @@ def inspiral(
                         sink_pad_names=("trigs",),
                         source_pad_names=("trigs",),
                     ),
+                    GraceDBSink(
+                        name="gracedb",
+                        template_sngls=sorted_bank.sngls,
+                        on_ifos=ifos,
+                        process_params=process_params,
+                        output_kafka_server=output_kafka_server,
+                        far_thresh=gracedb_far_threshold,
+                        gracedb_group=gracedb_group,
+                        gracedb_pipeline=gracedb_pipeline,
+                        gracedb_search=gracedb_search,
+                        gracedb_label=gracedb_label,
+                        gracedb_service_url=gracedb_service_url,
+                        analysis_tag=analysis_tag,
+                        job_tag=job_tag,
+                        sink_pad_names=("event",),
+                    ),
                     link_map={
                         "StrikeTransform:sink:trigs": "Itacacac:src:stillsuit",
                         "StillSuitSnk:sink:trigs": "StrikeTransform:src:trigs",
+                        "gracedb:sink:event": "StrikeTransform:src:trigs",
                     },
                 )
             else:
@@ -646,25 +663,6 @@ def inspiral(
                     link_map={
                         "StrikeSnk:sink:trigs": "Itacacac:src:strike",
                     },
-                )
-                pipeline.insert(
-                    GraceDBSink(
-                        name="gracedb",
-                        template_sngls=sorted_bank.sngls,
-                        on_ifos=ifos,
-                        process_params=process_params,
-                        output_kafka_server=output_kafka_server,
-                        far_thresh=gracedb_far_threshold,
-                        gracedb_group=gracedb_group,
-                        gracedb_pipeline=gracedb_pipeline,
-                        gracedb_search=gracedb_search,
-                        gracedb_label=gracedb_label,
-                        gracedb_service_url=gracedb_service_url,
-                        analysis_tag=analysis_tag,
-                        job_tag=job_tag,
-                        sink_pad_names=("event",),
-                    ),
-                    link_map={"gracedb:sink:event": "StrikeTransform:src:trigs"},
                 )
                 for ifo in ifos:
                     pipeline.insert(

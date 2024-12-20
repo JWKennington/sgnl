@@ -17,8 +17,8 @@ def parse_command_line():
     parser.add_argument("--input-db", help="the input database.")
     parser.add_argument(
         "--segments-name",
-        help="the segment name. Default = afterhtgate.",
-        default="afterhtgate",
+        help="the segment name. Default = datasegments.",
+        default="datasegments",
     )
     parser.add_argument(
         "--output-html", help="The output html page", default="plot-sim.html"
@@ -132,12 +132,14 @@ def VT(
     segments_name,
     mcstart=(0, 0.5, 450.0),
     mcend=(0.5, 450.0, numpy.inf),
-    ifars=10.0 ** numpy.arange(0, 13),
+    ifars=None,
 ):
+    if ifars is None:
+        ifars = 10.0 ** numpy.arange(0, 13)
     vts = {}
     vts_low = {}
     vts_high = {}
-    ifars_years = ifars / 86400 / 365.25
+    # ifars_years = ifars / 86400 / 365.25
     for ifar in ifars:
         misseddict, founddict = indb.missed_found_by_on_ifos(
             far_threshold=1.0 / ifar, segments_name=segments_name
@@ -274,14 +276,16 @@ def main():
             "decisive_snr",
             "Time",
             "Decisive SNR",
-            "Decisive SNR is defined as the second highest injected SNR for ifos on at the time of the event regardless of what ifos recovered the event.",
+            "Decisive SNR is defined as the second highest injected SNR for ifos on at"
+            " the time of the event regardless of what ifos recovered the event.",
         ),
         (
             "time",
             "network_snr",
             "Time",
             "Network SNR",
-            "Network SNR is defined as the injected RMS SNR for ifos on at the time of the event regardless of what ifos recovered the event.",
+            "Network SNR is defined as the injected RMS SNR for ifos on at the time of"
+            " the event regardless of what ifos recovered the event.",
         ),
     ]:
         fig = viz.plt.figure()
@@ -342,12 +346,15 @@ def main():
         {
             "img": viz.b64(),
             "title": "%s vs %s" % (ylabel, xlabel),
-            "caption": "The RMS injected SNR vs the RMS recovered SNR.  Injected SNR will be for whatever ifos were on regardless of what ifos detetected the event.  Recovered SNR will be only ifos that detected the event.",
+            "caption": "The RMS injected SNR vs the RMS recovered SNR.  Injected SNR"
+            " will be for whatever ifos were on regardless of what ifos detetected the"
+            " event.  Recovered SNR will be only ifos that detected the event.",
         }
     )
 
     # Combine the template and the images HTML
-    #    html_content = viz.page(_images_html = viz.image_html(images), _modals = viz.modal_html(images))
+    #    html_content = viz.page(_images_html = viz.image_html(images), _modals =
+    #                           viz.modal_html(images))
     # html_content = viz.page(_images_html = viz.image_html(images))
     html_content = viz.page(
         [
