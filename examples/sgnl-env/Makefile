@@ -33,3 +33,9 @@ stop_services:
 
 hostalias:
 	sudo  bash -c  'echo "127.0.0.1 localhost-v4"  >> /etc/hosts'
+
+datasources:
+	./createSimpleJsonDataSource.sh "gstlal_interval" "http://sgnl-services:5000/cgi-bin/interval"
+	./createSimpleJsonDataSource.sh "test_suite_far_threshold" "http://sgnl-services:5000/cgi-bin/test/far_threshold"
+	./createSimpleJsonDataSource.sh "gstlal_trials_factor" "http://sgnl-services:5000/cgi-bin/test/trials_factor" "sgnl"
+	./createInfluxDataSource.sh     "sgnl" "http://influxdb:8086" "sgnl"
