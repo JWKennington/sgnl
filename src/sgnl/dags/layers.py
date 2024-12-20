@@ -16,16 +16,19 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
+import os
 from ezdag import Argument, Layer, Node, Option
 
 from sgnl.dags import util
-from sgnl.dags.util import format_ifo_args, to_ifo_list
+from sgnl.dags.util import condor_scratch_space, format_ifo_args, to_ifo_list
 
 # from gstlal import plugins
 # from gstlal.datafind import DataType, DataCache
 # from gstlal.dags import Argument, Option
 # from gstlal.dags import util as dagutil
 # from gstlal.dags.layers import Layer, Node
+
+DEFAULT_MAX_FILES = 500
 
 
 def create_layer(executable, condor_config, resource_requests, name=None):
@@ -132,7 +135,7 @@ def filter(
     condor_config,
     ref_psd_cache,
     svd_bank_cache,
-    dist_stat_cache,
+    lr_cache,
     trigger_cache,
     svd_stats,
 ):
@@ -150,6 +153,7 @@ def filter(
         Option("psd-fft-length", psd_config.fft_length),
         Option("frame-segments-name", source_config.frame_segments_name),
         Option("coincidence-threshold", filter_config.coincidence_threshold),
+        Option("snr-min", filter_config.snr_min),
     ]
 
     common_inputs = [
@@ -188,7 +192,7 @@ def filter(
 
     ref_psds = ref_psd_cache.groupby("ifo", "time")
     svd_banks = svd_bank_cache.groupby("ifo", "bin")
-    dist_stats = dist_stat_cache.groupby("ifo", "time", "bin")
+    lrs = lr_cache.groupby("ifo", "time", "bin")
     for (ifo_combo, span), triggers in trigger_cache.groupby("ifo", "time").items():
         ifos = to_ifo_list(ifo_combo)
         start, end = span
@@ -255,8 +259,8 @@ def filter(
                     for svd_bin in svd_bins
                 ]
             )
-            dist_stat_files = util.flatten(
-                [dist_stats[(ifo_combo, span, svd_bin)].files for svd_bin in svd_bins]
+            lr_files = util.flatten(
+                [lrs[(ifo_combo, span, svd_bin)].files for svd_bin in svd_bins]
             )
 
             layer += Node(
@@ -268,7 +272,7 @@ def filter(
                 ],
                 outputs=[
                     Option("trigger-output", trigger_group.files),
-                    Option("output-likelihood-file", dist_stat_files),
+                    Option("output-likelihood-file", lr_files),
                 ],
             )
 
@@ -290,7 +294,7 @@ def injection_filter(
     executable = "sgnl-inspiral"
     resource_requests = {
         "request_cpus": 2,
-        "request_memory": "4GB",
+        "request_memory": "5GB",
         "request_disk": "5GB",
     }
     layer = create_layer(
@@ -303,6 +307,7 @@ def injection_filter(
         Option("psd-fft-length", psd_config.fft_length),
         Option("frame-segments-name", source_config.frame_segments_name),
         Option("coincidence-threshold", filter_config.coincidence_threshold),
+        Option("snr-min", filter_config.snr_min),
         Option("injections"),
     ]
 
@@ -475,18 +480,11 @@ def aggregate(filter_config, condor_config, trigger_cache, clustered_triggers_ca
     executable = "stillsuit-merge-reduce"
     resource_requests = {
         "request_cpus": 1,
-        "request_memory": 2000,
+        "request_memory": "2GB",
         "request_disk": "1GB",
     }
 
     layer = create_layer(executable, condor_config, resource_requests)
-
-    # FIXME: find better way of discovering SQL file
-    # share_path = os.path.split(dagutil.which("gstlal_inspiral"))[0
-    #               ].replace("bin", "share/gstlal")
-    # snr_cluster_sql_file = os.path.join(share_path, "snr_simplify_and_cluster.sql")
-    # inj_snr_cluster_sql_file = os.path.join(share_path,
-    #                               "inj_snr_simplify_and_cluster.sql")
 
     clustered_triggers = clustered_triggers_cache.groupby("ifo", "time", "bin")
 
@@ -497,7 +495,7 @@ def aggregate(filter_config, condor_config, trigger_cache, clustered_triggers_ca
         layer += Node(
             arguments=[
                 Option("clustering-column", "network_chisq_weighted_snr"),
-                Option("clustering-window", filter_config.clustering_window),
+                Option("clustering-window", 0.1),
             ],
             inputs=[
                 Option("config-schema", filter_config.event_config_file),
@@ -511,25 +509,495 @@ def aggregate(filter_config, condor_config, trigger_cache, clustered_triggers_ca
     return layer
 
 
-def marginalize_dist_stats(
-    filter_config, condor_config, dist_stat_cache, marg_dist_stat_cache
+def marginalize_likelihood_ratio(
+    condor_config,
+    lr_cache,
+    marg_lr_cache,
+    prior_cache=None,
+    mass_model_file=None,
 ):
 
     executable = "strike-marginalize-likelihood"
     resource_requests = {
         "request_cpus": 1,
-        "request_memory": 2000,
-        "request_disk": "1GB",
+        "request_memory": "2GB",
+        "request_disk": "3GB",
     }
-    layer = create_layer(executable, condor_config, resource_requests)
+    if prior_cache is not None:
+        name = executable + "-prior"
+        prior = prior_cache.groupby("bin")
+    else:
+        name = executable + "-likelihood-ratio-across-time"
+    layer = create_layer(
+        executable,
+        condor_config,
+        resource_requests,
+        name=name,
+    )
 
-    dist_stats = dist_stat_cache.groupby("bin")
+    lrs = lr_cache.groupby("bin")
 
-    for svd_bin, marg_dist_stats in marg_dist_stat_cache.groupby("bin").items():
+    inputs = []
+    if mass_model_file is not None:
+        inputs.append(Option("mass-model-file", mass_model_file, suppress=True))
+
+    for svd_bin, marg_lrs in marg_lr_cache.groupby("bin").items():
         layer += Node(
             arguments=Option("marginalize", "likelihood-ratio"),
-            inputs=Option("input", dist_stats[svd_bin].files),
-            outputs=Option("output", marg_dist_stats.files),
+            inputs=inputs
+            + [
+                Option(
+                    "input",
+                    (
+                        lrs[svd_bin].files + prior[svd_bin].files
+                        if prior_cache is not None
+                        else lrs[svd_bin].files
+                    ),
+                )
+            ],
+            outputs=Option("output", marg_lrs.files),
         )
 
     return layer
+
+
+def create_prior(
+    condor_config,
+    coincidence_threshold,
+    mass_model,
+    svd_bank_cache,
+    prior_cache,
+    ifos,
+    min_ifos,
+):
+    executable = "sgnl-create-prior-diststats"
+    resource_requests = {
+        "request_cpus": 2,
+        "request_memory": "4GB",
+        "request_disk": "3GB",
+    }
+    layer = create_layer(executable, condor_config, resource_requests)
+
+    svd_banks = svd_bank_cache.groupby("bin")
+    arguments = [
+        Option("instrument", ifos),
+        Option("min-instruments", min_ifos),
+        Option("coincidence-threshold", coincidence_threshold),
+    ]
+    for svd_bin, prior in prior_cache.groupby("bin").items():
+        inputs = [
+            Option("svd-file", svd_banks[svd_bin].files),
+            Option("mass-model-file", mass_model),
+        ]
+        layer += Node(
+            arguments=arguments,
+            inputs=inputs,
+            outputs=Option("output-likelihood-file", prior.files),
+        )
+
+    return layer
+
+
+def cluster_snr(
+    condor_config, filter_config, trigger_cache, clustered_trigger_cache, column, window
+):
+    executable = "stillsuit-merge-reduce"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "2GB",
+    }
+    layer = create_layer(
+        executable,
+        condor_config,
+        resource_requests,
+        name=executable + "-" + column.replace("_", "-"),
+    )
+
+    triggers = trigger_cache.groupby("bin", "subtype")
+
+    # cluster triggers by SNR across time
+    for (svd_bin, subtype), clustered_triggers in clustered_trigger_cache.groupby(
+        "bin", "subtype"
+    ).items():
+        layer += Node(
+            arguments=[
+                Option("clustering-column", column),
+                Option("clustering-window", window),
+            ],
+            inputs=[
+                Option("config-schema", filter_config.event_config_file),
+                Option("dbs", triggers[(svd_bin, subtype)].files),
+            ],
+            outputs=Option(
+                "db-to-insert-into",
+                clustered_triggers.files,
+            ),
+        )
+    return layer
+
+
+def merge_and_reduce(
+    condor_config, filter_config, trigger_cache, clustered_trigger_cache, column, window
+):
+    executable = "stillsuit-merge-reduce"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "2GB",
+    }
+    layer = create_layer(
+        executable,
+        condor_config,
+        resource_requests,
+        name=executable + "-" + column.replace("_", "-"),
+    )
+
+    triggers = trigger_cache.groupby("subtype")
+
+    # cluster triggers by SNR across time
+    for (subtype), clustered_triggers in clustered_trigger_cache.groupby(
+        "subtype"
+    ).items():
+        layer += Node(
+            arguments=[
+                Option("clustering-column", column),
+                Option("clustering-window", window),
+            ],
+            inputs=[
+                Option("config-schema", filter_config.event_config_file),
+                Option("dbs", triggers[(subtype)].files),
+            ],
+            outputs=Option(
+                "db-to-insert-into",
+                clustered_triggers.files,
+            ),
+        )
+    return layer
+
+
+def assign_likelihood(
+    condor_config,
+    filter_config,
+    trigger_cache,
+    lr_cache,
+    lr_trigger_cache,
+    mass_model_file,
+):
+    executable = "sgnl-assign-likelihood"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "3GB",
+    }
+
+    layer = create_layer(executable, condor_config, resource_requests)
+
+    # assign likelihood to triggers
+    lr_triggers = lr_trigger_cache.groupby("bin", "subtype")
+    lrs = lr_cache.groupby("bin")
+    for (svd_bin, subtype), triggers in trigger_cache.groupby("bin", "subtype").items():
+
+        # find path relative to current directory
+        # where assigned triggers will reside
+        # split_dirname = dirname.split(os.sep)
+        # dir_idx = split_dirname.index("triggers")
+        # calc_dirname = os.path.join(config.data.rank_dir, *split_dirname[dir_idx:])
+
+        arguments = [
+            Option("force"),
+            Option("tmp-space", condor_scratch_space()),
+        ]
+
+        # allow impossible candidates for inj jobs
+        # if config.rank.allow_impossible_inj_candidates:
+        #    if inj_type:
+        #        arguments.append(Option("allow-impossible-candidates", "True"))
+        #    else:
+        #        arguments.append(Option("allow-impossible-candidates", "False"))
+
+        layer += Node(
+            arguments=arguments,
+            inputs=[
+                Option("config-schema", filter_config.event_config_file),
+                Option("input-database-file", triggers.files),
+                Option("input-likelihood-file", lrs[svd_bin].files),
+                Option("mass-model-file", mass_model_file, suppress=True),
+            ],
+            outputs=Option(
+                "output-database-file",
+                lr_triggers[(svd_bin, subtype)].files,
+            ),
+        )
+
+    return layer
+
+
+def calc_pdf(
+    condor_config, rank_config, config_svd_bins, lr_cache, pdf_cache, mass_model_file
+):
+    # FIXME: expose this in configuration
+    num_cores = rank_config.calc_pdf_cores if rank_config.calc_pdf_cores else 4
+
+    executable = "strike-calc-rank-pdfs"
+    resource_requests = {
+        "request_cpus": num_cores,
+        "request_memory": "3GB",
+        "request_disk": "3GB",
+    }
+
+    layer = create_layer(executable, condor_config, resource_requests)
+
+    lrs = lr_cache.groupby("bin")
+    arguments = [
+        Option("num-samples", rank_config.ranking_stat_samples),
+        Option("num-cores", num_cores),
+    ]
+    for svd_bin, pdfs in pdf_cache.groupby("bin").items():
+        for pdf in pdfs.files:
+            layer += Node(
+                arguments=arguments,
+                inputs=[
+                    Option("input-likelihood-file", lrs[svd_bin].files),
+                    Option("mass-model-file", mass_model_file, suppress=True),
+                ],
+                outputs=Option("output-rankingstatpdf-file", pdf),
+            )
+
+    return layer
+
+
+def extinct_bin(
+    condor_config, event_config_file, pdf_cache, trigger_cache, extinct_cache
+):
+    executable = "sgnl-extinct-bin"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "1GB",
+    }
+
+    layer = create_layer(executable, condor_config, resource_requests)
+
+    trigger_cache = trigger_cache.groupby("subtype")[""]  # noninj triggers
+    trigger_cache = trigger_cache.groupby("bin")
+    extinct_pdfs = extinct_cache.groupby("bin")
+    for svd_bin, pdfs in pdf_cache.groupby("bin").items():
+        assert (
+            len(trigger_cache[svd_bin].files) == 1
+        ), "Must provide exactly one trigger file per bin to the extinct_bin layer"
+        trigger_file = trigger_cache[svd_bin].files[0]
+
+        layer += Node(
+            arguments=[Option("reset-zerolag")],
+            inputs=[
+                Option("config-schema", event_config_file),
+                Option("input-database-file", trigger_file),
+                Option("input-rankingstatpdf-file", pdfs.files),
+            ],
+            outputs=Option("output-rankingstatpdf-file", extinct_pdfs[svd_bin].files),
+        )
+
+    return layer
+
+
+def marginalize_pdf(
+    condor_config, rank_config, rank_dir, all_ifos, span, pdf_cache, marg_pdf_cache
+):
+    executable = "strike-marginalize-likelihood"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "1GB",
+    }
+    round1_layer = create_layer(
+        executable, condor_config, resource_requests, name=executable + "-pdf-round-one"
+    )
+
+    num_files = (
+        rank_config.marg_pdf_files if rank_config.marg_pdf_files else DEFAULT_MAX_FILES
+    )
+
+    # if number of bins is large, combine in two stages instead
+    if len(pdf_cache.files) > num_files:
+        partial_pdf_files = []
+        for pdf_subset in pdf_cache.chunked(num_files):
+
+            # determine bin range and determine partial file name
+            svd_bins = list(pdf_subset.groupby("bin").keys())
+            min_bin, max_bin = min(svd_bins), max(svd_bins)
+            partial_pdf_filename = pdf_subset.name.filename(
+                all_ifos,
+                span,
+                svd_bin=f"{min_bin}_{max_bin}",
+            )
+            partial_pdf_path = os.path.join(
+                pdf_subset.name.directory(root=rank_dir, start=span[0]),
+                partial_pdf_filename,
+            )
+
+            partial_pdf_files.append(partial_pdf_path)
+
+            # combine across subset of bins (stage 1)
+            round1_layer += Node(
+                arguments=Option("marginalize", "ranking-stat-pdf"),
+                inputs=Option("input", pdf_subset.files),
+                outputs=Option("output", partial_pdf_path),
+            )
+
+        executable = "strike-marginalize-likelihood"
+        resource_requests = {
+            "request_cpus": 1,
+            "request_memory": "2GB",
+            "request_disk": "1GB",
+        }
+        round2_layer = create_layer(
+            executable,
+            condor_config,
+            resource_requests,
+            name=executable + "-pdf-round-two",
+        )
+
+        # combine across all bins (stage 2)
+        round2_layer += Node(
+            arguments=Option("marginalize", "ranking-stat-pdf"),
+            inputs=Option("input", partial_pdf_files),
+            outputs=Option("output", marg_pdf_cache.files),
+        )
+        layers = [round1_layer, round2_layer]
+    else:
+        round1_layer += Node(
+            arguments=Option("marginalize", "ranking-stat-pdf"),
+            inputs=Option("input", pdf_cache.files),
+            outputs=Option("output", marg_pdf_cache.files),
+        )
+        layers = [round1_layer]
+
+    return layers
+
+
+def assign_far(
+    condor_config,
+    event_config_file,
+    trigger_cache,
+    marg_pdf_cache,
+    post_pdf_cache,
+    far_trigger_cache,
+):
+    executable = "sgnl-extinct-bin"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "4GB",
+    }
+
+    extinct_layer = create_layer(
+        executable, condor_config, resource_requests, name=executable + "-round-two"
+    )
+
+    executable = "sgnl-assign-far"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "5GB",
+    }
+    assign_far_layer = create_layer(executable, condor_config, resource_requests)
+
+    far_triggers = far_trigger_cache.groupby("subtype")
+
+    for subtype, triggers in trigger_cache.groupby("subtype").items():
+        if subtype == "":
+            extinct_layer += Node(
+                inputs=[
+                    Option("config-schema", event_config_file),
+                    Option("input-database-file", triggers.files),
+                    Option("input-rankingstatpdf-file", marg_pdf_cache.files),
+                ],
+                outputs=[Option("output-rankingstatpdf-file", post_pdf_cache.files)],
+            )
+        inputs = [
+            Option("config-schema", event_config_file),
+            Option("input-database-file", triggers.files),
+            Option("input-likelihood-file", post_pdf_cache.files),
+        ]
+        assign_far_layer += Node(
+            arguments=[
+                Option("force"),
+                Option("tmp-space", condor_scratch_space()),
+            ],
+            inputs=inputs,
+            outputs=[
+                Option("output-database-file", far_triggers[subtype].files),
+            ],
+        )
+
+    return [extinct_layer, assign_far_layer]
+
+
+def summary_page(
+    condor_config,
+    event_config_file,
+    segments_file,
+    segments_name,
+    webdir,
+    far_trigger_cache,
+    seg_far_trigger_cache,
+):
+    executable = "sgnl-add-segments"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "4GB",
+    }
+    seg_layer = create_layer(executable, condor_config, resource_requests)
+
+    executable = "sgnl-sim-page"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "10GB",
+    }
+
+    sim_layer = create_layer(executable, condor_config, resource_requests)
+
+    executable = "sgnl-results-page"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "10GB",
+    }
+
+    results_layer = create_layer(executable, condor_config, resource_requests)
+
+    far_triggers = far_trigger_cache.groupby("subtype")
+
+    for subtype, seg_triggers in seg_far_trigger_cache.groupby("subtype").items():
+        seg_layer += Node(
+            arguments=Option("segments-name", segments_name),
+            inputs=[
+                Option("config-schema", event_config_file),
+                Option("input-database-file", far_triggers[subtype].files),
+                Option("segments-file", segments_file),
+            ],
+            outputs=Option("output-database-file", seg_triggers.files),
+        )
+        if subtype == "":
+            results_layer += Node(
+                inputs=[
+                    Option("config-schema", event_config_file),
+                    Option("input-db", seg_triggers.files),
+                ],
+                outputs=Option("output-html", webdir + "/sgnl-results-page.html"),
+            )
+        else:
+            sim_layer += Node(
+                inputs=[
+                    Option("config-schema", event_config_file),
+                    Option("input-db", seg_triggers.files),
+                ],
+                outputs=Option(
+                    "output-html", webdir + "/sgnl-sim-page-" + subtype + ".html"
+                ),
+            )
+
+    return [seg_layer, sim_layer, results_layer]
