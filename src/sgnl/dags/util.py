@@ -29,12 +29,6 @@ from enum import Enum
 from lal.utils import CacheEntry
 from ligo.segments import segment, segmentlist, segmentlistdict
 
-# import sys
-
-# import gwdatafind
-# from ligo.lw import utils as ligolw_utils
-# from ligo.lw.utils import segments as ligolw_segments
-
 
 class DotDict(dict):
     """
@@ -152,6 +146,15 @@ def mchirp_range_to_bins(min_mchirp, max_mchirp, svd_metadata):
             svd_bins.append(svd_bin)
 
     return svd_bins
+
+
+def condor_scratch_space():
+    """!
+    A way to standardize the condor scratch space even if it changes
+    >>> condor_scratch_space()
+    '_CONDOR_SCRATCH_DIR'
+    """
+    return "_CONDOR_SCRATCH_DIR"
 
 
 @dataclass
@@ -400,12 +403,14 @@ class DataCache:
 
 
 class DataFileMixin:
-    def description(self, svd_bin=None, subtype=None):
+    def description(self, svd_bin=None, subtype=None, sgnl=True):
         # FIXME: sanity check subtype input
         description = []
         if svd_bin:
             description.append(svd_bin)
-        description.append(f"GSTLAL_{self.name}")
+        # FIXME: add SGNL in name once we don't depend on GSTLAL anymore
+        description.append(f"SGNL_{self.name}")
+        # description.append(f"{self.name}")
         if subtype:
             description.append(subtype.upper())
         return "_".join(description)
@@ -439,11 +444,15 @@ class DataType(DataFileMixin, Enum):
     SMOOTH_PSD = (2, "xml.gz")
     TRIGGERS = (10, "sqlite.gz")
     CLUSTERED_TRIGGERS = (11, "sqlite.gz")
-    DIST_STATS = (20, "xml.gz")
-    PRIOR_DIST_STATS = (21, "xml.gz")
-    MARG_DIST_STATS = (22, "xml.gz")
-    DIST_STAT_PDFS = (30, "xml.gz")
-    POST_DIST_STAT_PDFS = (31, "xml.gz")
+    LR_TRIGGERS = (12, "sqlite.gz")
+    FAR_TRIGGERS = (13, "sqlite.gz")
+    SEGMENTS_FAR_TRIGGERS = (14, "sqlite.gz")
+    LIKELIHOOD_RATIO = (20, "xml.gz")
+    PRIOR_LIKELIHOOD_RATIO = (21, "xml.gz")
+    MARG_LIKELIHOOD_RATIO = (22, "xml.gz")
+    MARG_LIKELIHOOD_RATIO_PRIOR = (23, "xml.gz")
+    RANK_STAT_PDFS = (30, "xml.gz")
+    POST_RANK_STAT_PDFS = (31, "xml.gz")
     ZEROLAG_DIST_STAT_PDFS = (32, "xml.gz")
     TEMPLATE_BANK = (40, "xml.gz")
     SPLIT_BANK = (41, "xml.gz")
@@ -463,22 +472,6 @@ class DataType(DataFileMixin, Enum):
         return self.name.upper()
 
 
-# def load_frame_cache(start, end, frame_types, host=None):
-#    """
-#    Given a span and a set of frame types, loads a frame cache.
-#    """
-#    if not host:
-#        host = DEFAULT_DATAFIND_SERVER
-#    cache = []
-#    with gwdatafind.Session() as sess:
-#        for ifo, frame_type in frame_types.items():
-#            urls = gwdatafind.find_urls(ifo[0], frame_type, start, end, host=host,
-#                                           session=sess)
-#            cache.extend([CacheEntry.from_T050017(url) for url in urls])
-#
-#    return cache
-#
-#
 def gps_directory(gpstime):
     """
     Given a gps time, returns the directory name where files corresponding
