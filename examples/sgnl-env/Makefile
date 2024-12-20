@@ -34,6 +34,15 @@ stop_services:
 hostalias:
 	sudo  bash -c  'echo "127.0.0.1 localhost-v4"  >> /etc/hosts'
 
+##
+## Create an InfluxDB database.
+##
+influxdb_%:
+	curl http://localhost:8086/query?pretty=true --data-urlencode "q=create database $*"
+
+##
+## Create some Grafana data sources
+##
 datasources:
 	./createSimpleJsonDataSource.sh "gstlal_interval" "http://sgnl-services:5000/cgi-bin/interval"
 	./createSimpleJsonDataSource.sh "test_suite_far_threshold" "http://sgnl-services:5000/cgi-bin/test/far_threshold"

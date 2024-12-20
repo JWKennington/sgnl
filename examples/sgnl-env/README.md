@@ -208,6 +208,23 @@ Stop Colima:
   colima stop
 ```
 
+## Configure Services
+
+Kafka does not require any configuration.
+
+You will need to create an InfluxDB database for each analysis. There is an example above
+that shows how to create a database using curl. You can use:
+```
+    make influxdb_sgnl
+```
+to create an InfluxDB database named `sgnl`.
+
+The typical analysis dashboard requires some helper datasources (the same for all analyses). You can create them and a datasource that points at the InfluxDB database named `sgnl` using make:
+```
+  make datasources
+```
+
+
 ## How it all fits together
 
 SGNL jobs run on your local box using condor (or just started on the command line). The SGNL jobs
