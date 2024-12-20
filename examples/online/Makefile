@@ -1,4 +1,4 @@
-all: inspiral range scald #event_uploader event_plotter
+all: inspiral range scald event_uploader #event_plotter
 
 H1_SVD_BANK=../../tests/data/H1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
 L1_SVD_BANK=../../tests/data/L1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
@@ -9,14 +9,17 @@ KAFKA_SERVER=localhost-v4:9196
 GRACEDB_GROUP=CBC
 GRACEDB_PIPELINE=SGN
 GRACEDB_SEARCH=MOCK
-GRACEDB_URL= # FIXME
+GRACEDB_LABEL=MOCK
+GRACEDB_URL=http://127.0.0.1:5000/api/
 TAG=sgnl_test
+JOB_TAG=0750_noninj
+FAR_THRESH=1e-4
 
 inspiral:
 	sgnl-inspiral \
 		--data-source white-realtime \
 		--psd-fft-length 4 \
-        --input-sample-rate 16384 \
+		--input-sample-rate 16384 \
 		--channel-name H1=FAKE \
 		--channel-name L1=FAKE \
 		--channel-name V1=FAKE \
@@ -28,7 +31,31 @@ inspiral:
 		--trigger-output out.sqlite \
 		--output-likelihood-file likelihood_ratio.xml.gz \
 		--output-kafka-server ${KAFKA_SERVER} \
-		--analysis-tag ${TAG}
+		--gracedb-far-threshold ${FAR_THRESH} \
+		--analysis-tag ${TAG} \
+		--job-tag ${JOB_TAG}
+
+inspiral_gracedb:
+	sgnl-inspiral \
+		--data-source white-realtime \
+		--psd-fft-length 4 \
+		--input-sample-rate 16384 \
+		--channel-name H1=FAKE \
+		--channel-name L1=FAKE \
+		--channel-name V1=FAKE \
+		--torch-device cpu --torch-dtype float32 --trigger-finding-duration 1 \
+		--svd-bank ${H1_SVD_BANK} \
+		--svd-bank ${L1_SVD_BANK} \
+		--svd-bank ${V1_SVD_BANK} \
+		--event-config ${EVENT_CONFIG} \
+		--trigger-output out.sqlite \
+		--output-likelihood-file likelihood_ratio.xml.gz \
+		--gracedb-far-threshold ${FAR_THRESH} \
+		--gracedb-group ${GRACEDB_GROUP} \
+		--gracedb-pipeline ${GRACEDB_PIPELINE} \
+		--gracedb-search ${GRACEDB_SEARCH} \
+		--gracedb-label ${GRACEDB_LABEL} \
+		--gracedb-service-url ${GRACEDB_URL} \
 
 scald:
 	scald aggregate \
@@ -101,7 +128,7 @@ event_uploader:
 		--verbose \
 		--scald-config inspiral.yml \
 		--max-partitions 10 \
-		--gracedb-service-url GRACEDB_URL \
+		--gracedb-service-url ${GRACEDB_URL} \
 
 event_plotter: plot_ranking_data plot_ranking_plot plot_snr_plots plot_psd_plots plot_dtdphi_plots
 
@@ -154,4 +181,3 @@ plot_dtdphi_plots:
 		--plot DTDPHI_PLOTS \
 		--verbose \
 		--gracedb-service-url ${GRACEDB_URL}
-

@@ -663,11 +663,12 @@ class EventUploader(events.EventProcessor):
         for attempt in range(1, self.retries + 1):
             try:
                 resp = self.client.createEvent(
-                    self.gracedb_group,
-                    self.gracedb_pipeline,
-                    "coinc.xml",
+                    group=self.gracedb_group,
+                    pipeline=self.gracedb_pipeline,
+                    filename="coinc.xml",
                     filecontents=event["favored"]["coinc"],
                     search=self.gracedb_search,
+                    offline=False,
                     labels=(
                         "SNR_OPTIMIZED"
                         if "apply_snr_optimized_label" in event["favored"]

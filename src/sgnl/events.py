@@ -172,6 +172,7 @@ class EventProcessor(object):
         logging.info("shutting down %s...", self._name.replace("_", " "))
         self.finish()
         self.is_running = False
+        self.producer.flush()
 
     def catch(self, signum, frame):
         """Shuts down the event processor gracefully before exiting."""
