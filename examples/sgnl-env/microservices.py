@@ -317,8 +317,8 @@ def homepage():
 ## Accept a POST like: {"target":"{\"from\": 1660076939153, \"to\": 1660081939153}"}
 ## Return a retention period string like: ["1s"]
 ##
-@app.route('/cgi-bin/interval', methods=['GET','POST'])
-def interval():
+@app.route('/cgi-bin/interval/<path:subpath>', methods=['GET','POST'])
+def interval(subpath):
   intervals = [10000, 1000, 100, 10, 1]
   seconds   = 5
   resolutionGuess = 200    
@@ -347,12 +347,12 @@ def interval():
 ## science notation to decimal so that influxql
 ## can read it
 ##
-@app.route('/cgi-bin/test/far_threshold', methods=['GET','POST'])
-def far_threshold():
+@app.route('/cgi-bin/test/far_threshold/<path:subpath>', methods=['GET','POST'])
+def far_threshold(subpath):
   data = request.form.to_dict()
-  target = data["target"]
-  target = target.replace("\\", "")
   try:
+    target = data["target"]
+    target = target.replace("\\", "")
     form = json.loads(target)
     output = "{:.16f}".format(float(form["far"]))
   except Exception as e:
@@ -364,14 +364,16 @@ def far_threshold():
 ## Get analysis key and determine trials factor
 ## 2 if analysis is checkerboarded, 1 otherwise
 ##
-@app.route('/cgi-bin/test/trials_factor', methods=['GET','POST'])
-def trials_factor():
+@app.route('/cgi-bin/test/trials_factor/<path:subpath>', methods=['GET','POST'])
+def trials_factor(subpath):
   data = request.form.to_dict()
-  keys = data["analysis"]
-  if "edward" in analysis or "jacob" in analysis or "renee" in analysis or "esme" in analysis:
-    trials = 2
-  else:
-    trials = 1
+  trials = 1
+  try:
+    keys = data["analysis"]
+    if "edward" in analysis or "jacob" in analysis or "renee" in analysis or "esme" in analysis:
+      trials = 2    
+  except:
+    pass
   return "[\"%s\"]" % str(trials)
 
     
