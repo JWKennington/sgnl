@@ -212,7 +212,7 @@ Stop Colima:
 
 SGNL jobs run on your local box using condor (or just started on the command line). The SGNL jobs
 use kafka for communication (`localhost:9196`), send metrics to influxdb (`localhost:8086`),
-and read/write _GraceDB_ (`localhost:80`).
+and read/write _GraceDB_ (`localhost:5000`).
 
 You can monitor the sgnl jobs using dashboards on grafana (`http://localhost`). 
 Grafana uses influxdb (`influxdb:8086`) and sgnl-services (`sgnl-services:80`) for data sources.
