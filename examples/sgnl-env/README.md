@@ -1,7 +1,18 @@
 # SGNL Service Environment
 
 The SGNSL Service Environment consists of a docker compose file running a set of
-services useful for developing and testing SGNL.
+services useful for developing and testing SGNL. 
+
+The containers that are run are by docker compose are:
+
+1. [kafka](https://hub.docker.com/r/confluentinc/cp-kafka)
+2. [zookeeper](https://hub.docker.com/r/confluentinc/cp-zookeeper)
+3. [influxdb](https://hub.docker.com/_/influxdb)
+4. [grafana](https://hub.docker.com/r/grafana/grafana)
+5. [sgnl-services](https://git.ligo.org/greg/sgnl-microservices)
+
+These are all standard containers exept [SGNL Microservices](https://git.ligo.org/greg/sgnl-microservices) 
+which is homegrown and runs a web server that provides some HTTP services that sgnl expects in production.
 
 ## Docker background
 
@@ -13,6 +24,11 @@ Fortunately, there is an open source alternative, [Colima](https://github.com/ab
 
 Once docker is available, a set of containers can be run using the `docker compose command`. The `docker compose` command 
 always looks for configuration in the current directory.
+
+URLs for services depend on where you are using them. Outside of containers, you just use `localhost-v4:PORT` (`127.0.0.1:PORT`). 
+The more familiar `localhost:PORT` works most of the time, but can fail because Mac uses `localhost` for both an IPv4 address and
+an IPv6 address. In containers you need to refer to services on other containers using `CONTAINER_NAME:PORT` (e.g., `influxdb:8086`). This is mostly an
+issue when configuring data source URLs in grafana.
 
 ## Requirements 
 
@@ -105,10 +121,11 @@ When services are running correctly, you should see `docker ps` output like:
 ```
 ghostwheel:~/sgn-env> docker ps
 CONTAINER ID   IMAGE                              COMMAND                  CREATED          STATUS          PORTS     NAMES
-957e23124b02   confluentinc/cp-kafka:latest       "/etc/confluent/dock…"   48 minutes ago   Up 48 minutes             kafka
-9b6d8dfbf90e   influxdb:1.8.10                    "/entrypoint.sh -con…"   48 minutes ago   Up 48 minutes             influxdb
-71960c89960e   confluentinc/cp-zookeeper:latest   "/etc/confluent/dock…"   48 minutes ago   Up 48 minutes             zookeeper
-57b9b0d24d56   grafana/grafana:9.4.7              "/run.sh"                48 minutes ago   Up 48 minutes             grafana
+957e23124b02   confluentinc/cp-kafka:latest                       "/etc/confluent/dock…"   48 minutes ago   Up 48 minutes             kafka
+9b6d8dfbf90e   influxdb:1.8.10                                    "/entrypoint.sh -con…"   48 minutes ago   Up 48 minutes             influxdb
+71960c89960e   confluentinc/cp-zookeeper:latest                   "/etc/confluent/dock…"   48 minutes ago   Up 48 minutes             zookeeper
+57b9b0d24d56   grafana/grafana:9.4.7                              "/run.sh"                48 minutes ago   Up 48 minutes             grafana
+048e0deb9b6a   containers.ligo.org/greg/sgnl-microservices:0.0.2  "python3 /services/m?"   48 minutes ago   Up 48 minutes             sgnl-services
 ```
 
 Kafka and influx have no authentication. Grafana has an admin user with password sgnl.
@@ -125,7 +142,7 @@ Kafka:
 
 If `localhost-v4` doesn't work, try `make hostalias` or use `127.0.0.1` instead of `localhost-v4`. 
 
-Influx:
+InfluxDB:
 ```
   curl http://localhost:8086/health
   curl http://localhost:8086/query?pretty=true --data-urlencode "q=create database sgnl"
@@ -137,6 +154,41 @@ Grafana:
   curl http://localhost/api/health
 ```
 You should be able open a browser to `http://localhost/`. 
+
+SGNL Services:
+```
+    curl -D -   http://localhost:5000/
+
+    curl -D -   http://localhost:5000/cgi-bin/interval -H  'Content-Type: application/json' -d'
+{
+  "target":"{\"from\": 1660076939153, \"to\": 1660081939153}"
+}'
+```
+
+Important note: the script `microservices.py` is bind mounted in the `sgnl-services` container for
+speedy development. If you need to change the behavior of the mock gracedb server or the 
+microservices you can update this version and restart the `sgnl-services` container. 
+Eventually, the changes should be propagated to the
+version in the `sgnl-microservices` repository.
+
+
+## Manage the services
+
+You can restart a single service/container by container name, for example:
+```
+    docker compose restart sgnl-services
+```
+
+You can restart all services using the command:
+```
+    docker compose restart
+```
+
+You can stop all services using the command:
+```
+   docker compose down
+```
+
 
 ## Managing Colima
 
@@ -155,6 +207,16 @@ Stop Colima:
 ```
   colima stop
 ```
+
+## How it all fits together
+
+SGNL jobs run on your local box using condor (or just started on the command line). The SGNL jobs
+use kafka for communication (`localhost:9196`), send metrics to influxdb (`localhost:8086`),
+and read/write _GraceDB_ (`localhost:80`).
+
+You can monitor the sgnl jobs using dashboards on grafana (`http://localhost`). 
+Grafana uses influxdb (`influxdb:8086`) and sgnl-services (`sgnl-services:80`) for data sources.
+
 
 
 
