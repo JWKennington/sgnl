@@ -23,8 +23,12 @@ def parse_command_line():
     return args
 
 
-def process_events(events, n=200, cols=[], formats={}):
-    events = sorted(events, key=lambda x: x["event"]["far"])[:n]
+def process_events(events, n=200, cols=None, formats=None):
+    if cols is None:
+        cols = []
+    if formats is None:
+        formats = {}
+    events = sorted(events, key=lambda x: x["event"]["likelihood"], reverse=True)[:n]
     return [
         {
             k: (v if k not in formats else formats[k](v))

@@ -44,6 +44,7 @@ Documentation = "https://docs.ligo.org/greg/sgnl"
 Issues = "https://git.ligo.org/greg/sgnl/issues"
 
 [project.scripts]
+sgnl-add-segments = "sgnl.bin.add_segments:main"
 sgnl-assign-far = "sgnl.bin.assign_far:main"
 sgnl-assign-likelihood = "sgnl.bin.assign_likelihood:main"
 sgnl-create-prior-diststats = "sgnl.bin.create_prior_diststats:main"
