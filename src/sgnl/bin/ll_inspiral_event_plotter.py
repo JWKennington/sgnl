@@ -60,12 +60,14 @@ from matplotlib.backends.backend_agg import (  # noqa: E402
 matplotlib.use("agg")
 from matplotlib import pyplot as plt  # noqa: E402
 from strike.stats import far  # noqa: E402
-#from strike.plots.stats import dtdphi as plotdtdphi  # noqa: E402
-#from strike.plots.stats import far as plotfar  # noqa: E402
+from strike.stats.likelihood_ratio import LnLikelihoodRatio
 
 from sgnl import events, svd_bank  # noqa: E402
 from sgnl.gracedb import FakeGracedbClient, upload_fig  # noqa: E402
 from sgnl.plots import psd as plotpsd  # noqa: E402
+
+# from strike.plots.stats import dtdphi as plotdtdphi  # noqa: E402
+# from strike.plots.stats import far as plotfar  # noqa: E402
 
 
 # -------------------------------------------------
@@ -187,7 +189,7 @@ def load_rankingstat_xml_with_retries(filename, logger):
     for tries in range(3):
         try:
             xmldoc = ligolw_utils.load_filename(
-                filename, contenthandler=far.RankingStat.LIGOLWContentHandler
+                filename, contenthandler=LnLikelihoodRatio.LIGOLWContentHandler
             )
             break
         except SAXParseException as e:
@@ -244,16 +246,16 @@ class EventPlotter(events.EventProcessor):
         self.logger = logger
         self.logger.info("setting up event plotter...")
 
-        self.upload_topic = f"gstlal.{tag}.{upload_topic}"
-        self.ranking_stat_topic = f"gstlal.{tag}.{ranking_stat_topic}"
+        self.upload_topic = f"sgnl.{tag}.{upload_topic}"
+        self.ranking_stat_topic = f"sgnl.{tag}.{ranking_stat_topic}"
 
         plot_string = "-".join([str(Plots[plot].value) for plot in plot])
 
         is_injection_job = upload_topic == "inj_uploads"
         heartbeat_topic = (
-            f"gstlal.{tag}.event_plotter_heartbeat"
+            f"sgnl.{tag}.event_plotter_heartbeat"
             if not is_injection_job
-            else f"gstlal.{tag}.inj_event_plotter_heartbeat"
+            else f"sgnl.{tag}.inj_event_plotter_heartbeat"
         )
 
         events.EventProcessor.__init__(
@@ -809,7 +811,10 @@ class EventPlotter(events.EventProcessor):
         ), "the time slide table has to have exactly one time-slide entry."
 
         offset_vector = offset_vectors[list(offset_vectors)[0]]
-        rankingstat, _ = far.parse_likelihood_control_doc(
+        # rankingstat, _ = far.parse_likelihood_control_doc(
+        #     load_rankingstat_xml_with_retries(event["ranking_data_path"], self.logger)
+        # )
+        rankingstat = LnLikelihoodRatio.from_xml(
             load_rankingstat_xml_with_retries(event["ranking_data_path"], self.logger)
         )
 

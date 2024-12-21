@@ -1,10 +1,12 @@
 import base64
 import io
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass
 
+import lal
 from confluent_kafka import Producer
 from lal import LIGOTimeGPS
 from ligo.gracedb.rest import GraceDb
@@ -34,11 +36,14 @@ class GraceDBSink(HTTPControlSinkElement):
     job_tag: str = None
     on_ifos: list = None
     process_params: dict = None
+    event_pad: str = None
+    spectrum_pads: list[str] = None
 
     def __post_init__(self):
-        assert len(self.sink_pad_names) == 1
+        self.sink_pad_names = (self.event_pad,) + self.spectrum_pads
         super().__post_init__()
         self.events = None
+        self.psds = {}
         self.state = {"far-threshold": self.far_thresh}
         self.sngls_dict = {}
         for sub in self.template_sngls:
@@ -69,7 +74,11 @@ class GraceDBSink(HTTPControlSinkElement):
     def pull(self, pad, frame):
         if frame.EOS:
             self.mark_eos(pad)
-        self.events = frame
+
+        if self.rsnks[pad] == self.event_pad:
+            self.events = frame
+        else:
+            self.psds[self.rsnks[pad]] = frame.metadata["psd"]
 
     def internal(self):
         HTTPControlSinkElement.exchange_state(self.name, self.state)
@@ -87,8 +96,19 @@ class GraceDBSink(HTTPControlSinkElement):
                     event, trigs, self.sngls_dict, self.on_ifos, self.process_params
                 )
 
+                # add psd frequeny series
+                lal.series.make_psd_xmldoc(self.psds, xmldoc.childNodes[-1])
+
                 if self.output_kafka_server:
-                    publish_kafka(self.client, xmldoc, self.job_tag, self.analysis_tag)
+                    publish_kafka(
+                        self.client,
+                        xmldoc,
+                        self.job_tag,
+                        self.analysis_tag,
+                        "".join(sorted(self.on_ifos)),
+                        self.gracedb_group,
+                        self.gracedb_search,
+                    )
                 else:
                     publish_gracedb(
                         self.client,
@@ -106,18 +126,31 @@ class GraceDBSink(HTTPControlSinkElement):
             self.client.flush()
 
 
-def publish_kafka(client, xmldoc, job_tag, analysis_tag):
+def publish_kafka(
+    client,
+    xmldoc,
+    job_tag,
+    analysis_tag,
+    instruments,
+    group,
+    search,
+):
     """Send the xmldoc to kafka, where it will eventually be uploaded to gracedb"""
-    coinc_table_row = lsctables.CoincTable.get_table(xmldoc)[0]
+
+    #
+    # make sure the directory where we will write the files to disk exists
+    #
+
+    # coinc_table_row = lsctables.CoincTable.get_table(xmldoc)[0]
     coinc_inspiral_row = lsctables.CoincInspiralTable.get_table(xmldoc)[0]
-    sngl_inspiral_table = lsctables.SnglInspiralTable.get_table(xmldoc)
+    # sngl_inspiral_table = lsctables.SnglInspiralTable.get_table(xmldoc)
 
     message = io.BytesIO()
     ligolw_utils.write_fileobj(xmldoc, message)
 
     topic_prefix = "" if "noninj" in job_tag else "inj_"
     client.produce(
-        topic=f"gstlal.{analysis_tag}.{topic_prefix}events",
+        topic=f"sgnl.{analysis_tag}.{topic_prefix}events",
         value=json.dumps(
             {
                 "far": coinc_inspiral_row.combined_far,
@@ -129,6 +162,49 @@ def publish_kafka(client, xmldoc, job_tag, analysis_tag):
             }
         ),
         key=job_tag,
+    )
+
+    # description = "%s_%s_%s_%s_%s" % (
+    #     "SGNL",
+    #     job_tag,
+    #     ("%.4g" % coinc_inspiral_row.mass).replace(".", "_").replace("-", "_"),
+    #     group,
+    #     search,
+    # )
+    # background_bin = int(sngl_inspiral_table[0].Gamma1)
+    # end_time = int(coinc_inspiral_row.end)
+
+    # gracedb_uploads_gps_dir = os.path.join("gracedb_uploads", str(end_time)[:5])
+    # if not os.path.exists(gracedb_uploads_gps_dir):
+    #     # set exist_ok = True in case multiple jobs try
+    #     # to create the directory at the same time;
+    #     # this is more likely to happen with injection
+    #     # jobs due to the high injection rate
+    #     os.makedirs(gracedb_uploads_gps_dir, exist_ok=True)
+
+    # rankingstat_filename = os.path.join(
+    #     gracedb_uploads_gps_dir,
+    #     "%s-%s_%04d_RankingData-%d-%d.xml.gz"
+    #     % (instruments, description, background_bin, end_time, 1),
+    # )
+    # with open(rankingstat_filename, "wb") as fileobj:
+    #     ligolw_utils.write_fileobj(
+    #         get_rankingstat_xmldoc(rankingstat_file, clipped=True),
+    #         fileobj,
+    #         compress="gz",
+    #     )
+    rankingstat_filename = "H1L1V1-0000_SGNL_LIKELIHOOD_RATIO-1241767728-1916.xml.gz"
+
+    client.produce(
+        topic=f"sgnl.{analysis_tag}.{topic_prefix}ranking_stat",
+        value=json.dumps(
+            {
+                "ranking_data_path": os.path.realpath(rankingstat_filename),
+                "time": coinc_inspiral_row.end_time,
+                "time_ns": coinc_inspiral_row.end_time_ns,
+                "coinc": message.getvalue().decode("utf-8"),
+            }
+        ),
     )
 
 
@@ -236,8 +312,6 @@ def event_trigs_to_coinc_xmldoc(event, trigs, sngls_dict, on_ifos, process_param
     xmldoc.appendChild(ligolw.LIGO_LW())
     ligolw_process.register_to_xmldoc(xmldoc, "sngl-inspiral", process_params)
 
-    process = ligolw_process.register_to_xmldoc(xmldoc, "sgnl-inspiral", process_params)
-
     # Add tables that depend on the number of triggers
     # NOTE: tables are initilize to 0 or null values depending on the type.
     time_slide_table = add_table_with_n_rows(
@@ -300,6 +374,26 @@ def event_trigs_to_coinc_xmldoc(event, trigs, sngls_dict, on_ifos, process_param
     )
     coinc_event_table[0].instruments = ",".join(sorted(on_ifos))
 
-    coinc_def_table = add_table_with_n_rows(xmldoc, lsctables.CoincDefTable, 1)
+    # coinc_def_table = add_table_with_n_rows(xmldoc, lsctables.CoincDefTable, 1)
 
+    return xmldoc
+
+
+def get_rankingstat_xmldoc(rankingstat_file, clipped=False):
+    # FIXME: add gracedb upload condition
+    if clipped:
+        rankingstat = rankingstat_file.copy()
+        try:
+            endtime = rankingstat.terms["P_of_tref_Dh"].horizon_history.maxkey()
+        except ValueError:
+            # empty horizon history
+            pass
+        else:
+            # keep the last hour of history
+            endtime -= 3600.0 * 1
+            for history in rankingstat.terms["P_of_tref_Dh"].horizon_history.values():
+                del history[:endtime]
+    else:
+        rankingstat = rankingstat_file
+    xmldoc = rankingstat.to_xml()
     return xmldoc

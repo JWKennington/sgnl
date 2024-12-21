@@ -137,8 +137,8 @@ def parse_command_line():
     parser.add_argument(
         "--gracedb-pipeline",
         metavar="name",
-        default="gstlal",
-        help="Name of pipeline to provide in GracedB uploads (default is gstlal).",
+        default="SGNL",
+        help="Name of pipeline to provide in GracedB uploads (default is SGNL).",
     )
     parser.add_argument(
         "--gracedb-search",
@@ -193,7 +193,7 @@ class EventUploader(events.EventProcessor):
         far_threshold: float = 3.84e-07,
         far_trials_factor: int = 1,
         gracedb_group: str = "Test",
-        gracedb_pipeline: str = "gstlal",
+        gracedb_pipeline: str = "SGNL",
         gracedb_search: str = "LowMass",
         gracedb_service_url: str = DEFAULT_GRACEDB_URL,
         max_event_time: int = 7200,
@@ -211,9 +211,9 @@ class EventUploader(events.EventProcessor):
 
         self.is_injection_job = input_topic == "inj_events"
         topic_prefix = "" if not self.is_injection_job else "inj_"
-        heartbeat_topic = f"gstlal.{tag}.{topic_prefix}event_uploader_heartbeat"
-        self.favored_event_topic = f"gstlal.{tag}.{topic_prefix}favored_events"
-        self.upload_topic = f"gstlal.{tag}.{topic_prefix}uploads"
+        heartbeat_topic = f"sgnl.{tag}.{topic_prefix}event_uploader_heartbeat"
+        self.favored_event_topic = f"sgnl.{tag}.{topic_prefix}favored_events"
+        self.upload_topic = f"sgnl.{tag}.{topic_prefix}uploads"
 
         # set up output topics. Note that the uploads topic is special,
         # we use it for the SNR optimizer. We want to divide the work
@@ -230,7 +230,7 @@ class EventUploader(events.EventProcessor):
             request_timeout=request_timeout,
             num_messages=num_jobs,
             kafka_server=kafka_server,
-            input_topic=f"gstlal.{tag}.{input_topic}",
+            input_topic=f"sgnl.{tag}.{input_topic}",
             output_topic=output_topics,
             topic_partitions=num_partitions,
             tag=tag,

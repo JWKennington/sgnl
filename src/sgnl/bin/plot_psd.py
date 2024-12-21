@@ -5,9 +5,9 @@
 
 
 import os
-from optparse import ArgumentParser
+from argparse import ArgumentParser
 
-from gstlal.plots import set_matplotlib_cache_directory
+from sgnl.plots.util import set_matplotlib_cache_directory
 
 set_matplotlib_cache_directory()
 import matplotlib
