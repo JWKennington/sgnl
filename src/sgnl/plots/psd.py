@@ -122,9 +122,8 @@ def axes_plot_cummulative_snr(axes, psds, coinc_xmldoc):
     axes.set_ylim([0.0, axes.get_ylim()[1]])
 
     axes.set_title(
-        r"Cumulative SNRs for $%.3g\,\mathrm{M}_{\odot}$--$%.3g\,\mathrm{M}_{\odot}$ \
-                Merger Candidate at %.2f GPS"
-        % (mass1, mass2, float(end_time))
+        r"Cumulative SNRs for $%.3g\,\mathrm{M}_{\odot}$--$%.3g\,\mathrm{M}_{\odot}$"
+        "Merger Candidate at %.2f GPS" % (mass1, mass2, float(end_time))
     )
     axes.set_xlabel(r"Frequency (Hz)")
     axes.set_ylabel(r"Cumulative SNR")
@@ -267,9 +266,8 @@ def axes_plot_psds(axes, psds, coinc_xmldoc=None):
     )
 
     title = (
-        r"Strain Noise Spectral Density for $%.3g\,\mathrm{M}_{\odot}$--$%.3g\, \
-                \mathrm{M}_{\odot}$ Merger Candidate"
-        % (mass1, mass2)
+        r"Strain Noise Spectral Density for $%.3g\,\mathrm{M}_{\odot}$-"
+        r"-$%.3g\, \mathrm{M}_{\odot}$ Merger Candidate" % (mass1, mass2)
     )
     if end_time is not None:
         title += r" at %.2f GPS" % float(end_time)

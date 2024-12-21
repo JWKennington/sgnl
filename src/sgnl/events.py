@@ -100,7 +100,6 @@ class EventProcessor(object):
         self.tag = tag
         self.kafka_settings = {
             "bootstrap.servers": kafka_server,
-            "group.id": "-".join([self._name, tag]),
         }
         self.producer_settings = {
             "message.max.bytes": 10485760,  # 10 MB
@@ -108,6 +107,7 @@ class EventProcessor(object):
         }
         self.producer = Producer(self.producer_settings)
         if not self.is_source:
+            self.kafka_settings["group.id"] = "-".join([self._name, tag])
             self.consumer = Consumer(self.kafka_settings)
             self.consumer.subscribe([topic for topic in input_topic])
 

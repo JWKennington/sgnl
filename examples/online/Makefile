@@ -1,4 +1,4 @@
-all: inspiral range scald event_uploader #event_plotter
+all: inspiral range scald event_uploader plot_psd_plots plot_ranking_data
 
 H1_SVD_BANK=../../tests/data/H1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
 L1_SVD_BANK=../../tests/data/L1-0750_GSTLAL_SVD_BANK-0-0.xml.gz

@@ -95,7 +95,7 @@ def latexnumber(s: str):
     if "e" not in s and "E" not in s:
         return s
     m, e = floatpattern.match(s).groups()
-    return r"%s \times 10^{%d}" % (m, int(e))
+    return r"$%s \times 10^{%d}$" % (m, int(e))
 
 
 def latexfilename(s: str):

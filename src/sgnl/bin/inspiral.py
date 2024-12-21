@@ -601,6 +601,7 @@ def inspiral(
                     nsubbank_pretend=bool(nsubbank_pretend),
                 ),
             )
+
             if data_source_info.data_source in ["devshm", "white-realtime"]:
                 # connect LR and FAR assignment
                 pipeline.insert(
@@ -611,6 +612,8 @@ def inspiral(
                     ),
                     GraceDBSink(
                         name="gracedb",
+                        event_pad="event",
+                        spectrum_pads=tuple(ifo for ifo in ifos),
                         template_sngls=sorted_bank.sngls,
                         on_ifos=ifos,
                         process_params=process_params,
@@ -623,13 +626,17 @@ def inspiral(
                         gracedb_service_url=gracedb_service_url,
                         analysis_tag=analysis_tag,
                         job_tag=job_tag,
-                        sink_pad_names=("event",),
                     ),
                     link_map={
                         "StrikeTransform:sink:trigs": "Itacacac:src:stillsuit",
                         "StillSuitSnk:sink:trigs": "StrikeTransform:src:trigs",
                         "gracedb:sink:event": "StrikeTransform:src:trigs",
                     },
+                )
+                pipeline.insert(
+                    link_map={
+                        "gracedb:sink:" + ifo: spectrum_out_links[ifo] for ifo in ifos
+                    }
                 )
             else:
                 pipeline.insert(
