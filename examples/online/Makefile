@@ -1,4 +1,4 @@
-all: inspiral range scald event_uploader plot_psd_plots plot_ranking_data
+all: inspiral range scald event_uploader plot_psd_plots plot_ranking_data plot_snr_plots
 
 H1_SVD_BANK=../../tests/data/H1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
 L1_SVD_BANK=../../tests/data/L1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
@@ -13,7 +13,7 @@ GRACEDB_LABEL=MOCK
 GRACEDB_URL=http://127.0.0.1:5000/api/
 TAG=sgnl_test
 JOB_TAG=0750_noninj
-FAR_THRESH=1e-4
+FAR_THRESH=1e-5
 
 inspiral:
 	sgnl-inspiral \

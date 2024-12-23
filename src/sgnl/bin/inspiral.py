@@ -282,11 +282,11 @@ def inspiral(
     #
 
     if trigger_output is not None and os.path.exists(trigger_output):
-        raise ValueError("output db exists")
+        raise ValueError(f"output db exists: {trigger_output}")
     if ranking_stat_output is not None:
         for r in ranking_stat_output:
             if os.path.exists(r):
-                raise ValueError("ranking stat output exists")
+                raise ValueError(f"ranking stat output exists: {r}")
 
     if data_source_info.data_source == "impulse":
         if not impulse_bank:
@@ -626,6 +626,7 @@ def inspiral(
                         gracedb_service_url=gracedb_service_url,
                         analysis_tag=analysis_tag,
                         job_tag=job_tag,
+                        delta_t=coincidence_threshold,
                     ),
                     link_map={
                         "StrikeTransform:sink:trigs": "Itacacac:src:stillsuit",
