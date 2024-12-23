@@ -203,7 +203,12 @@ class Itacacac(TSTransform):
         #    + self.trigger_finding_overlap_samples * 2
         # )
         idf = -padding
-        triggers = {"peak_locations": {}, "snrs": {}, "chisqs": {}}
+        triggers = {
+            "peak_locations": {},
+            "snrs": {},
+            "chisqs": {},
+            "snr_ts_snippet": {},
+        }
         for ifo, snr in snr_ts.items():
             shape = snr.shape
             snr = snr.view(shape[0], shape[1] // 2, 2, shape[2])
@@ -250,6 +255,7 @@ class Itacacac(TSTransform):
             triggers["peak_locations"][ifo] = peak_locations
             triggers["snrs"][ifo] = peaks
             triggers["chisqs"][ifo] = autocorrelation_chisq
+            triggers["snr_ts_snippet"][ifo] = real_imag_time_series
 
         return triggers
 
@@ -539,6 +545,9 @@ class Itacacac(TSTransform):
         trig_peak_locations = triggers["peak_locations"]
         trig_snrs = triggers["snrs"]
         trig_chisqs = triggers["chisqs"]
+        trig_snr_ts_snippet = triggers["snr_ts_snippet"]
+        snr_ts_snippet_clustered = {}
+        snr_ts_clustered = {}
         for ifo in trig_snrs.keys():
             sngls[ifo] = {}
             max_peak_locations = trig_peak_locations[ifo][
@@ -562,21 +571,44 @@ class Itacacac(TSTransform):
             # go back and find the phase only for the clustered coincs
             # FIXME: find the snr snippet
             snrs0 = snr_ts[ifo]
-            snrs0 = snrs0.view(snrs0.shape[0], snrs0.shape[1] // 2, 2, snrs0.shape[2])
-            snr_pairs = snrs0[range(snrs0.shape[0]), max_locations]
+            snrs1 = snrs0.view(snrs0.shape[0], snrs0.shape[1] // 2, 2, snrs0.shape[2])
+            snr_pairs = snrs1[range(snrs1.shape[0]), max_locations]
             sngl_peaks = snr_pairs[range(snr_pairs.shape[0]), :, max_peak_locations]
             real = sngl_peaks[:, 0]
             imag = sngl_peaks[:, 1]
             phase = torch.atan2(imag, real)
             sngls[ifo]["phase"] = phase.to("cpu").numpy()[mask]
 
+            if self.kafka_pad is not None:
+                # get snr snippet around the peak for the clustered coincs
+                # only for online case
+                snr_ts_snippet_clustered[ifo] = (
+                    trig_snr_ts_snippet[ifo][range(snrs1.shape[0]), max_locations]
+                    .to("cpu")
+                    .numpy()[mask]
+                )
+
+                snr_ts_clustered[ifo] = (
+                    snr_ts[ifo]
+                    .view(snrs0.shape[0], snrs0.shape[1] // 2, 2, snrs0.shape[2])[
+                        range(snrs1.shape[0]), max_locations
+                    ]
+                    .to("cpu")
+                    .numpy()[mask]
+                )
+            else:
+                snr_ts_snippet_clustered[ifo] = None
+                snr_ts_clustered[ifo] = None
+
         # FIXME: is stacking then index_select faster?
         # FIXME: is stacking then copying to cpu faster?
         return {
             "clustered_template_ids": clustered_template_ids[mask],
-            "clustered_ifo_combs": clustered_ifo_combs.to("cpu").numpy()[mask],
-            "clustered_snr": clustered_snr.to("cpu").numpy()[mask],
+            "clustered_ifo_combs": clustered_ifo_combs[mask].to("cpu").numpy(),
+            "clustered_snr": clustered_snr[mask].to("cpu").numpy(),
             "sngls": sngls,
+            "snr_ts_snippet_clustered": snr_ts_snippet_clustered,
+            "snr_ts_clustered": snr_ts_clustered,
         }
 
     # @torch.compile
@@ -589,8 +621,9 @@ class Itacacac(TSTransform):
 
         # FIXME: this part and clustered_coinc is lowering the GPU utilization
         for trig_type in triggers.keys():
-            for k, v in triggers[trig_type].items():
-                triggers[trig_type][k] = v.to("cpu").numpy()
+            if trig_type != "snr_ts_snippet":
+                for k, v in triggers[trig_type].items():
+                    triggers[trig_type][k] = v.to("cpu").numpy()
 
         if False not in subthresh_mask:
             clustered_coinc = {}
@@ -736,10 +769,12 @@ class Itacacac(TSTransform):
         # Construct event buffers
         #
         out_triggers = []
+        out_snr_ts = []
         sngls = clustered_coinc["sngls"]
         # Zero-out the non-coinc ifos
         for j, c in enumerate(clustered_coinc["clustered_ifo_combs"]):
             trigs_this_event = []
+            snr_ts_this_event = {}
             for ifo in sngls.keys():
                 sngl = sngls[ifo]
                 ifo_num = self.ifos_number_map[ifo]
@@ -753,13 +788,62 @@ class Itacacac(TSTransform):
                     trig["epoch_start"] = ts
                     trig["epoch_end"] = te
                     trigs_this_event.append(trig)
+
+                    if self.kafka_pad is not None:
+                        # Prepare the snr time series snippet
+                        # snr time series for subthreshold ifos have length of the
+                        # autocorrelation length
+                        snr_ts_snippet = clustered_coinc["snr_ts_snippet_clustered"][
+                            ifo
+                        ][j]
+                        half_autocorr_length = (snr_ts_snippet.shape[-1] - 1) // 2
+                        snr_ts_snippet_out = lal.CreateCOMPLEX8TimeSeries(
+                            name="snr",
+                            epoch=trig["time"] / 1_000_000_000
+                            - half_autocorr_length / self.sample_rate,
+                            f0=0.0,
+                            deltaT=1 / self.sample_rate,
+                            sampleUnits=lal.DimensionlessUnit,
+                            length=snr_ts_snippet.shape[-1],
+                        )
+                        snr_ts_snippet_out.data.data = (
+                            snr_ts_snippet[0] + 1j * snr_ts_snippet[1]
+                        )
+
+                        snr_ts_this_event[ifo] = snr_ts_snippet_out
+                    else:
+                        snr_ts_this_event[ifo] = None
                 else:
                     trigs_this_event.append(None)
+                    if self.kafka_pad is not None:
+                        # Get the subthreshold snr time series
+                        # snr time series for subthreshold ifos have length of trigger
+                        # finding window. This will be used for subthreshold trigger
+                        # finding in the GraceDBSink
+                        snr_ts_snippet = clustered_coinc["snr_ts_clustered"][ifo][j]
+                        snr_ts_snippet_out = lal.CreateCOMPLEX8TimeSeries(
+                            name="snr",
+                            epoch=Offset.tosec(self.offset),
+                            f0=0.0,
+                            deltaT=1 / self.sample_rate,
+                            sampleUnits=lal.DimensionlessUnit,
+                            length=snr_ts_snippet.shape[-1],
+                        )
+                        snr_ts_snippet_out.data.data = (
+                            snr_ts_snippet[0] + 1j * snr_ts_snippet[1]
+                        )
+                        snr_ts_this_event[ifo] = snr_ts_snippet_out
+                    else:
+                        snr_ts_this_event[ifo] = None
+
             out_triggers.append(trigs_this_event)
+            out_snr_ts.append(snr_ts_this_event)
 
         out_events = [
             {
-                "time": list(clustered_coinc["sngls"].values())[0]["time"][j],
+                "time": min(
+                    trig["time"][j] for trig in clustered_coinc["sngls"].values()
+                ),
                 "network_snr": clustered_coinc["clustered_snr"][j].item(),
             }
             for j in range(clustered_coinc["clustered_ifo_combs"].shape[0])
@@ -770,6 +854,7 @@ class Itacacac(TSTransform):
         return {
             "event": EventBuffer(ts, te, data=out_events),
             "trigger": EventBuffer(ts, te, data=out_triggers),
+            "snr_ts": EventBuffer(ts, te, data=out_snr_ts),
         }
 
     def internal(self):
@@ -802,6 +887,7 @@ class Itacacac(TSTransform):
             events = {
                 "event": EventBuffer(ts, te, data=None),
                 "trigger": EventBuffer(ts, te, data=None),
+                "snr_ts": EventBuffer(ts, te, data=None),
             }
             if self.strike_pad is not None:
                 background_events = {
@@ -825,6 +911,7 @@ class Itacacac(TSTransform):
                 events = {
                     "event": EventBuffer(ts, te, data=None),
                     "trigger": EventBuffer(ts, te, data=None),
+                    "snr_ts": EventBuffer(ts, te, data=None),
                 }
                 if self.kafka_pad is not None:
                     kafka_events = {

@@ -32,12 +32,21 @@ from ligo.lw import ligolw, lsctables
 from ligo.lw import param as ligolw_param
 from ligo.lw import utils as ligolw_utils
 from ligo.scald import utils
+from strike.stats import far
+from strike.stats.likelihood_ratio import LnLikelihoodRatio
 
 from sgnl.plots.util import set_matplotlib_cache_directory
 
 set_matplotlib_cache_directory()  # FIXME: I don't know if this needs to be done here
 
-import matplotlib  # noqa: E402
+from sgnl import events, svd_bank  # noqa: E402 I003
+from sgnl.gracedb import FakeGracedbClient, upload_fig  # noqa: E402
+from sgnl.plots import psd as plotpsd  # noqa: E402
+
+# from strike.plots.stats import dtdphi as plotdtdphi  # noqa: E402
+# from strike.plots.stats import far as plotfar  # noqa: E402
+
+import matplotlib  # noqa: E402 I001 isort:skip
 
 matplotlib.rcParams.update(
     {
@@ -59,15 +68,6 @@ from matplotlib.backends.backend_agg import (  # noqa: E402
 
 matplotlib.use("agg")
 from matplotlib import pyplot as plt  # noqa: E402
-from strike.stats import far  # noqa: E402
-from strike.stats.likelihood_ratio import LnLikelihoodRatio
-
-from sgnl import events, svd_bank  # noqa: E402
-from sgnl.gracedb import FakeGracedbClient, upload_fig  # noqa: E402
-from sgnl.plots import psd as plotpsd  # noqa: E402
-
-# from strike.plots.stats import dtdphi as plotdtdphi  # noqa: E402
-# from strike.plots.stats import far as plotfar  # noqa: E402
 
 
 # -------------------------------------------------
@@ -668,11 +668,13 @@ class EventPlotter(events.EventProcessor):
         # NOTE This assumes --svd-bank will also be provided once in the
         # ProcessParamsTable
         if plot_autocorrelation:
+            self.logger.info("Reading svd bank...")
             bank_files = [
                 row.value
                 for row in lsctables.ProcessParamsTable.get_table(event["coinc"])
                 if row.param == "--svd-bank"
             ]
+            self.logger.info("Got process params table...")
             svd_bank_string = ",".join(
                 [
                     f'{os.path.basename(file).split("-")[0]}:{file}'
@@ -683,9 +685,10 @@ class EventPlotter(events.EventProcessor):
             banks = svd_bank.parse_bank_files(
                 svd_bank.parse_svdbank_string(svd_bank_string), verbose=False
             )
+            self.logger.info("Parsed bank files...")
 
             #
-            # # Find the template (to retrieve the autocorrelation later)
+            # Find the template (to retrieve the autocorrelation later)
             #
             banknum = None
             for i, bank in enumerate(list(banks.values())[0]):
@@ -704,6 +707,7 @@ class EventPlotter(events.EventProcessor):
                     "The svd banks in the process params table do not contain the "
                     "template the event was found with"
                 )
+            self.logger.info("Finish reading svd bank...")
 
         #
         # Plot the time series and the expected snr
@@ -711,6 +715,7 @@ class EventPlotter(events.EventProcessor):
         fig = figure.Figure()
         FigureCanvas(fig)
 
+        self.logger.info("Begin plotting snr time series...")
         zero_pad = 4
         for i, (eventid, complex8timeseries) in enumerate(
             timeseries_ligolw_dict.items()
@@ -776,7 +781,7 @@ class EventPlotter(events.EventProcessor):
             ax.set_xlim(time[lo_idx], time[hi_idx])
             ax.set_ylabel(r"$\mathrm{{{}}}\,\rho(t)$".format(ifo))
             ax.set_xlabel(r"$\mathrm{{Time\,from\,{}}}$".format(peaktime))
-            ax.legend(loc="best")
+            ax.legend(loc="upper right")
             ax.grid()
 
         fig.tight_layout()

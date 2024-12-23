@@ -1,20 +1,25 @@
 import base64
 import io
 import json
+import math
 import os
 import sys
 import time
 from dataclasses import dataclass
 
 import lal
+import numpy
 from confluent_kafka import Producer
 from lal import LIGOTimeGPS
+from lal import series as lalseries
 from ligo.gracedb.rest import GraceDb
 from ligo.lw import array, ligolw, lsctables, param
 from ligo.lw import utils as ligolw_utils
 from ligo.lw.utils import process as ligolw_process
+from ligo.lw.utils import segments as ligolw_segments
 from sgn.control import HTTPControlSinkElement
 
+from sgnl.transforms.itacacac import light_travel_time
 from sgnl.viz import logo_data
 
 
@@ -38,6 +43,7 @@ class GraceDBSink(HTTPControlSinkElement):
     process_params: dict = None
     event_pad: str = None
     spectrum_pads: list[str] = None
+    delta_t: float = 0.005
 
     def __post_init__(self):
         self.sink_pad_names = (self.event_pad,) + self.spectrum_pads
@@ -86,14 +92,21 @@ class GraceDBSink(HTTPControlSinkElement):
         # send event data to kafka or gracedb
         if self.client and self.state["far-threshold"] > 0:
 
-            event, trigs = min_far_event(
+            event, trigs, snr_ts = min_far_event(
                 self.events["event"].data,
                 self.events["trigger"].data,
+                self.events["snr_ts"].data,
                 self.state["far-threshold"],
             )
             if event is not None:
                 xmldoc = event_trigs_to_coinc_xmldoc(
-                    event, trigs, self.sngls_dict, self.on_ifos, self.process_params
+                    event,
+                    trigs,
+                    snr_ts,
+                    self.sngls_dict,
+                    self.on_ifos,
+                    self.process_params,
+                    self.delta_t,
                 )
 
                 # add psd frequeny series
@@ -236,13 +249,17 @@ def publish_gracedb(client, xmldoc, group, pipeline, search, labels):
     print("Written Log:", log)
 
 
-def min_far_event(events, triggers, thresh):
+def min_far_event(events, triggers, snr_ts, thresh):
     if not events:
-        return None, None
+        return None, None, None
     min_far, min_ix = min((e["far"], n) for n, e in enumerate(events))
     if min_far <= thresh:
-        return events[min_ix], [t for t in triggers[min_ix] if t is not None]
-    return None, None
+        return (
+            events[min_ix],
+            [t for t in triggers[min_ix] if t is not None],
+            snr_ts[min_ix],
+        )
+    return None, None, None
 
 
 #
@@ -302,7 +319,9 @@ def sngl_map(row, sngldict, _filter_id, exclude):
             setattr(row, col, getattr(sngldict[_filter_id], col))
 
 
-def event_trigs_to_coinc_xmldoc(event, trigs, sngls_dict, on_ifos, process_params):
+def event_trigs_to_coinc_xmldoc(
+    event, trigs, snr_ts, sngls_dict, on_ifos, process_params, delta_t
+):
     """Given an event dict and a trigs list of dicts corresponding to single
     event as well as the parameters in the sngls_dict corresponding, construct an
     xml doc suitable for upload to gracedb"""
@@ -315,16 +334,100 @@ def event_trigs_to_coinc_xmldoc(event, trigs, sngls_dict, on_ifos, process_param
     # Add tables that depend on the number of triggers
     # NOTE: tables are initilize to 0 or null values depending on the type.
     time_slide_table = add_table_with_n_rows(
-        xmldoc, lsctables.TimeSlideTable, len(trigs)
+        xmldoc, lsctables.TimeSlideTable, len(snr_ts)
     )
     sngl_inspiral_table = add_table_with_n_rows(
-        xmldoc, lsctables.SnglInspiralTable, len(trigs)
+        xmldoc, lsctables.SnglInspiralTable, len(snr_ts)
     )
-    coinc_map_table = add_table_with_n_rows(xmldoc, lsctables.CoincMapTable, len(trigs))
+    # coinc_map_table = add_table_with_n_rows(xmldoc, lsctables.CoincMapTable,
+    # len(trigs))
+    coinc_map_table = add_table_with_n_rows(
+        xmldoc, lsctables.CoincMapTable, len(snr_ts)
+    )
     found_ifos = []
+
+    # Add subthreshold trigger
+    triggerless_ifos = set(snr_ts.keys()) - set([t["ifo"] for t in trigs])
+    if triggerless_ifos:
+        subthresh_trigs = []
+        # FIXME: handle the case of multiple trigs, pick the highest network snr one
+        for ifo in sorted(triggerless_ifos):
+            if len(triggerless_ifos) > 1:
+                print(ifo)
+            coinc_segment = ligolw_segments.segments.segment(
+                ligolw_segments.segments.NegInfinity,
+                ligolw_segments.segments.PosInfinity,
+            )
+            for trig in trigs:
+                trigger_time = trig["time"] / 1_000_000_000
+                trigger_ifo = trig["ifo"]
+                filter_id = trig["_filter_id"]
+                coincidence_window = light_travel_time(ifo, trigger_ifo) + delta_t
+                coinc_segment &= ligolw_segments.segments.segment(
+                    trigger_time - coincidence_window, trigger_time + coincidence_window
+                )
+                half_autocorr_length = (snr_ts[trigger_ifo].data.length - 1) // 2
+
+            for trig in subthresh_trigs:
+                trigger_time = trig["time"] / 1_000_000_000
+                trigger_ifo = trig["ifo"]
+                coincidence_window = light_travel_time(ifo, trigger_ifo) + delta_t
+                coinc_segment &= ligolw_segments.segments.segment(
+                    trigger_time - coincidence_window, trigger_time + coincidence_window
+                )
+
+            snr_ts_this_ifo = snr_ts[ifo]
+            snr_ts_this_ifo_array = snr_ts_this_ifo.data.data
+            t0 = snr_ts_this_ifo.epoch
+            dt = snr_ts_this_ifo.deltaT
+            idx0 = int((coinc_segment[0] - t0) / dt)
+            idxf = int(math.ceil((coinc_segment[1] - t0) / dt))
+            maxid = numpy.argmax(abs(snr_ts_this_ifo_array[idx0:idxf]))
+            maxsnr = abs(snr_ts_this_ifo_array[idx0 + maxid])
+            phase = math.atan2(
+                snr_ts_this_ifo_array[idx0 + maxid].imag,
+                snr_ts_this_ifo_array[idx0 + maxid].real,
+            )
+            peakt = float(t0) + (idx0 + maxid) * dt
+
+            deltaT = snr_ts_this_ifo.deltaT
+            snr_ts_snippet = snr_ts_this_ifo_array[
+                idx0
+                + maxid
+                - half_autocorr_length : idx0
+                + maxid
+                + 1
+                + half_autocorr_length
+            ]
+            snr_ts_snippet_out = lal.CreateCOMPLEX8TimeSeries(
+                name="snr",
+                epoch=peakt - half_autocorr_length * deltaT,
+                f0=0.0,
+                deltaT=deltaT,
+                sampleUnits=lal.DimensionlessUnit,
+                length=snr_ts_snippet.shape[-1],
+            )
+            snr_ts_snippet_out.data.data = snr_ts_snippet
+            snr_ts[ifo] = snr_ts_snippet_out
+
+            subthresh_trigs.append(
+                {
+                    "_filter_id": filter_id,
+                    "ifo": ifo,
+                    "time": int(peakt * 1e9),
+                    "phase": phase,
+                    "chisq": None,
+                    "snr": maxsnr,
+                }
+            )
+
+        trigs.extend(subthresh_trigs)
+        event["network_snr"] = sum(trig["snr"] ** 2 for trig in trigs) ** 0.5
+        event["time"] = min(trig["time"] for trig in trigs)
+
     for n, row in enumerate(sngl_inspiral_table):
-        row.event_id = n
         sngl_map(row, sngls_dict, trigs[n]["_filter_id"], exclude=())
+        row.event_id = n
         col_map(
             row,
             trigs[n],
@@ -341,6 +444,14 @@ def event_trigs_to_coinc_xmldoc(event, trigs, sngls_dict, on_ifos, process_param
         coinc_map_table[n].event_id = row.event_id
         coinc_map_table[n].table_name = "sngl_inspiral"
         found_ifos.append(row.ifo)
+
+        # Add snr time series
+        ts = snr_ts[row.ifo]
+        snr_time_series_element = lalseries.build_COMPLEX8TimeSeries(ts)
+        snr_time_series_element.appendChild(
+            param.Param.from_pyvalue("event_id", row.event_id)
+        )
+        xmldoc.childNodes[-1].appendChild(snr_time_series_element)
 
     # The remaining tables will all have ids set to integer zeros which
     # actually makes this single event document just magically have the right
