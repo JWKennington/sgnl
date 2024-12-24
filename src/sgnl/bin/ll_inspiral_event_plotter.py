@@ -39,11 +39,12 @@ from sgnl.plots.util import set_matplotlib_cache_directory
 
 set_matplotlib_cache_directory()  # FIXME: I don't know if this needs to be done here
 
+from strike.plots.stats import plot_dtdphi  # noqa: E402
+
 from sgnl import events, svd_bank  # noqa: E402 I003
 from sgnl.gracedb import FakeGracedbClient, upload_fig  # noqa: E402
 from sgnl.plots import psd as plotpsd  # noqa: E402
 
-# from strike.plots.stats import dtdphi as plotdtdphi  # noqa: E402
 # from strike.plots.stats import far as plotfar  # noqa: E402
 
 import matplotlib  # noqa: E402 I001 isort:skip
@@ -325,6 +326,7 @@ class EventPlotter(events.EventProcessor):
 
         # preferred event
         elif message.topic() == self.upload_topic:
+            self.logger.info("GID %s", payload["gid"])
             self.events[event_key]["gid"] = payload["gid"]
             self.events[event_key]["coinc"] = xmldoc
             self.events[event_key]["psd"] = ligolw_utils.load_fileobj(
@@ -809,6 +811,7 @@ class EventPlotter(events.EventProcessor):
         )
 
     def upload_dtdphi_plots(self, event):
+        self.logger.info("Begin plotting dtdphi plots for %s...", event["gid"])
         sngl_inspiral_table = lsctables.SnglInspiralTable.get_table(event["coinc"])
         offset_vectors = lsctables.TimeSlideTable.get_table(event["coinc"]).as_dict()
         assert (
@@ -816,16 +819,33 @@ class EventPlotter(events.EventProcessor):
         ), "the time slide table has to have exactly one time-slide entry."
 
         offset_vector = offset_vectors[list(offset_vectors)[0]]
-        # rankingstat, _ = far.parse_likelihood_control_doc(
-        #     load_rankingstat_xml_with_retries(event["ranking_data_path"], self.logger)
-        # )
+
         rankingstat = LnLikelihoodRatio.from_xml(
             load_rankingstat_xml_with_retries(event["ranking_data_path"], self.logger)
         )
+        rankingstat.finish()  # FIXME: is this needed?
 
-        event_kwargs = rankingstat.kwargs_from_triggers(
-            sngl_inspiral_table, offset_vector
-        )
+        # Map sgnl_inspiral rows to trigger columns
+        # FIXME: should this be in strike?
+        triggers = []
+        for row in sngl_inspiral_table:
+            if row.chisq is not None:  # FIXME: sometimes chisq is None breaks the code
+                triggers.append(
+                    {
+                        "__trigger_id": row.event_id,
+                        "_filter_id": row.template_id,
+                        "ifo": row.ifo,
+                        "time": row.end,
+                        "snr": row.snr,
+                        "chisq": row.chisq,
+                        "phase": row.coa_phase,
+                        "Gamma2": row.Gamma2,
+                        "epoch_start": row.end - row.template_duration,
+                        "epoch_end": row.end,
+                    }
+                )
+        # FIXME: the "time" and "epoch" needs to be fixed in strike to be in nanoseconds
+        event_kwargs = rankingstat.kwargs_from_triggers(triggers, offset_vector)
         ifos = sorted(event_kwargs["snrs"])
         ifo1 = ifos.pop(0)
         snrs = event_kwargs["snrs"]
@@ -835,9 +855,9 @@ class EventPlotter(events.EventProcessor):
         segs_nonzero = {
             ifo: seg
             for ifo, seg in event_kwargs["segments"].items()
-            if len(rankingstat.numerator.horizon_history[ifo]) > 0
+            if len(rankingstat.terms["P_of_tref_Dh"].horizon_history[ifo]) > 0
         }
-        horizons = rankingstat.numerator.local_mean_horizon_distance(
+        horizons = rankingstat.terms["P_of_tref_Dh"].local_mean_horizon_distance(
             segs_nonzero, template_id=event_kwargs["template_id"]
         )
 
@@ -845,10 +865,18 @@ class EventPlotter(events.EventProcessor):
         for ifo2 in ifos:
             ifo_pair = ifo1[0] + ifo2[0]
             dt_ref = event_kwargs["dt"][ifo2] - event_kwargs["dt"][ifo1]
-            dphi_ref = event_kwargs["phase"][ifo2] - event_kwargs["phase"][ifo1]
+            dphi_ref = (
+                event_kwargs["dphi"][ifo2] - event_kwargs["dphi"][ifo1]
+            )  # FIXME: check with Leo if phase->dphi is correct
 
-            fig = plotdtdphi.plots_dtdphi(
-                ifo1, ifo2, snrs, horizons, sngl={"dt": dt_ref, "dphi": dphi_ref}
+            fig = plot_dtdphi(
+                rankingstat.terms["P_of_dt_dphi"],
+                ifo1,
+                ifo2,
+                snrs,
+                horizons,
+                event_dt=dt_ref,
+                event_dphi=dphi_ref,
             )
             filename = "{}_dtdphi_{}.{}".format(event["gid"], ifo_pair, self.format)
             if not self.no_upload:
