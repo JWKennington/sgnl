@@ -1,8 +1,8 @@
 all: inspiral range scald event_uploader plot_psd_plots plot_ranking_data plot_snr_plots
 
-H1_SVD_BANK=../../tests/data/H1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
-L1_SVD_BANK=../../tests/data/L1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
-V1_SVD_BANK=../../tests/data/V1-0750_GSTLAL_SVD_BANK-0-0.xml.gz
+H1_SVD_BANK=H1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
+L1_SVD_BANK=L1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
+V1_SVD_BANK=V1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
 EVENT_CONFIG=../../config/fake_cbc.yaml
 
 KAFKA_SERVER=localhost-v4:9196

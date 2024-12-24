@@ -206,7 +206,9 @@ def publish_kafka(
     #         fileobj,
     #         compress="gz",
     #     )
-    rankingstat_filename = "H1L1V1-0000_SGNL_LIKELIHOOD_RATIO-1241767728-1916.xml.gz"
+    rankingstat_filename = (
+        "H1L1V1-0000_SGNL_MARG_LIKELIHOOD_RATIO_PRIOR-1241725020-760106.xml.gz"
+    )
 
     client.produce(
         topic=f"sgnl.{analysis_tag}.{topic_prefix}ranking_stat",
