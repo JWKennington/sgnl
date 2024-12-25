@@ -83,4 +83,8 @@ extra_javascript:
   - https://unpkg.com/katex@0/dist/contrib/auto-render.min.js
 
 
+extra:
+  analytics:
+    provider: google
+    property: G-0GDRSEP8GT
 
