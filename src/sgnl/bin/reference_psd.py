@@ -49,7 +49,7 @@ def reference_psd(
     pipeline = Pipeline()
 
     # Create data source
-    source_out_links = datasource(
+    source_out_links, _ = datasource(
         pipeline=pipeline,
         info=data_source_info,
     )
