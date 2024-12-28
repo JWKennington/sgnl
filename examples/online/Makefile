@@ -66,9 +66,16 @@ scald_single:
 		--data-type timeseries \
 		--topic sgnl.${TAG}.latency_history_max \
 		--topic sgnl.${TAG}.latency_history_median \
+		--topic sgnl.${TAG}.H1_datasource_latency \
+		--topic sgnl.${TAG}.L1_datasource_latency \
+		--topic sgnl.${TAG}.V1_datasource_latency \
 		--topic sgnl.${TAG}.H1_whitening_latency \
 		--topic sgnl.${TAG}.L1_whitening_latency \
 		--topic sgnl.${TAG}.V1_whitening_latency \
+		--topic sgnl.${TAG}.H1_snrSlice_latency \
+		--topic sgnl.${TAG}.L1_snrSlice_latency \
+		--topic sgnl.${TAG}.V1_snrSlice_latency \
+		--topic sgnl.${TAG}.all_itacacac_latency \
 		--topic sgnl.${TAG}.H1_snr_history \
 		--topic sgnl.${TAG}.L1_snr_history \
 		--topic sgnl.${TAG}.V1_snr_history \
@@ -77,9 +84,16 @@ scald_single:
 		--topic sgnl.${TAG}.event_plotter_heartbeat \
 		--schema latency_history_max \
 		--schema latency_history_median \
+		--schema H1_datasource_latency \
+		--schema L1_datasource_latency \
+		--schema V1_datasource_latency \
 		--schema H1_whitening_latency \
 		--schema L1_whitening_latency \
 		--schema V1_whitening_latency \
+		--schema H1_snrSlice_latency \
+		--schema L1_snrSlice_latency \
+		--schema V1_snrSlice_latency \
+		--schema all_itacacac_latency \
 		--schema H1_snr_history \
 		--schema L1_snr_history \
 		--schema V1_snr_history \

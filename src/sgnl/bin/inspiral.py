@@ -352,9 +352,10 @@ def inspiral(
     pipeline = Pipeline()
 
     # Create data source
-    source_out_links = datasource(
+    source_out_links, source_latency_links = datasource(
         pipeline=pipeline,
         info=data_source_info,
+        source_latency=output_kafka_server is not None,
         verbose=verbose,
     )
 
@@ -435,6 +436,17 @@ def inspiral(
         dtype,
         reconstruction_segment_list,
     )
+    if output_kafka_server is not None:
+        for ifo, link in lloid_output_source_link.items():
+            pipeline.insert(
+                Latency(
+                    name=ifo + "_snrSlice_latency",
+                    sink_pad_names=("data",),
+                    source_pad_names=("latency",),
+                    route=ifo + "_snrSlice_latency",
+                ),
+                link_map={ifo + "_snrSlice_latency:sink:data": link},
+            )
 
     # make the sink
     if data_source_info.data_source == "impulse":
@@ -673,7 +685,9 @@ def inspiral(
                             "itacacac_latency",
                             "strike_kafka",
                         )
-                        + tuple(ifo + "_whiten_latency" for ifo in ifos),
+                        + tuple(ifo + "_datasource_latency" for ifo in ifos)
+                        + tuple(ifo + "_whiten_latency" for ifo in ifos)
+                        + tuple(ifo + "_snrSlice_latency" for ifo in ifos),
                         output_kafka_server=output_kafka_server,
                         topics=[
                             "sgnl." + analysis_tag + "." + ifo + "_snr_history"
@@ -701,7 +715,15 @@ def inspiral(
                             "sgnl." + analysis_tag + ".events",
                         ]
                         + [
+                            "sgnl." + analysis_tag + "." + ifo + "_datasource_latency"
+                            for ifo in ifos
+                        ]
+                        + [
                             "sgnl." + analysis_tag + "." + ifo + "_whitening_latency"
+                            for ifo in ifos
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + "." + ifo + "_snrSlice_latency"
                             for ifo in ifos
                         ],
                     ),
@@ -717,6 +739,13 @@ def inspiral(
                             "KafkaSnk:sink:"
                             + ifo
                             + "_whiten_latency": whiten_latency_out_links[ifo],
+                            "KafkaSnk:sink:"
+                            + ifo
+                            + "_datasource_latency": source_latency_links[ifo],
+                            "KafkaSnk:sink:"
+                            + ifo
+                            + "_snrSlice_latency": ifo
+                            + "_snrSlice_latency:src:latency",
                         }
                     )
 
