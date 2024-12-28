@@ -10,6 +10,7 @@ element
 from __future__ import annotations
 
 import math
+import resource
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import combinations
@@ -683,6 +684,16 @@ class Itacacac(TSTransform):
                     trig_snrs[ifo][maxsnr_id].item(),
                 ],
             }
+
+        # FIXME: find a better place to calculate ram
+        ram = (
+            resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            + resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+        ) / 1048576.0
+        kafkadata["ram_history"] = {"time": [float(now())], "data": [float(ram)]}
+
+        # kafkadata["events"] = {"time": float(now())}
+
         kafkadata["latency_history_max"] = {
             "time": [mincoinc_time / 1_000_000_000],
             "data": [(now().ns() - mincoinc_time) / 1_000_000_000],

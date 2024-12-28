@@ -534,50 +534,6 @@ def inspiral(
                     },
                 )
         elif event_config is not None:
-            if output_kafka_server is not None:
-                #
-                # Kafka Sink
-                #
-                pipeline.insert(
-                    KafkaSink(
-                        name="KafkaSnk",
-                        sink_pad_names=(
-                            "kafka",
-                            "itacacac_latency",
-                        )
-                        + tuple(ifo + "_whiten_latency" for ifo in ifos),
-                        output_kafka_server=output_kafka_server,
-                        topics=[
-                            "sgnl." + analysis_tag + "." + ifo + "_snr_history"
-                            for ifo in ifos
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".latency_history_max",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".latency_history_median",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".all_itacacac_latency",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + "." + ifo + "_whitening_latency"
-                            for ifo in ifos
-                        ],
-                    ),
-                    link_map={
-                        "KafkaSnk:sink:kafka": "Itacacac:src:" + kafka_pad,
-                        "KafkaSnk:sink:itacacac_latency": "ItacacacLatency:src:latency",
-                    },
-                )
-                for ifo in ifos:
-                    pipeline.insert(
-                        link_map={
-                            "KafkaSnk:sink:"
-                            + ifo
-                            + "_whiten_latency": whiten_latency_out_links[ifo],
-                        }
-                    )
             #
             # StillSuit - trigger output
             #
@@ -608,7 +564,8 @@ def inspiral(
                     StrikeTransform(
                         name="StrikeTransform",
                         sink_pad_names=("trigs",),
-                        source_pad_names=("trigs",),
+                        event_pad="trigs",
+                        kafka_pad="kafka",
                     ),
                     GraceDBSink(
                         name="gracedb",
@@ -703,6 +660,65 @@ def inspiral(
                         "NullSink:sink:" + ifo: spectrum_out_links[ifo] for ifo in ifos
                     },
                 )
+
+            if output_kafka_server is not None:
+                #
+                # Kafka Sink
+                #
+                pipeline.insert(
+                    KafkaSink(
+                        name="KafkaSnk",
+                        sink_pad_names=(
+                            "itacacac_kafka",
+                            "itacacac_latency",
+                            "strike_kafka",
+                        )
+                        + tuple(ifo + "_whiten_latency" for ifo in ifos),
+                        output_kafka_server=output_kafka_server,
+                        topics=[
+                            "sgnl." + analysis_tag + "." + ifo + "_snr_history"
+                            for ifo in ifos
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + ".latency_history_max",
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + ".latency_history_median",
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + ".all_itacacac_latency",
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + ".likelihood_history",
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + ".far_history",
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + ".ram_history",
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + ".events",
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + "." + ifo + "_whitening_latency"
+                            for ifo in ifos
+                        ],
+                    ),
+                    link_map={
+                        "KafkaSnk:sink:itacacac_kafka": "Itacacac:src:" + kafka_pad,
+                        "KafkaSnk:sink:itacacac_latency": "ItacacacLatency:src:latency",
+                        "KafkaSnk:sink:strike_kafka": "StrikeTransform:src:kafka",
+                    },
+                )
+                for ifo in ifos:
+                    pipeline.insert(
+                        link_map={
+                            "KafkaSnk:sink:"
+                            + ifo
+                            + "_whiten_latency": whiten_latency_out_links[ifo],
+                        }
+                    )
 
     # Plot pipeline
     if graph_name:

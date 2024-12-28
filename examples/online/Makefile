@@ -1,4 +1,4 @@
-all: inspiral range scald event_uploader plot_psd_plots plot_ranking_data plot_snr_plots
+all: inspiral range scald event_uploader event_plotter
 
 H1_SVD_BANK=H1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
 L1_SVD_BANK=L1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
@@ -12,8 +12,8 @@ GRACEDB_SEARCH=MOCK
 GRACEDB_LABEL=MOCK
 GRACEDB_URL=http://127.0.0.1:5000/api/
 TAG=sgnl_test
-JOB_TAG=0750_noninj
-FAR_THRESH=1e-5
+JOB_TAG=0000_noninj
+FAR_THRESH=1e-6
 
 inspiral:
 	sgnl-inspiral \
@@ -57,12 +57,15 @@ inspiral_gracedb:
 		--gracedb-label ${GRACEDB_LABEL} \
 		--gracedb-service-url ${GRACEDB_URL} \
 
-scald:
+scald: scald_single scald_across_jobs
+
+scald_single:
 	scald aggregate \
 		--config inspiral.yml \
 		--uri kafka://${TAG}-collect@${KAFKA_SERVER} \
 		--data-type timeseries \
 		--topic sgnl.${TAG}.latency_history_max \
+		--topic sgnl.${TAG}.latency_history_median \
 		--topic sgnl.${TAG}.H1_whitening_latency \
 		--topic sgnl.${TAG}.L1_whitening_latency \
 		--topic sgnl.${TAG}.V1_whitening_latency \
@@ -70,14 +73,33 @@ scald:
 		--topic sgnl.${TAG}.L1_snr_history \
 		--topic sgnl.${TAG}.V1_snr_history \
 		--topic sgnl.${TAG}.range_history \
+		--topic sgnl.${TAG}.event_uploader_heartbeat \
+		--topic sgnl.${TAG}.event_plotter_heartbeat \
 		--schema latency_history_max \
+		--schema latency_history_median \
 		--schema H1_whitening_latency \
 		--schema L1_whitening_latency \
 		--schema V1_whitening_latency \
 		--schema H1_snr_history \
 		--schema L1_snr_history \
 		--schema V1_snr_history \
-		--schema range_history
+		--schema range_history \
+		--schema event_uploader_heartbeat \
+		--schema event_plotter_heartbeat
+
+scald_across_jobs:
+	scald aggregate \
+		--config inspiral.yml \
+		--uri kafka://${TAG}-collect@${KAFKA_SERVER} \
+		--data-type timeseries \
+		--topic sgnl.${TAG}.likelihood_history \
+		--topic sgnl.${TAG}.far_history \
+		--topic sgnl.${TAG}.ram_history \
+		--schema likelihood_history \
+		--schema far_history \
+		--schema ram_history \
+		--across-jobs
+
 
 
 range: h1_range l1_range v1_range
@@ -130,7 +152,7 @@ event_uploader:
 		--max-partitions 10 \
 		--gracedb-service-url ${GRACEDB_URL} \
 
-event_plotter: plot_ranking_data plot_ranking_plot plot_snr_plots plot_psd_plots plot_dtdphi_plots
+event_plotter: plot_ranking_data plot_snr_plots plot_psd_plots plot_dtdphi_plots #plot_ranking_plot 
 
 plot_ranking_data:
 	sgnl-ll-inspiral-event-plotter \
