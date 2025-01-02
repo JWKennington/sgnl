@@ -85,7 +85,7 @@ def ll_dq(
 ):
     #
     #          -----------
-    #         | DevShmSrc |
+    #         | DevShmSource |
     #          -----------
     #         /
     #     H1 /

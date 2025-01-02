@@ -56,7 +56,7 @@ def reference_psd(
 
     #
     #          -----------
-    #         | DevShmSrc |
+    #         | DevShmSource |
     #          -----------
     #         /
     #     H1 /
