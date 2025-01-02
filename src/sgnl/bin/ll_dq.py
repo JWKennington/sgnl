@@ -113,7 +113,7 @@ def ll_dq(
     ifo = data_source_info.ifos[0]
 
     pipeline = Pipeline()
-    source_out_links = datasource(
+    source_out_links, _ = datasource(
         pipeline=pipeline,
         info=data_source_info,
     )
