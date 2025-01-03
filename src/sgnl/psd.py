@@ -19,7 +19,7 @@ from lal import LIGOTimeGPS
 from ligo.lw import utils as ligolw_utils
 from scipy import interpolate
 from sgn.apps import Pipeline
-from sgnligo.sources import DevShmSrc
+from sgnligo.sources import DevShmSource
 from sgnligo.transforms import Whiten
 from sgnts.sinks import FakeSeriesSink
 from sgnts.transforms import Resampler
@@ -76,7 +76,7 @@ def measure_psd(
 
     #
     #          -----------
-    #         | DevShmSrc |
+    #         | DevShmSource |
     #          -----------
     #         /
     #     H1 /
@@ -93,7 +93,7 @@ def measure_psd(
     #   ------------
 
     pipeline.insert(
-        DevShmSrc(
+        DevShmSource(
             name="src1",
             source_pad_names=("frsrc",),
             rate=16384,
