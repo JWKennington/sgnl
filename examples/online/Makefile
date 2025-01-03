@@ -217,3 +217,6 @@ plot_dtdphi_plots:
 		--plot DTDPHI_PLOTS \
 		--verbose \
 		--gracedb-service-url ${GRACEDB_URL}
+
+clean:
+	rm -rf out.sqlite likelihood_ratio.xml.gz
