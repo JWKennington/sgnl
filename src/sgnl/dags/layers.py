@@ -17,6 +17,7 @@
 
 
 import os
+
 from ezdag import Argument, Layer, Node, Option
 
 from sgnl.dags import util
