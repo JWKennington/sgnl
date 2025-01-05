@@ -8,7 +8,7 @@ from sgn.control import HTTPControl, HTTPControlSinkElement
 class SnapShotControl(HTTPControl):
     """Adds snapshot functionality on top of HTTPControl which is on top of SignalEOS"""
 
-    snapshot_interval = 10
+    snapshot_interval = 14400
     last_snapshot = {}
     snapshots_enabled = False
 
