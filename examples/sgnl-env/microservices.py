@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
-from flask import Flask, Request, request, json, jsonify, render_template_string
+import base64
 import io
+import os
 import sqlite3
 import uuid
-import os
-import base64
-from ligo.lw import utils as ligolw_utils
-from ligo.lw import ligolw
-from ligo.lw import table
-from ligo.lw import lsctables
-from ligo.lw import array
-from ligo.lw import param
+
+from flask import Flask, Request, json, jsonify, render_template_string, request
 from flask_accept import accept
+from ligo.lw import array, ligolw, lsctables, param, table
+from ligo.lw import utils as ligolw_utils
 
 
 class CustomRequest(Request):
@@ -20,16 +17,18 @@ class CustomRequest(Request):
         self.max_form_parts = 32 * 1024 * 1024
         self.max_form_memory_size = 32 * 1024 * 1024
 
+
 @lsctables.use_in
 @array.use_in
 @param.use_in
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
-        pass
+    pass
+
 
 app = Flask(__name__)
 app.request_class = CustomRequest
-app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
-DATABASE = 'gracedb_test.db'
+app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
+DATABASE = "gracedb_test.db"
 
 
 # Initialize the SQLite database
@@ -37,7 +36,8 @@ def init_db():
     if not os.path.exists(DATABASE):
         conn = sqlite3.connect(DATABASE)
         c = conn.cursor()
-        c.execute('''CREATE TABLE events (
+        c.execute(
+            """CREATE TABLE events (
                         graceid TEXT PRIMARY KEY,
                         "group" TEXT,
                         pipeline TEXT,
@@ -52,8 +52,10 @@ def init_db():
                         far REAL,
                         likelihood REAL,
                         snr REAL
-                    )''')
-        c.execute('''CREATE TABLE logs (
+                    )"""
+        )
+        c.execute(
+            """CREATE TABLE logs (
                         graceid TEXT,
                         N INTEGER,
                         comment TEXT,
@@ -64,14 +66,17 @@ def init_db():
                         file_version TEXT,
                         tag_names TEXT,
                         FOREIGN KEY(graceid) REFERENCES events(graceid)
-                    )''')
-        c.execute('''CREATE TABLE event_fields (
+                    )"""
+        )
+        c.execute(
+            """CREATE TABLE event_fields (
                         field_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         graceid TEXT,
                         field_name TEXT,
                         field_value TEXT,
                         FOREIGN KEY(graceid) REFERENCES events(graceid)
-                    )''')
+                    )"""
+        )
         conn.commit()
         conn.close()
 
@@ -91,16 +96,24 @@ def execute_query(query, args=(), fetchone=False, fetchall=False):
     conn.close()
     return result
 
+
 def parse_ligo_lw(file_contents, graceid):
     """Parse LIGO_LW XML and extract fields to store in the database."""
     fileobj = file_contents
-    xmldoc = ligolw_utils.load_fileobj(fileobj, contenthandler = LIGOLWContentHandler)
+    xmldoc = ligolw_utils.load_fileobj(fileobj, contenthandler=LIGOLWContentHandler)
     coinc_table_row = lsctables.CoincTable.get_table(xmldoc)[0]
     coinc_inspiral_row = lsctables.CoincInspiralTable.get_table(xmldoc)[0]
     sngl_inspiral_table = lsctables.SnglInspiralTable.get_table(xmldoc)
 
-    extra_event_info = {k:getattr(coinc_table_row, k) for k in ("instruments", "likelihood")}
-    extra_event_info.update({k:getattr(coinc_inspiral_row, k) for k in ("combined_far", "ifos", "snr", "mchirp", "mass")})
+    extra_event_info = {
+        k: getattr(coinc_table_row, k) for k in ("instruments", "likelihood")
+    }
+    extra_event_info.update(
+        {
+            k: getattr(coinc_inspiral_row, k)
+            for k in ("combined_far", "ifos", "snr", "mchirp", "mass")
+        }
+    )
     fields = []
     for n, row in enumerate(sngl_inspiral_table):
         if n == 0:
@@ -115,7 +128,7 @@ def parse_ligo_lw(file_contents, graceid):
     return fields, extra_event_info, xmldoc
 
 
-@app.route('/api/', methods=['GET'])
+@app.route("/api/", methods=["GET"])
 def api():
     data = {
         "links": {
@@ -128,41 +141,38 @@ def api():
             "files-template": "http://127.0.0.1:5000/api/events/{graceid}/files/{filename}",
             "superevent-log-list-template": "https://gracedb.ligo.org/api/superevents/{superevent_id}/logs/",
         },
-    "groups": [
-        "CBC",
-    ],
-    "pipelines": [
-        "SGN",
-    ],
-    "searches": [
-        "MOCK",
-    ],
-    "labels": [
-        "MOCK INJ",
-        "MOCK"
-    ],
+        "groups": [
+            "CBC",
+        ],
+        "pipelines": [
+            "SGN",
+        ],
+        "searches": [
+            "MOCK",
+        ],
+        "labels": ["MOCK INJ", "MOCK"],
     }
     response = app.response_class(
-        response=json.dumps(data),
-        status=200,
-        mimetype='application/json'
+        response=json.dumps(data), status=200, mimetype="application/json"
     )
     return response
 
 
-@app.route('/api/events/', methods=['POST'])
+@app.route("/api/events/", methods=["POST"])
 def create_event():
     data = request.form.to_dict()
-    required_fields = ['group', 'pipeline', 'search', 'labels', 'offline', 'eventFile']
+    required_fields = ["group", "pipeline", "search", "labels", "offline", "eventFile"]
 
     if not all(field in data for field in required_fields):
         return jsonify({"error": "Missing required fields."}), 400
-    data['filename'] = data['eventFile']
-    del data['eventFile']
+    data["filename"] = data["eventFile"]
+    del data["eventFile"]
 
     conn = sqlite3.connect(DATABASE)
-    graceid = "T%05d" % conn.cursor().execute("SELECT COUNT(*) FROM events").fetchone()[0]
-    filecontents = request.files['eventFile']
+    graceid = (
+        "T%05d" % conn.cursor().execute("SELECT COUNT(*) FROM events").fetchone()[0]
+    )
+    filecontents = request.files["eventFile"]
 
     # Parse LIGO_LW XML file contents
     fields, extra_event_info, xmldoc = parse_ligo_lw(filecontents, graceid)
@@ -171,49 +181,84 @@ def create_event():
     b64xml.seek(0)
 
     # Insert the event into the database
-    execute_query("""INSERT INTO events (graceid, "group", pipeline, search, labels, offline, filename, filecontents, instruments, ifos, far, likelihood, snr) \
+    execute_query(
+        """INSERT INTO events (graceid, "group", pipeline, search, labels, offline, filename, filecontents, instruments, ifos, far, likelihood, snr) \
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                  (graceid, data['group'], data['pipeline'], data['search'], data['labels'], data['offline'],
-                   data['filename'], base64.b64encode(b64xml.read()).decode('utf-8'), extra_event_info['instruments'], extra_event_info['ifos'], extra_event_info['combined_far'], extra_event_info['likelihood'], extra_event_info['snr'],))
+        (
+            graceid,
+            data["group"],
+            data["pipeline"],
+            data["search"],
+            data["labels"],
+            data["offline"],
+            data["filename"],
+            base64.b64encode(b64xml.read()).decode("utf-8"),
+            extra_event_info["instruments"],
+            extra_event_info["ifos"],
+            extra_event_info["combined_far"],
+            extra_event_info["likelihood"],
+            extra_event_info["snr"],
+        ),
+    )
 
     # Insert extracted fields into the event_fields table
     for field in fields:
-        execute_query("INSERT INTO event_fields (graceid, field_name, field_value) VALUES (?, ?, ?)", field)
+        execute_query(
+            "INSERT INTO event_fields (graceid, field_name, field_value) VALUES (?, ?, ?)",
+            field,
+        )
 
     return jsonify({"graceid": graceid}), 201
 
-@app.route('/api/events/<graceid>/log/', methods=['POST', 'GET'])
+
+@app.route("/api/events/<graceid>/log/", methods=["POST", "GET"])
 def write_event_log(graceid):
     if request.method == "POST":
         data = request.form.to_dict()
-        filecontents = request.files['upload']
+        filecontents = request.files["upload"]
 
-        execute_query("INSERT INTO logs (graceid, comment, filename, filecontents, tag_names) \
+        execute_query(
+            "INSERT INTO logs (graceid, comment, filename, filecontents, tag_names) \
                        VALUES (?, ?, ?, ?, ?)",
-                      (graceid, data['comment'], data.get('filename'), base64.b64encode(filecontents.read()).decode('utf-8'),
-                       ','.join(data.get('tag_name', []))))
+            (
+                graceid,
+                data["comment"],
+                data.get("filename"),
+                base64.b64encode(filecontents.read()).decode("utf-8"),
+                ",".join(data.get("tag_name", [])),
+            ),
+        )
 
         return jsonify({"graceid": graceid}), 201
 
     else:
         return jsonify({"graceid": graceid}), 201
 
-@app.route('/api/superevents/<graceid>/logs', methods=['POST'])
+
+@app.route("/api/superevents/<graceid>/logs", methods=["POST"])
 def _dummy_logs(graceid):
     return jsonify({"graceid": graceid}), 201
 
-@app.route('/')
+
+@app.route("/")
 def homepage():
-    events = execute_query("""SELECT graceid, far, likelihood, ifos, instruments, "group", pipeline, search, labels, offline, filename, created_at FROM events""", fetchall=True)
-    _logs = execute_query("SELECT graceid, comment, filename, created FROM logs", fetchall=True)
-    event_fields = execute_query("SELECT graceid, field_name, field_value FROM event_fields", fetchall=True)
-    fields = {e[0]:{} for e in events}
-    logs = {e[0]:[] for e in events}
+    events = execute_query(
+        """SELECT graceid, far, likelihood, ifos, instruments, "group", pipeline, search, labels, offline, filename, created_at FROM events""",
+        fetchall=True,
+    )
+    _logs = execute_query(
+        "SELECT graceid, comment, filename, created FROM logs", fetchall=True
+    )
+    event_fields = execute_query(
+        "SELECT graceid, field_name, field_value FROM event_fields", fetchall=True
+    )
+    fields = {e[0]: {} for e in events}
+    logs = {e[0]: [] for e in events}
     for gid, fn, fv in event_fields:
         fields[gid][fn] = fv
-    for (gid, x, y, z) in _logs:
-        logs[gid].append((x,y,z))
-    page = '''
+    for gid, x, y, z in _logs:
+        logs[gid].append((x, y, z))
+    page = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -308,8 +353,9 @@ def homepage():
       </div>
     </body>
     </html>
-    '''
+    """
     return render_template_string(page, events=events, logs=logs, fields=fields)
+
 
 ##
 ## Choose a retention period appropriate to a given interval for a Grafana panel.
@@ -317,70 +363,76 @@ def homepage():
 ## Accept a POST like: {"target":"{\"from\": 1660076939153, \"to\": 1660081939153}"}
 ## Return a retention period string like: ["1s"]
 ##
-@app.route('/cgi-bin/interval/<path:subpath>', methods=['GET','POST'])
+@app.route("/cgi-bin/interval/<path:subpath>", methods=["GET", "POST"])
 def interval(subpath):
-  intervals = [10000, 1000, 100, 10, 1]
-  seconds   = 5
-  resolutionGuess = 200    
-  data = request.form.to_dict()
-  try:
-    ito   = data["to"]
-    ifrom = data["from"]
-    seconds = (ito - ifrom)/1000
-    seconds = seconds/resolutionGuess
-  except:
-    pass
-  try:
-    interval_ms = data["interval_ms"]
-    seconds = interval_ms/1000
-  except:
-    pass
-  rp = "1s"
-  for i in intervals:
-    if seconds >= i:
-      rp = "%ds" % i
-      break
-  return "[\"%s\"]\n" % rp
+    intervals = [10000, 1000, 100, 10, 1]
+    seconds = 5
+    resolutionGuess = 200
+    data = request.form.to_dict()
+    try:
+        ito = data["to"]
+        ifrom = data["from"]
+        seconds = (ito - ifrom) / 1000
+        seconds = seconds / resolutionGuess
+    except:
+        pass
+    try:
+        interval_ms = data["interval_ms"]
+        seconds = interval_ms / 1000
+    except:
+        pass
+    rp = "1s"
+    for i in intervals:
+        if seconds >= i:
+            rp = "%ds" % i
+            break
+    return '["%s"]\n' % rp
+
 
 ##
 ## Get far from user input and convert from
 ## science notation to decimal so that influxql
 ## can read it
 ##
-@app.route('/cgi-bin/test/far_threshold/<path:subpath>', methods=['GET','POST'])
+@app.route("/cgi-bin/test/far_threshold/<path:subpath>", methods=["GET", "POST"])
 def far_threshold(subpath):
-  data = request.form.to_dict()
-  try:
-    target = data["target"]
-    target = target.replace("\\", "")
-    form = json.loads(target)
-    output = "{:.16f}".format(float(form["far"]))
-  except Exception as e:
-    output = e
-  return "[\"%s\"]" % str(output)
+    data = request.form.to_dict()
+    try:
+        target = data["target"]
+        target = target.replace("\\", "")
+        form = json.loads(target)
+        output = "{:.16f}".format(float(form["far"]))
+    except Exception as e:
+        output = e
+    return '["%s"]' % str(output)
 
 
 ##
 ## Get analysis key and determine trials factor
 ## 2 if analysis is checkerboarded, 1 otherwise
 ##
-@app.route('/cgi-bin/test/trials_factor/<path:subpath>', methods=['GET','POST'])
+@app.route("/cgi-bin/test/trials_factor/<path:subpath>", methods=["GET", "POST"])
 def trials_factor(subpath):
-  data = request.form.to_dict()
-  trials = 1
-  try:
-    keys = data["analysis"]
-    if "edward" in analysis or "jacob" in analysis or "renee" in analysis or "esme" in analysis:
-      trials = 2    
-  except:
-    pass
-  return "[\"%s\"]" % str(trials)
+    data = request.form.to_dict()
+    trials = 1
+    try:
+        keys = data["analysis"]
+        if (
+            "edward" in analysis
+            or "jacob" in analysis
+            or "renee" in analysis
+            or "esme" in analysis
+        ):
+            trials = 2
+    except:
+        pass
+    return '["%s"]' % str(trials)
 
-    
+
 def main():
     init_db()
     app.run(debug=True, host="0.0.0.0")
 
-if __name__ == '__main__':
-    main()
 
+if __name__ == "__main__":
+    main()

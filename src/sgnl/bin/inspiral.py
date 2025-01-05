@@ -14,14 +14,15 @@ from typing import List
 import torch
 from ligo.lw import ligolw, lsctables
 from ligo.lw import utils as ligolw_utils
-from sgn.apps import Pipeline
 from sgn.control import HTTPControl
+from sgn.apps import Pipeline
 from sgn.sinks import NullSink
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, Latency, condition
 
 from sgnl import simulation
+from sgnl.control import SnapShotControl
 from sgnl.sinks import GraceDBSink, ImpulseSink, StillSuitSink, StrikeSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
 from sgnl.transforms import HorizonDistanceTracker, Itacacac, StrikeTransform, lloid
@@ -347,6 +348,12 @@ def inspiral(
         )
 
     #
+    # Decide if we are online or offline
+    #
+
+    IS_ONLINE = data_source_info.data_source in ["devshm", "white-realtime"]
+
+    #
     # Build pipeline
     #
     pipeline = Pipeline()
@@ -570,7 +577,7 @@ def inspiral(
                 ),
             )
 
-            if data_source_info.data_source in ["devshm", "white-realtime"]:
+            if IS_ONLINE:
                 # connect LR and FAR assignment
                 pipeline.insert(
                     StrikeTransform(
@@ -632,7 +639,10 @@ def inspiral(
                         ifos=data_source_info.all_analysis_ifos,
                         all_template_ids=sorted_bank.template_ids.numpy(),
                         bankids_map=sorted_bank.bankids_map,
-                        ranking_stat_output=ranking_stat_output,
+                        ranking_stat_output={
+                            k: ranking_stat_output[i]
+                            for i, k in enumerate(sorted_bank.bankids_map)
+                        },
                         coincidence_threshold=coincidence_threshold,
                         background_pad="trigs",
                         horizon_pads=["horizon_" + ifo for ifo in ifos],
@@ -754,7 +764,11 @@ def inspiral(
         pipeline.visualize(graph_name)
 
     # Run pipeline
-    with HTTPControl():
+    if IS_ONLINE:
+        HTTPControl.registry_file = "%s_registry.txt" % job_tag
+        with SnapShotControl() as control:
+            pipeline.run()
+    else:
         pipeline.run()
 
     #

@@ -2,12 +2,14 @@
 
 # Copyright (C) 2024 Yun-Jing Huang, Prathamesh Joshi, Leo Tsukada
 
+import io
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sgn.sinks import SinkElement
 from strike.stats import likelihood_ratio
+
+from sgnl.control import SnapShotControlSinkElement
 
 
 @dataclass
@@ -20,12 +22,19 @@ class event_dummy(object):
     template_id: int
 
 
+def xml_string(rstat):
+    f = io.BytesIO()
+    rstat.save_fileobj(f)
+    f.seek(0)
+    return f.read().decode("utf-8")
+
+
 @dataclass
-class StrikeSink(SinkElement):
+class StrikeSink(SnapShotControlSinkElement):
     ifos: list[str] = None
     all_template_ids: Sequence[Any] = None
     bankids_map: dict[str, list] = None
-    ranking_stat_output: list[str] = None
+    ranking_stat_output: dict[str, str] = None
     coincidence_threshold: float = None
     background_pad: str = None
     horizon_pads: list[str] = None
@@ -37,7 +46,9 @@ class StrikeSink(SinkElement):
         self.sink_pad_names = (self.background_pad,) + tuple(self.horizon_pads)
         super().__post_init__()
         self.ranking_stats = {}
+        self.state_dict = {"xml": {}}
         for bankid, ids in self.bankids_map.items():
+            four_digit_id = "%04d" % int(bankid)
             bank_template_ids = self.all_template_ids[ids]
             bank_template_ids = tuple(bank_template_ids[bank_template_ids != -1])
             # Ranking stat output
@@ -45,6 +56,12 @@ class StrikeSink(SinkElement):
                 template_ids=bank_template_ids,
                 instruments=self.ifos,
                 delta_t=self.coincidence_threshold,
+            )
+            self.add_snapshot_filename(
+                "SGNL_INSPIRAL_DIST_STATS_%s" % four_digit_id, "xml.gz"
+            )
+            self.state_dict["xml"][four_digit_id] = xml_string(
+                self.ranking_stats[bankid]
             )
 
     def pull(self, pad, frame):
@@ -122,8 +139,16 @@ class StrikeSink(SinkElement):
                     ][horizon_time] = horizon[bankid]
 
     def internal(self):
+        SnapShotControlSinkElement.exchange_state(self.name, self.state_dict)
         if self.at_eos:
-            for i, bankid in enumerate(self.bankids_map):
+            for bankid in self.bankids_map:
                 # FIXME correct file name assignment
                 # write ranking stats file
-                self.ranking_stats[bankid].save(self.ranking_stat_output[i])
+                self.ranking_stats[bankid].save(self.ranking_stat_output[bankid])
+        if self.snapshot_ready():
+            for bankid, fn in zip(self.bankids_map, self.snapshot_filenames()):
+                four_digit_id = "%04d" % int(bankid)
+                self.state_dict["xml"][four_digit_id] = xml_string(
+                    self.ranking_stats[bankid]
+                )
+                self.ranking_stats[bankid].save(fn)
