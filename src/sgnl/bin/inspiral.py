@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import sys
 from argparse import ArgumentParser
 from typing import List
@@ -14,8 +15,8 @@ from typing import List
 import torch
 from ligo.lw import ligolw, lsctables
 from ligo.lw import utils as ligolw_utils
-from sgn.control import HTTPControl
 from sgn.apps import Pipeline
+from sgn.control import HTTPControl
 from sgn.sinks import NullSink
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
@@ -765,6 +766,8 @@ def inspiral(
 
     # Run pipeline
     if IS_ONLINE:
+        if re.match(r"^\d{4}", job_tag):
+            HTTPControl.port = "5%s" % job_tag[:4]
         HTTPControl.registry_file = "%s_registry.txt" % job_tag
         with SnapShotControl() as control:
             pipeline.run()
