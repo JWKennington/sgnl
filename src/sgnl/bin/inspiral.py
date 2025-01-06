@@ -768,6 +768,7 @@ def inspiral(
     if IS_ONLINE:
         if re.match(r"^\d{4}", job_tag):
             HTTPControl.port = "5%s" % job_tag[:4]
+        HTTPControl.tag = analysis_tag
         HTTPControl.registry_file = "%s_registry.txt" % job_tag
         with SnapShotControl() as control:
             pipeline.run()
