@@ -22,7 +22,7 @@ from lal.utils import CacheEntry
 from ligo.lw import array as ligolw_array
 from ligo.lw import ligolw, lsctables
 from ligo.lw import param as ligolw_param
-from strike.stats import likelihood_ratio
+from strike.stats import far, likelihood_ratio
 
 from sgnl import svd_bank
 
@@ -50,14 +50,17 @@ def parse_command_line():
         metavar="value",
         type=float,
         default=0.005,
-        help="Set the coincidence window in seconds (default = 0.005).  The light-travel time between instruments will be added automatically in the coincidence test.",
+        help="Set the coincidence window in seconds (default = 0.005).  The "
+        "light-travel time between instruments will be added automatically in the "
+        "coincidence test.",
     )
     parser.add_argument(
         "--min-instruments",
         metavar="count",
         type=int,
         default=2,
-        help="Set the minimum number of instruments that must contribute triggers to form a candidate (default = 2).",
+        help="Set the minimum number of instruments that must contribute triggers to "
+        "form a candidate (default = 2).",
     )
     parser.add_argument(
         "--output-likelihood-file",
@@ -67,19 +70,25 @@ def parse_command_line():
     parser.add_argument(
         "--seed-likelihood",
         metavar="filename",
-        help="Start with a likelihood file and only update certain components. This is incompatible with --coincidence-threshold, --min-instruments, --instrument, and --background-prior so these options will be ignored",
+        help="Start with a likelihood file and only update certain components. This is "
+        "incompatible with --coincidence-threshold, --min-instruments, --instrument, "
+        "and --background-prior so these options will be ignored",
     )
     parser.add_argument(
         "--instrument",
         action="append",
-        help="Append to a list of instruments to create likelihood ratio class for.  List must be whatever instruments you intend to analyze. This can be given multiple times, being separated by a space, e.g., --instrument ifo1 ifo2 ifo3.",
+        help="Append to a list of instruments to create likelihood ratio class for. "
+        "List must be whatever instruments you intend to analyze. This can be given "
+        "multiple times, being separated by a space, e.g., --instrument ifo1 ifo2 ifo3",
     )
     parser.add_argument(
         "--svd-file",
         metavar="filename",
         action="append",
         default=[],
-        help="The SVD file to read the template ids from. This can be given multiple times, being separated by a space, e.g., --svd-file filename1 filename2 filename3.",
+        help="The SVD file to read the template ids from. This can be given multiple "
+        "times, being separated by a space, e.g., --svd-file filename1 filename2 "
+        "filename3.",
     )
     parser.add_argument(
         "--mass-model-file",
@@ -89,7 +98,8 @@ def parse_command_line():
     parser.add_argument(
         "--dtdphi-file",
         metavar="filename",
-        help="dtdphi snr ratio pdfs to read from (hdf5 format). Default : the one stored in the build.",
+        help="dtdphi snr ratio pdfs to read from (hdf5 format). Default : the one "
+        "stored in the build.",
     )
     parser.add_argument(
         "--idq-file", metavar="filename", help="idq glitch file (hdf5 format)"
@@ -108,6 +118,15 @@ def parse_command_line():
         type=float,
         help="Set maximum mismatch factor for chisq signal model. (default = 0.3)",
     )
+    parser.add_argument(
+        "--write-empty-rankingstatpdf",
+        metavar="filename",
+        help="If provided, the rankingstat created in this script will be used to "
+        "bootstrap the creation of an empty rankingstatpdf. This option is meant to be "
+        "used during the setup stage of an online analysis to create the zerolag pdf "
+        "file.",
+    )
+
     parser.add_argument("-v", "--verbose", action="store_true", help="Be verbose.")
     options = parser.parse_args()
 
@@ -125,7 +144,7 @@ def parse_command_line():
         label: defaultdict(dict) for label in lambda_eta_sums_label
     }
 
-    for n, svd_file in enumerate(options.svd_file):
+    for svd_file in options.svd_file:
         if svd_file.endswith("xml") or svd_file.endswith("xml.gz"):
             svd_ifo = CacheEntry.from_T050017(svd_file).observatory
             horizon_factors_ifo = {}
@@ -133,12 +152,10 @@ def parse_command_line():
                 "chisq": defaultdict(list),
                 "combochisq": defaultdict(list),
             }
-            for n, bank in enumerate(
-                svd_bank.read_banks(
-                    svd_file,
-                    contenthandler=LIGOLWContentHandler,
-                    verbose=options.verbose,
-                )
+            for bank in svd_bank.read_banks(
+                svd_file,
+                contenthandler=LIGOLWContentHandler,
+                verbose=options.verbose,
             ):
                 template_ids += [row.template_id for row in bank.sngl_inspiral_table]
                 for i, chisq in enumerate(lambda_eta_sums.keys()):
@@ -152,8 +169,9 @@ def parse_command_line():
                             numpy.array(lambda_eta_list == 0)
                         ) and col_index in ("2", "3", "4", "5"):
                             raise ValueError(
-                                "Column '%s' in %s is all zero. Check the svd bank config or the column name."
-                                % (col, svd_file)
+                                "Column '%s' in %s is all zero. Check the svd bank "
+                                % (col, svd_file),
+                                "config or the column name.",
                             )
                         else:
                             lambda_eta_sums[chisq][label] += lambda_eta_list
@@ -169,7 +187,10 @@ def parse_command_line():
 
     if options.seed_likelihood:
         warnings.warn(
-            "--seed-likelihood given, the following options  will be ignored: --coincidence-threshold, --min-instruments, --instrument, and --background-prior"
+            "--seed-likelihood given, the following options  will be ignored: "
+            + "--coincidence-threshold, --min-instruments, --instrument, and "
+            + "--background-prior",
+            stacklevel=2,
         )
         options.coincidence_threshold = None
         options.min_instruments = None
@@ -217,7 +238,8 @@ def main():
     ) = parse_command_line()
 
     #
-    # Either make a new file or use a seed which contains background data from a real analysis
+    # Either make a new file or use a seed which contains background data from a real
+    # analysis
     #
 
     if not options.seed_likelihood:
@@ -236,7 +258,8 @@ def main():
         )
     else:
         #
-        # Otherwise we have a seed and we will only override signal options for e.g., a rerank
+        # Otherwise we have a seed and we will only override signal options for e.g., a
+        # rerank
         #
         rankingstat = likelihood_ratio.LnLikelihoodRatio.load(
             url=options.seed_likelihood,
@@ -262,6 +285,19 @@ def main():
         mismatch_range=mismatch_range,
         verbose=options.verbose,
     )
+
+    #
+    # if provided, create an empty rankingstatpdf too
+    #
+
+    if options.write_empty_rankingstatpdf:
+        rankingstatpdf = far.RankingStatPDF(rankingstat, nsamples=0)
+        rankingstatpdf.save(
+            options.write_empty_rankingstatpdf,
+            process_name="sgnl-create-prior-diststats",
+            process_params={},
+            verbose=options.verbose,
+        )
 
     #
     # record results in output file

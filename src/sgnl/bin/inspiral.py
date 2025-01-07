@@ -578,76 +578,26 @@ def inspiral(
                 ),
             )
 
-            if IS_ONLINE:
-                # connect LR and FAR assignment
-                pipeline.insert(
-                    StrikeTransform(
-                        name="StrikeTransform",
-                        sink_pad_names=("trigs",),
-                        event_pad="trigs",
-                        kafka_pad="kafka",
-                    ),
-                    GraceDBSink(
-                        name="gracedb",
-                        event_pad="event",
-                        spectrum_pads=tuple(ifo for ifo in ifos),
-                        template_sngls=sorted_bank.sngls,
-                        on_ifos=ifos,
-                        process_params=process_params,
-                        output_kafka_server=output_kafka_server,
-                        far_thresh=gracedb_far_threshold,
-                        gracedb_group=gracedb_group,
-                        gracedb_pipeline=gracedb_pipeline,
-                        gracedb_search=gracedb_search,
-                        gracedb_label=gracedb_label,
-                        gracedb_service_url=gracedb_service_url,
-                        analysis_tag=analysis_tag,
-                        job_tag=job_tag,
-                        delta_t=coincidence_threshold,
-                    ),
-                    link_map={
-                        "StrikeTransform:sink:trigs": "Itacacac:src:stillsuit",
-                        "StillSuitSnk:sink:trigs": "StrikeTransform:src:trigs",
-                        "gracedb:sink:event": "StrikeTransform:src:trigs",
-                    },
-                )
-                pipeline.insert(
-                    link_map={
-                        "gracedb:sink:" + ifo: spectrum_out_links[ifo] for ifo in ifos
-                    }
-                )
-            else:
-                pipeline.insert(
-                    link_map={
-                        "StillSuitSnk:sink:trigs": "Itacacac:src:stillsuit",
-                    },
-                )
-
-            for ifo in ifos:
-                pipeline.insert(
-                    link_map={
-                        "StillSuitSnk:sink:segments_" + ifo: source_out_links[ifo],
-                    }
-                )
-
             #
             # Strike - background output
             #
             if ranking_stat_output is not None:
+                strike_sink = StrikeSink(
+                    name="StrikeSnk",
+                    ifos=data_source_info.all_analysis_ifos,
+                    all_template_ids=sorted_bank.template_ids.numpy(),
+                    bankids_map=sorted_bank.bankids_map,
+                    ranking_stat_output={
+                        k: ranking_stat_output[i]
+                        for i, k in enumerate(sorted_bank.bankids_map)
+                    },
+                    coincidence_threshold=coincidence_threshold,
+                    background_pad="trigs",
+                    horizon_pads=["horizon_" + ifo for ifo in ifos],
+                    zerolag_pad="zerolag" if IS_ONLINE else None,
+                )
                 pipeline.insert(
-                    StrikeSink(
-                        name="StrikeSnk",
-                        ifos=data_source_info.all_analysis_ifos,
-                        all_template_ids=sorted_bank.template_ids.numpy(),
-                        bankids_map=sorted_bank.bankids_map,
-                        ranking_stat_output={
-                            k: ranking_stat_output[i]
-                            for i, k in enumerate(sorted_bank.bankids_map)
-                        },
-                        coincidence_threshold=coincidence_threshold,
-                        background_pad="trigs",
-                        horizon_pads=["horizon_" + ifo for ifo in ifos],
-                    ),
+                    strike_sink,
                     link_map={
                         "StrikeSnk:sink:trigs": "Itacacac:src:strike",
                     },
@@ -682,6 +632,60 @@ def inspiral(
                     link_map={
                         "NullSink:sink:" + ifo: spectrum_out_links[ifo] for ifo in ifos
                     },
+                )
+
+            if IS_ONLINE:
+                # connect LR and FAR assignment
+                pipeline.insert(
+                    StrikeTransform(
+                        name="StrikeTransform",
+                        sink_pad_names=("trigs",),
+                        event_pad="trigs",
+                        kafka_pad="kafka",
+                        zerolag_pad="zerolag",
+                    ),
+                    GraceDBSink(
+                        name="gracedb",
+                        event_pad="event",
+                        spectrum_pads=tuple(ifo for ifo in ifos),
+                        template_sngls=sorted_bank.sngls,
+                        on_ifos=ifos,
+                        process_params=process_params,
+                        output_kafka_server=output_kafka_server,
+                        far_thresh=gracedb_far_threshold,
+                        gracedb_group=gracedb_group,
+                        gracedb_pipeline=gracedb_pipeline,
+                        gracedb_search=gracedb_search,
+                        gracedb_label=gracedb_label,
+                        gracedb_service_url=gracedb_service_url,
+                        analysis_tag=analysis_tag,
+                        job_tag=job_tag,
+                        delta_t=coincidence_threshold,
+                    ),
+                    link_map={
+                        "StrikeTransform:sink:trigs": "Itacacac:src:stillsuit",
+                        "StillSuitSnk:sink:trigs": "StrikeTransform:src:trigs",
+                        "gracedb:sink:event": "StrikeTransform:src:trigs",
+                        "StrikeSnk:sink:zerolag": "StrikeTransform:src:zerolag",
+                    },
+                )
+                pipeline.insert(
+                    link_map={
+                        "gracedb:sink:" + ifo: spectrum_out_links[ifo] for ifo in ifos
+                    }
+                )
+            else:
+                pipeline.insert(
+                    link_map={
+                        "StillSuitSnk:sink:trigs": "Itacacac:src:stillsuit",
+                    },
+                )
+
+            for ifo in ifos:
+                pipeline.insert(
+                    link_map={
+                        "StillSuitSnk:sink:segments_" + ifo: source_out_links[ifo],
+                    }
                 )
 
             if output_kafka_server is not None:
@@ -724,6 +728,9 @@ def inspiral(
                         ]
                         + [
                             "sgnl." + analysis_tag + ".events",
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + ".coinc",
                         ]
                         + [
                             "sgnl." + analysis_tag + "." + ifo + "_datasource_latency"
@@ -770,7 +777,7 @@ def inspiral(
             HTTPControl.port = "5%s" % job_tag[:4]
         HTTPControl.tag = analysis_tag
         HTTPControl.registry_file = "%s_registry.txt" % job_tag
-        with SnapShotControl() as control:
+        with SnapShotControl():
             pipeline.run()
     else:
         pipeline.run()

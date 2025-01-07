@@ -181,6 +181,10 @@ class Itacacac(TSTransform):
 
         self.output_frames = {pad: None for pad in self.source_pad_names}
 
+        self.reverse_bankids_map = {
+            i: bankid for bankid, ids in self.bankids_map.items() for i in ids
+        }
+
     def find_peaks_and_calculate_chisqs(self, snr_ts: Array) -> Dict[str, list[Array]]:
         """Find snr peaks in a given snr time series window, and obtain peak time,
         phase, and chisq
@@ -542,7 +546,12 @@ class Itacacac(TSTransform):
         )
         max_locations = max_locations.to("cpu").numpy()
         clustered_template_ids = template_ids[range(self.nsubbank), max_locations]
+        clustered_bankids = []
         sngls = {}
+        for i, m in enumerate(mask):
+            m = m.item()
+            if m is True:
+                clustered_bankids.append(self.reverse_bankids_map[i])
         trig_peak_locations = triggers["peak_locations"]
         trig_snrs = triggers["snrs"]
         trig_chisqs = triggers["chisqs"]
@@ -604,6 +613,7 @@ class Itacacac(TSTransform):
         # FIXME: is stacking then index_select faster?
         # FIXME: is stacking then copying to cpu faster?
         return {
+            "clustered_bankids": clustered_bankids,
             "clustered_template_ids": clustered_template_ids[mask],
             "clustered_ifo_combs": clustered_ifo_combs[mask].to("cpu").numpy(),
             "clustered_snr": clustered_snr[mask].to("cpu").numpy(),
@@ -856,9 +866,23 @@ class Itacacac(TSTransform):
                     trig["time"][j] for trig in clustered_coinc["sngls"].values()
                 ),
                 "network_snr": clustered_coinc["clustered_snr"][j].item(),
+                "bankid": clustered_coinc["clustered_bankids"][j],
             }
             for j in range(clustered_coinc["clustered_ifo_combs"].shape[0])
         ]
+
+        # Put in chisq weighted snr
+        for event, trigger in zip(out_events, out_triggers):
+            network_chisq_weighted_snr2 = 0
+            for trig in trigger:
+                if trig is not None:
+                    chisq_weighted_snr = trig["snr"] / (
+                        (1 + max(1.0, trig["chisq"]) ** 3) / 2.0
+                    ) ** (1.0 / 5.0)
+                    trig["chisq_weighted_snr"] = chisq_weighted_snr
+                    network_chisq_weighted_snr2 += chisq_weighted_snr**2
+            event["network_chisq_weighted_snr"] = network_chisq_weighted_snr2**0.5
+
         if len(out_triggers) == 0:
             print("out events", out_events)
 

@@ -29,6 +29,8 @@ from enum import Enum
 from lal.utils import CacheEntry
 from ligo.segments import segment, segmentlist, segmentlistdict
 
+DEFAULT_BACKUP_DIR = "backup"
+
 
 class DotDict(dict):
     """

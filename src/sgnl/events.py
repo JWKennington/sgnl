@@ -72,6 +72,7 @@ class EventProcessor(object):
         send_heartbeats=False,
         heartbeat_cadence=None,
         heartbeat_topic=None,
+        sgn_control=None,
     ):
         # set up input options
         assert kafka_server, "kafka_server needs to be set"
@@ -89,6 +90,9 @@ class EventProcessor(object):
             elif isinstance(topic_partitions, int):
                 topic_partitions = [topic_partitions]
             assert len(output_topic) == len(topic_partitions)
+
+        # control signal from sgn
+        self.sgn_control = sgn_control
 
         # processing settings
         self.process_cadence = process_cadence
@@ -160,6 +164,8 @@ class EventProcessor(object):
                 self.heartbeat()
             elapsed = timeit.default_timer() - start
             time.sleep(max(self.process_cadence - elapsed, 0))
+            if self.sgn_control is not None and self.sgn_control.signaled_eos():
+                self.stop()
 
     def start(self):
         """Starts the event loop."""
