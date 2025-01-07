@@ -354,8 +354,6 @@ def event_trigs_to_coinc_xmldoc(
         subthresh_trigs = []
         # FIXME: handle the case of multiple trigs, pick the highest network snr one
         for ifo in sorted(triggerless_ifos):
-            if len(triggerless_ifos) > 1:
-                print(ifo)
             coinc_segment = ligolw_segments.segments.segment(
                 ligolw_segments.segments.NegInfinity,
                 ligolw_segments.segments.PosInfinity,

@@ -39,7 +39,13 @@ from sgnl.plots.util import set_matplotlib_cache_directory
 
 set_matplotlib_cache_directory()  # FIXME: I don't know if this needs to be done here
 
-from strike.plots.stats import plot_dtdphi  # noqa: E402
+from strike.plots.stats import (  # noqa: E402
+    plot_dtdphi,
+    plot_horizon_distance_vs_time,
+    plot_likelihood_ratio_ccdf,
+    plot_rates,
+    plot_snr_chi_pdf,
+)
 
 from sgnl import events, svd_bank  # noqa: E402 I003
 from sgnl.gracedb import FakeGracedbClient, upload_fig  # noqa: E402
@@ -465,6 +471,7 @@ class EventPlotter(events.EventProcessor):
         ranking_fobj.close()
 
     def upload_ranking_plots(self, event):
+        self.logger.info("Begin plotting ranking plots for %s...", event["gid"])
         # load all of the information needed to generate plots
         sngl_inspirals = dict(
             (row.ifo, row)
@@ -476,61 +483,70 @@ class EventPlotter(events.EventProcessor):
         except ValueError:
             raise ValueError("document does not contain exactly one candidate")
 
-        rankingstat, rankingstatpdf = far.parse_likelihood_control_doc(
-            load_rankingstat_xml_with_retries(event["ranking_data_path"], self.logger)
+        xmldoc = load_rankingstat_xml_with_retries(
+            event["ranking_data_path"], self.logger
         )
+        rankingstat = LnLikelihoodRatio.from_xml(xmldoc)
         rankingstat.finish()
+        # rankingstatpdf = far.RankingStatPDF.from_xml(xmldoc, "strike_rankingstatpdf")
+        # FIXME: replace with the real ranking stat file
+        rankingstatpdf = far.RankingStatPDF.load(
+            "H1L1V1-SGNL_POST_RANK_STAT_PDFS-1241725020-760106.xml.gz"
+        )
         fapfar = far.FAPFAR(rankingstatpdf.new_with_extinction())
 
         # generate and upload plots
         for plot_type in ["background_pdf", "injection_pdf", "zero_lag_pdf", "LR"]:
             for instrument in rankingstat.instruments:
-                for chi_type in ("chi", "bankchi"):
-                    if instrument in sngl_inspirals:
-                        # place marker on plot
-                        if sngl_inspirals[instrument].snr >= 4.0:
-                            snr = sngl_inspirals[instrument].snr
-                            chisq = getattr(
-                                sngl_inspirals[instrument],
-                                "%ssq" % chi_type.replace("bank", "bank_"),
-                            )
-                        else:
-                            snr = None
-                            chisq = None
-                        fig = plotfar.plot_snr_chi_pdf(
-                            rankingstat,
-                            instrument,
-                            plot_type,
-                            chi_type,
-                            self.max_snr,
-                            event_snr=snr,
-                            event_chisq=chisq,
-                        )
+                # for chi_type in ("chi", "bankchi"):
+                if instrument in sngl_inspirals:
+                    # place marker on plot
+                    if sngl_inspirals[instrument].snr >= 4.0:
+                        snr = sngl_inspirals[instrument].snr
+                        # chisq = getattr(
+                        #     sngl_inspirals[instrument],
+                        #     "%ssq" % chi_type.replace("bank", "bank_"),
+                        # )
+                        chisq = sngl_inspirals[instrument].chisq
                     else:
-                        # no sngl for this instrument
-                        fig = plotfar.plot_snr_chi_pdf(
-                            rankingstat, instrument, plot_type, chi_type, self.max_snr
+                        snr = None
+                        chisq = None
+                    fig = plot_snr_chi_pdf(
+                        rankingstat.terms["P_of_SNR_chisq"],
+                        instrument,
+                        plot_type,
+                        self.max_snr,
+                        event_snr=snr,
+                        event_chisq=chisq,
+                    )
+                else:
+                    # no sngl for this instrument
+                    fig = plot_snr_chi_pdf(
+                        rankingstat.terms["P_of_SNR_chisq"],
+                        instrument,
+                        plot_type,
+                        self.max_snr,
+                    )
+                if fig is not None:
+                    filename = "{}_{}_{}_snrchi.{}".format(
+                        event["gid"], instrument, plot_type, self.format
+                    )
+                    if not self.no_upload:
+                        upload_fig(
+                            fig,
+                            self.client,
+                            event["gid"],
+                            filename=filename,
+                            log_message="%s SNR, chisq PDF" % (instrument),
+                            tagname="background",
                         )
-                    if fig is not None:
-                        filename = "{}_{}_{}_snr{}.{}".format(
-                            event["gid"], instrument, plot_type, chi_type, self.format
-                        )
-                        if not self.no_upload:
-                            upload_fig(
-                                fig,
-                                self.client,
-                                event["gid"],
-                                filename=filename,
-                                log_message="%s SNR, %ssq PDF" % (instrument, chi_type),
-                                tagname="background",
-                            )
-                        if self.output_path is not None:
-                            filename = os.path.join(self.output_path, filename)
-                            self.logger.info("writing %s ...", filename)
-                            fig.savefig(filename)
-                        plt.close(fig)
+                    if self.output_path is not None:
+                        filename = os.path.join(self.output_path, filename)
+                        self.logger.info("writing %s ...", filename)
+                        fig.savefig(filename)
+                    plt.close(fig)
 
-        fig = plotfar.plot_likelihood_ratio_ccdf(
+        fig = plot_likelihood_ratio_ccdf(
             fapfar,
             (
                 0.0,
@@ -554,7 +570,7 @@ class EventPlotter(events.EventProcessor):
             fig.savefig(filename)
         plt.close(fig)
 
-        fig = plotfar.plot_horizon_distance_vs_time(
+        fig = plot_horizon_distance_vs_time(
             rankingstat, (event["time"] - 14400.0, event["time"]), tref=event["time"]
         )
         filename = "{}_horizon_distances.{}".format(event["gid"], self.format)
@@ -573,7 +589,7 @@ class EventPlotter(events.EventProcessor):
             fig.savefig(filename)
         plt.close(fig)
 
-        fig = plotfar.plot_rates(rankingstat)
+        fig = plot_rates(rankingstat)
         filename = "{}_rates.{}".format(event["gid"], self.format)
         if not self.no_upload:
             upload_fig(
