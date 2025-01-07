@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from strike.stats import likelihood_ratio
+from strike.stats.far import RankingStatPDF
 
 from sgnl.control import SnapShotControlSinkElement
 
@@ -38,31 +39,44 @@ class StrikeSink(SnapShotControlSinkElement):
     coincidence_threshold: float = None
     background_pad: str = None
     horizon_pads: list[str] = None
+    zerolag_pad: str = None
 
     def __post_init__(self):
         assert isinstance(self.ifos, list)
         assert isinstance(self.background_pad, str)
         assert isinstance(self.horizon_pads, list)
-        self.sink_pad_names = (self.background_pad,) + tuple(self.horizon_pads)
+        self.sink_pad_names = (
+            (self.background_pad,) + tuple(self.horizon_pads) + (self.zerolag_pad,)
+        )
         super().__post_init__()
         self.ranking_stats = {}
-        self.state_dict = {"xml": {}}
+        if self.zerolag_pad is not None:
+            self.zerolagpdfs = {}
+        self.state_dict = {"xml": {}, "zerolagxml": {}}
         for bankid, ids in self.bankids_map.items():
             four_digit_id = "%04d" % int(bankid)
             bank_template_ids = self.all_template_ids[ids]
             bank_template_ids = tuple(bank_template_ids[bank_template_ids != -1])
             # Ranking stat output
-            self.ranking_stats[bankid] = likelihood_ratio.LnLikelihoodRatio(
+            rstat = likelihood_ratio.LnLikelihoodRatio(
                 template_ids=bank_template_ids,
                 instruments=self.ifos,
                 delta_t=self.coincidence_threshold,
             )
+            self.ranking_stats[bankid] = rstat
             self.add_snapshot_filename(
-                "SGNL_INSPIRAL_DIST_STATS_%s" % four_digit_id, "xml.gz"
+                "%s_SGNL_INSPIRAL_DIST_STATS" % four_digit_id, "xml.gz"
             )
             self.state_dict["xml"][four_digit_id] = xml_string(
                 self.ranking_stats[bankid]
             )
+
+            if self.zerolag_pad is not None:
+                # FIXME: add option to read in existing files
+                self.zerolagpdfs[bankid] = RankingStatPDF(rstat, nsamples=0)
+                self.state_dict["zerolagxml"][four_digit_id] = xml_string(
+                    self.zerolagpdfs[bankid]
+                )
 
     def pull(self, pad, frame):
         if frame.EOS:
@@ -117,7 +131,7 @@ class StrikeSink(SnapShotControlSinkElement):
                         ifo
                     ].add_ratebin(list(buf_seg), count)
 
-        if self.rsnks[pad] in self.horizon_pads:
+        elif self.rsnks[pad] in self.horizon_pads:
             if frame["data"].data is not None:  # happens for the first few buffers
                 ifo = frame["data"].data["ifo"]
                 horizon = frame["data"].data["horizon"]
@@ -138,6 +152,14 @@ class StrikeSink(SnapShotControlSinkElement):
                         ifo
                     ][horizon_time] = horizon[bankid]
 
+        elif self.zerolag_pad is not None and self.rsnks[pad] == self.zerolag_pad:
+            zerolags = frame["zerolag"].data
+            for z in zerolags:
+                if "likelihood" in z:
+                    self.zerolagpdfs[z["bankid"]].zero_lag_lr_lnpdf.count[
+                        z["likelihood"],
+                    ] += 1
+
     def internal(self):
         SnapShotControlSinkElement.exchange_state(self.name, self.state_dict)
         if self.at_eos:
@@ -152,3 +174,9 @@ class StrikeSink(SnapShotControlSinkElement):
                     self.ranking_stats[bankid]
                 )
                 self.ranking_stats[bankid].save(fn)
+                self.state_dict["zerolagxml"][four_digit_id] = xml_string(
+                    self.zerolagpdfs[bankid]
+                )
+                self.zerolagpdfs[bankid].save(
+                    fn.replace("DIST_STATS", "ZEROLAG_RANK_STAT_PDFS")
+                )

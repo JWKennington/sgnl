@@ -1,4 +1,4 @@
-all: inspiral range scald event_uploader event_plotter
+all: inspiral range scald event_uploader event_plotter trigger_counter marginalize_likelihood
 
 H1_SVD_BANK=H1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
 L1_SVD_BANK=L1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
@@ -82,6 +82,8 @@ scald_single:
 		--topic sgnl.${TAG}.range_history \
 		--topic sgnl.${TAG}.event_uploader_heartbeat \
 		--topic sgnl.${TAG}.event_plotter_heartbeat \
+		--topic sgnl.${TAG}.trigger_counter_heartbeat \
+		--topic sgnl.${TAG}.marginalize_likelihoods_online_heartbeat \
 		--schema latency_history_max \
 		--schema latency_history_median \
 		--schema H1_datasource_latency \
@@ -99,7 +101,9 @@ scald_single:
 		--schema V1_snr_history \
 		--schema range_history \
 		--schema event_uploader_heartbeat \
-		--schema event_plotter_heartbeat
+		--schema event_plotter_heartbeat \
+		--schema trigger_counter_heartbeat \
+		--schema marginalize_likelihoods_online_heartbeat
 
 scald_across_jobs:
 	scald aggregate \
@@ -217,6 +221,23 @@ plot_dtdphi_plots:
 		--plot DTDPHI_PLOTS \
 		--verbose \
 		--gracedb-service-url ${GRACEDB_URL}
+
+trigger_counter:
+	sgnl-ll-trigger-counter \
+		--kafka-server ${KAFKA_SERVER} \
+		--output-period 300 \
+		--topic coinc \
+		--tag ${TAG} \
+		--output H1L1V1-SGNL_ZEROLAG_DIST_STAT_PDFS-0-0.xml.gz \
+		--verbose
+
+marginalize_likelihood:
+	sgnl-ll-marginalize-likelihoods-online \
+		--registry 0000_noninj_registry.txt \
+		--output H1L1V1-SGNL_RANK_STAT_PDFS-0-0.xml.gz \
+		--output-kafka-server ${KAFKA_SERVER} \
+		--tag ${TAG} \
+		--verbose
 
 clean:
 	rm -rf out.sqlite likelihood_ratio.xml.gz

@@ -216,16 +216,7 @@ class StillSuitSink(SinkElement):
             for event, trigger in zip(
                 self.event_dict["event"], self.event_dict["trigger"]
             ):
-                # Put in chisq weighted snr
-                network_chisq_weighted_snr2 = 0
-                for trig in trigger:
-                    if trig is not None:
-                        chisq_weighted_snr = trig["snr"] / (
-                            (1 + max(1.0, trig["chisq"]) ** 3) / 2.0
-                        ) ** (1.0 / 5.0)
-                        trig["chisq_weighted_snr"] = chisq_weighted_snr
-                        network_chisq_weighted_snr2 += chisq_weighted_snr**2
-                event["network_chisq_weighted_snr"] = network_chisq_weighted_snr2**0.5
+                event.pop("bankid")
                 self.out.insert_event({"event": event, "trigger": trigger})
         self.event_dict = {t: [] for t in self.tables}
 
