@@ -170,7 +170,7 @@ event_uploader:
 		--max-partitions 10 \
 		--gracedb-service-url ${GRACEDB_URL} \
 
-event_plotter: plot_ranking_data plot_snr_plots plot_psd_plots plot_dtdphi_plots #plot_ranking_plot 
+event_plotter: plot_ranking_data plot_snr_plots plot_psd_plots plot_dtdphi_plots plot_ranking_plot
 
 plot_ranking_data:
 	sgnl-ll-inspiral-event-plotter \
