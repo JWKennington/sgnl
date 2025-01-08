@@ -92,7 +92,7 @@ def reference_psd(
                 verbose=verbose,
             ),
             link_map={
-                ifo + "HoftSink:sink:hoft": condition_out_links[ifo],
+                ifo + "HoftSink:snk:hoft": condition_out_links[ifo],
             },
         )
     pipeline.insert(
@@ -101,7 +101,7 @@ def reference_psd(
             name="PSDSink",
             sink_pad_names=(tuple(ifo for ifo in ifos)),
         ),
-        link_map={"PSDSink:sink:" + ifo: spectrum_out_links[ifo] for ifo in ifos},
+        link_map={"PSDSink:snk:" + ifo: spectrum_out_links[ifo] for ifo in ifos},
     )
 
     pipeline.run()

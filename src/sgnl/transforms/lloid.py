@@ -55,7 +55,7 @@ def lloid(
     for ifo in ifos:
         pipeline.insert(
             link_map={
-                "converter1:sink:" + ifo: input_source_links[ifo],
+                "converter1:snk:" + ifo: input_source_links[ifo],
             }
         )
         prev_source_pad = "converter1:src:" + ifo
@@ -64,7 +64,7 @@ def lloid(
             rate_down = unique_rates[i + 1]
             name = f"{ifo}_down_{rate_down}"
             amp_name = f"{ifo}_amplify_{rate_down}"
-            sink_pad_full = amp_name + ":sink:" + ifo
+            sink_pad_full = amp_name + ":snk:" + ifo
 
             source_pad_full = name + ":src:" + ifo
 
@@ -84,7 +84,7 @@ def lloid(
                     outrate=rate_down,
                 ),
                 link_map={
-                    name + ":sink:" + ifo: amp_name + ":src:" + ifo,
+                    name + ":snk:" + ifo: amp_name + ":src:" + ifo,
                     sink_pad_full: prev_source_pad,
                 },
             )
@@ -123,14 +123,14 @@ def lloid(
                     pipeline.insert(
                         link_map={
                             corrname
-                            + ":sink:"
+                            + ":snk:"
                             + ifo: f"{ifo}_down_{from_rate}:src:"
                             + ifo
                         },
                     )
                 else:
                     pipeline.insert(
-                        link_map={corrname + ":sink:" + ifo: "converter1:src:" + ifo},
+                        link_map={corrname + ":snk:" + ifo: "converter1:src:" + ifo},
                     )
 
                 # matmul
@@ -143,7 +143,7 @@ def lloid(
                         backend=TorchBackend,
                         matrix=coeff[from_rate][to_rate][ifo],
                     ),
-                    link_map={mmname + ":sink:" + ifo: corrname + ":src:" + ifo},
+                    link_map={mmname + ":snk:" + ifo: corrname + ":src:" + ifo},
                 )
 
                 # sum same rate
@@ -159,7 +159,7 @@ def lloid(
                             sl=sl,
                             backend=TorchBackend,
                         ),
-                        link_map={sumname + ":sink:" + ifo: mmname + ":src:" + ifo},
+                        link_map={sumname + ":snk:" + ifo: mmname + ":src:" + ifo},
                     )
                     snr_slices[from_rate][to_rate] = sumname + ":src:" + ifo
                 else:
@@ -227,7 +227,7 @@ def lloid(
             for to_rate in v.keys():
                 if from_rate != maxrate:
                     if to_rate[-1] != maxrate:
-                        upname = f"{ifo}_up_{to_rate[-1]}_{to_rate[:-1]}:sink:" + ifo
+                        upname = f"{ifo}_up_{to_rate[-1]}_{to_rate[:-1]}:snk:" + ifo
                         pipeline.insert(
                             link_map={
                                 upname: f"{ifo}_add_{from_rate}_{to_rate}:src:" + ifo,
@@ -235,7 +235,7 @@ def lloid(
                         )
                         pipeline.insert(
                             link_map={
-                                f"{ifo}_add_{from_rate}_{to_rate}:sink:"
+                                f"{ifo}_add_{from_rate}_{to_rate}:snk:"
                                 + ifo
                                 + f"_up_{from_rate}_{to_rate}": f"{ifo}_up_{from_rate}"
                                 f"_{to_rate}:src:" + ifo,
@@ -243,14 +243,14 @@ def lloid(
                         )
                         pipeline.insert(
                             link_map={
-                                f"{ifo}_add_{from_rate}_{to_rate}:sink:"
+                                f"{ifo}_add_{from_rate}_{to_rate}:snk:"
                                 + ifo: snr_slices[to_rate[-1]][to_rate[:-1]]
                             }
                         )
                     else:
                         pipeline.insert(
                             link_map={
-                                f"{ifo}_add_{maxrate}:sink:"
+                                f"{ifo}_add_{maxrate}:snk:"
                                 + ifo
                                 + f"_up_{from_rate}_{to_rate}": f"{ifo}_up_{from_rate}"
                                 f"_{to_rate}:src:" + ifo,
@@ -258,7 +258,7 @@ def lloid(
                         )
                         pipeline.insert(
                             link_map={
-                                f"{ifo}_add_{maxrate}:sink:"
+                                f"{ifo}_add_{maxrate}:snk:"
                                 + ifo: snr_slices[to_rate[-1]][to_rate[:-1]]
                             }
                         )
@@ -273,7 +273,7 @@ def lloid(
                         upname = f"{ifo}_up_{from_rate}_{to_rate}"
                         pipeline.insert(
                             link_map={
-                                f"{ifo}_up_{from_rate}_{to_rate}:sink:" + ifo: snr_link
+                                f"{ifo}_up_{from_rate}_{to_rate}:snk:" + ifo: snr_link
                             }
                         )
     return output_source_links

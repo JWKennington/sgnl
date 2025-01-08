@@ -453,7 +453,7 @@ def inspiral(
                     source_pad_names=("latency",),
                     route=ifo + "_snrSlice_latency",
                 ),
-                link_map={ifo + "_snrSlice_latency:sink:data": link},
+                link_map={ifo + "_snrSlice_latency:snk:data": link},
             )
 
     # make the sink
@@ -475,12 +475,12 @@ def inspiral(
         for ifo, link in lloid_output_source_link.items():
             pipeline.insert(
                 link_map={
-                    "imsink0:sink:" + ifo: link,
+                    "imsink0:snk:" + ifo: link,
                 }
             )
             if ifo == impulse_ifo:
                 pipeline.insert(
-                    link_map={"imsink0:sink:" + ifo + "_src": source_out_links[ifo]}
+                    link_map={"imsink0:snk:" + ifo + "_src": source_out_links[ifo]}
                 )
     else:
         # connect itacacac
@@ -518,7 +518,7 @@ def inspiral(
         for ifo in ifos:
             pipeline.insert(
                 link_map={
-                    "Itacacac:sink:" + ifo: lloid_output_source_link[ifo],
+                    "Itacacac:snk:" + ifo: lloid_output_source_link[ifo],
                 }
             )
         if output_kafka_server is not None:
@@ -529,7 +529,7 @@ def inspiral(
                     source_pad_names=("latency",),
                     route="all_itacacac_latency",
                 ),
-                link_map={"ItacacacLatency:sink:data": "Itacacac:src:" + kafka_pad},
+                link_map={"ItacacacLatency:snk:data": "Itacacac:src:" + kafka_pad},
             )
 
         # Connect sink
@@ -540,7 +540,7 @@ def inspiral(
                     sink_pad_names=itacacac_pads,
                 ),
                 link_map={
-                    "Sink:sink:" + snk: "Itacacac:src:" + snk for snk in itacacac_pads
+                    "Sink:snk:" + snk: "Itacacac:src:" + snk for snk in itacacac_pads
                 },
             )
             for ifo in ifos:
@@ -550,7 +550,7 @@ def inspiral(
                         sink_pad_names=(ifo,),
                     ),
                     link_map={
-                        "Null_" + ifo + ":sink:" + ifo: spectrum_out_links[ifo],
+                        "Null_" + ifo + ":snk:" + ifo: spectrum_out_links[ifo],
                     },
                 )
         elif event_config is not None:
@@ -599,7 +599,7 @@ def inspiral(
                 pipeline.insert(
                     strike_sink,
                     link_map={
-                        "StrikeSnk:sink:trigs": "Itacacac:src:strike",
+                        "StrikeSnk:snk:trigs": "Itacacac:src:strike",
                     },
                 )
                 for ifo in ifos:
@@ -612,12 +612,12 @@ def inspiral(
                             ifo=ifo,
                         ),
                         link_map={
-                            ifo + "_Horizon:sink:" + ifo: spectrum_out_links[ifo],
+                            ifo + "_Horizon:snk:" + ifo: spectrum_out_links[ifo],
                         },
                     )
                     pipeline.insert(
                         link_map={
-                            "StrikeSnk:sink:horizon_"
+                            "StrikeSnk:snk:horizon_"
                             + ifo: ifo
                             + "_Horizon:src:"
                             + ifo,
@@ -630,7 +630,7 @@ def inspiral(
                         sink_pad_names=ifos,
                     ),
                     link_map={
-                        "NullSink:sink:" + ifo: spectrum_out_links[ifo] for ifo in ifos
+                        "NullSink:snk:" + ifo: spectrum_out_links[ifo] for ifo in ifos
                     },
                 )
 
@@ -663,28 +663,28 @@ def inspiral(
                         delta_t=coincidence_threshold,
                     ),
                     link_map={
-                        "StrikeTransform:sink:trigs": "Itacacac:src:stillsuit",
-                        "StillSuitSnk:sink:trigs": "StrikeTransform:src:trigs",
-                        "gracedb:sink:event": "StrikeTransform:src:trigs",
-                        "StrikeSnk:sink:zerolag": "StrikeTransform:src:zerolag",
+                        "StrikeTransform:snk:trigs": "Itacacac:src:stillsuit",
+                        "StillSuitSnk:snk:trigs": "StrikeTransform:src:trigs",
+                        "gracedb:snk:event": "StrikeTransform:src:trigs",
+                        "StrikeSnk:snk:zerolag": "StrikeTransform:src:zerolag",
                     },
                 )
                 pipeline.insert(
                     link_map={
-                        "gracedb:sink:" + ifo: spectrum_out_links[ifo] for ifo in ifos
+                        "gracedb:snk:" + ifo: spectrum_out_links[ifo] for ifo in ifos
                     }
                 )
             else:
                 pipeline.insert(
                     link_map={
-                        "StillSuitSnk:sink:trigs": "Itacacac:src:stillsuit",
+                        "StillSuitSnk:snk:trigs": "Itacacac:src:stillsuit",
                     },
                 )
 
             for ifo in ifos:
                 pipeline.insert(
                     link_map={
-                        "StillSuitSnk:sink:segments_" + ifo: source_out_links[ifo],
+                        "StillSuitSnk:snk:segments_" + ifo: source_out_links[ifo],
                     }
                 )
 
@@ -746,21 +746,21 @@ def inspiral(
                         ],
                     ),
                     link_map={
-                        "KafkaSnk:sink:itacacac_kafka": "Itacacac:src:" + kafka_pad,
-                        "KafkaSnk:sink:itacacac_latency": "ItacacacLatency:src:latency",
-                        "KafkaSnk:sink:strike_kafka": "StrikeTransform:src:kafka",
+                        "KafkaSnk:snk:itacacac_kafka": "Itacacac:src:" + kafka_pad,
+                        "KafkaSnk:snk:itacacac_latency": "ItacacacLatency:src:latency",
+                        "KafkaSnk:snk:strike_kafka": "StrikeTransform:src:kafka",
                     },
                 )
                 for ifo in ifos:
                     pipeline.insert(
                         link_map={
-                            "KafkaSnk:sink:"
+                            "KafkaSnk:snk:"
                             + ifo
                             + "_whiten_latency": whiten_latency_out_links[ifo],
-                            "KafkaSnk:sink:"
+                            "KafkaSnk:snk:"
                             + ifo
                             + "_datasource_latency": source_latency_links[ifo],
-                            "KafkaSnk:sink:"
+                            "KafkaSnk:snk:"
                             + ifo
                             + "_snrSlice_latency": ifo
                             + "_snrSlice_latency:src:latency",

@@ -136,10 +136,10 @@ def measure_psd(
 
     pipeline.insert(
         link_map={
-            "Resampler:sink:frsrc": "src1:src:frsrc",
-            "Whitener:sink:resamp": "Resampler:src:resamp",
-            "PSDSink:sink:spectrum": "Whitener:src:spectrum",
-            "HoftSnk:sink:hoft": "Whitener:src:hoft",
+            "Resampler:snk:frsrc": "src1:src:frsrc",
+            "Whitener:snk:resamp": "Resampler:src:resamp",
+            "PSDSink:snk:spectrum": "Whitener:src:spectrum",
+            "HoftSnk:snk:hoft": "Whitener:src:hoft",
         }
     )
 
