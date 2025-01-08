@@ -162,9 +162,9 @@ def ll_dq(
 
     pipeline.insert(
         link_map={
-            "Horizon:sink:spectrum": spectrum_out_links[ifo],
-            "HorizonSnk:sink:horizon": "Horizon:src:horizon",
-            "HoftSnk:sink:hoft": condition_out_links[ifo],
+            "Horizon:snk:spectrum": spectrum_out_links[ifo],
+            "HorizonSnk:snk:horizon": "Horizon:src:horizon",
+            "HoftSnk:snk:hoft": condition_out_links[ifo],
         }
     )
 
