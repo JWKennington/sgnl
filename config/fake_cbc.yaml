@@ -111,6 +111,7 @@ event:
     - {name: "network_chisq_weighted_snr", type: REAL}
     - {name: "likelihood", type: REAL, default: 0.0}
     - {name: "far", type: REAL}
+    - {name: "combined_far", type: REAL} # FIXME reconcile far and combined_far
   relationships: []
   static: False
 

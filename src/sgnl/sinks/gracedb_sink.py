@@ -19,6 +19,7 @@ from ligo.lw.utils import process as ligolw_process
 from ligo.lw.utils import segments as ligolw_segments
 from sgn.control import HTTPControlSinkElement
 
+from sgnl.strike_object import StrikeObject
 from sgnl.transforms.itacacac import light_travel_time
 from sgnl.viz import logo_data
 
@@ -44,6 +45,7 @@ class GraceDBSink(HTTPControlSinkElement):
     event_pad: str = None
     spectrum_pads: list[str] = None
     delta_t: float = 0.005
+    strike_object: StrikeObject = None
 
     def __post_init__(self):
         self.sink_pad_names = (self.event_pad,) + self.spectrum_pads
@@ -121,6 +123,7 @@ class GraceDBSink(HTTPControlSinkElement):
                         "".join(sorted(self.on_ifos)),
                         self.gracedb_group,
                         self.gracedb_search,
+                        self.strike_object,
                     )
                 else:
                     publish_gracedb(
@@ -147,6 +150,7 @@ def publish_kafka(
     instruments,
     group,
     search,
+    strike_object,
 ):
     """Send the xmldoc to kafka, where it will eventually be uploaded to gracedb"""
 
@@ -156,7 +160,7 @@ def publish_kafka(
 
     # coinc_table_row = lsctables.CoincTable.get_table(xmldoc)[0]
     coinc_inspiral_row = lsctables.CoincInspiralTable.get_table(xmldoc)[0]
-    # sngl_inspiral_table = lsctables.SnglInspiralTable.get_table(xmldoc)
+    sngl_inspiral_table = lsctables.SnglInspiralTable.get_table(xmldoc)
 
     message = io.BytesIO()
     ligolw_utils.write_fileobj(xmldoc, message)
@@ -177,37 +181,35 @@ def publish_kafka(
         key=job_tag,
     )
 
-    # description = "%s_%s_%s_%s_%s" % (
-    #     "SGNL",
-    #     job_tag,
-    #     ("%.4g" % coinc_inspiral_row.mass).replace(".", "_").replace("-", "_"),
-    #     group,
-    #     search,
-    # )
-    # background_bin = int(sngl_inspiral_table[0].Gamma1)
-    # end_time = int(coinc_inspiral_row.end)
+    background_bin = int(sngl_inspiral_table[0].Gamma1)
+    description = "%s_%s_%s_%s_%s" % (
+        "SGNL",
+        job_tag,
+        ("%.4g" % coinc_inspiral_row.mass).replace(".", "_").replace("-", "_"),
+        group,
+        search,
+    )
+    end_time = int(coinc_inspiral_row.end)
 
-    # gracedb_uploads_gps_dir = os.path.join("gracedb_uploads", str(end_time)[:5])
-    # if not os.path.exists(gracedb_uploads_gps_dir):
-    #     # set exist_ok = True in case multiple jobs try
-    #     # to create the directory at the same time;
-    #     # this is more likely to happen with injection
-    #     # jobs due to the high injection rate
-    #     os.makedirs(gracedb_uploads_gps_dir, exist_ok=True)
+    gracedb_uploads_gps_dir = os.path.join("gracedb_uploads", str(end_time)[:5])
+    if not os.path.exists(gracedb_uploads_gps_dir):
+        # set exist_ok = True in case multiple jobs try
+        # to create the directory at the same time;
+        # this is more likely to happen with injection
+        # jobs due to the high injection rate
+        os.makedirs(gracedb_uploads_gps_dir, exist_ok=True)
 
-    # rankingstat_filename = os.path.join(
-    #     gracedb_uploads_gps_dir,
-    #     "%s-%s_%04d_RankingData-%d-%d.xml.gz"
-    #     % (instruments, description, background_bin, end_time, 1),
-    # )
-    # with open(rankingstat_filename, "wb") as fileobj:
-    #     ligolw_utils.write_fileobj(
-    #         get_rankingstat_xmldoc(rankingstat_file, clipped=True),
-    #         fileobj,
-    #         compress="gz",
-    #     )
-    rankingstat_filename = (
-        "H1L1V1-0000_SGNL_MARG_LIKELIHOOD_RATIO_PRIOR-1241725020-760106.xml.gz"
+    rankingstat_filename = os.path.join(
+        gracedb_uploads_gps_dir,
+        "%s-%s_RankingData-%d-%d.xml.gz" % (instruments, description, end_time, 1),
+    )
+    write_rankingstat_xmldoc_gracedb(
+        strike_object.likelihood_ratio_uploads[str(background_bin)],
+        rankingstat_filename,
+    )
+
+    ligolw_utils.write_filename(
+        xmldoc, rankingstat_filename.replace("_RankingData", "")
     )
 
     client.produce(
@@ -255,7 +257,7 @@ def min_far_event(events, triggers, snr_ts, thresh):
     if not events:
         return None, None, None
     min_far, min_ix = min((e["far"], n) for n, e in enumerate(events))
-    if min_far <= thresh:
+    if min_far is not None and min_far <= thresh:
         return (
             events[min_ix],
             [t for t in triggers[min_ix] if t is not None],
@@ -472,6 +474,13 @@ def event_trigs_to_coinc_xmldoc(
     )
     coinc_inspiral_table[0].ifos = ",".join(sorted(found_ifos))
 
+    sngl_row = sngls_dict[trigs[0]["_filter_id"]]
+    mass = sngl_row.mass1 + sngl_row.mass2
+    mchirp = sngl_row.mchirp
+
+    coinc_inspiral_table[0].mass = mass
+    coinc_inspiral_table[0].mchirp = mchirp
+
     coinc_event_table = add_table_with_n_rows(xmldoc, lsctables.CoincTable, 1)
     col_map(
         coinc_event_table[0],
@@ -490,21 +499,16 @@ def event_trigs_to_coinc_xmldoc(
     return xmldoc
 
 
-def get_rankingstat_xmldoc(rankingstat_file, clipped=False):
-    # FIXME: add gracedb upload condition
-    if clipped:
-        rankingstat = rankingstat_file.copy()
-        try:
-            endtime = rankingstat.terms["P_of_tref_Dh"].horizon_history.maxkey()
-        except ValueError:
-            # empty horizon history
-            pass
-        else:
-            # keep the last hour of history
-            endtime -= 3600.0 * 1
-            for history in rankingstat.terms["P_of_tref_Dh"].horizon_history.values():
-                del history[:endtime]
+def write_rankingstat_xmldoc_gracedb(rankingstat_upload, output_filename):
+    rankingstat = rankingstat_upload.copy()
+    try:
+        endtime = rankingstat.terms["P_of_tref_Dh"].horizon_history.maxkey()
+    except ValueError:
+        # empty horizon history
+        pass
     else:
-        rankingstat = rankingstat_file
-    xmldoc = rankingstat.to_xml()
-    return xmldoc
+        # keep the last hour of history
+        endtime -= 3600.0 * 1
+        for history in rankingstat.terms["P_of_tref_Dh"].horizon_history.values():
+            del history[:endtime]
+    rankingstat.save(output_filename)

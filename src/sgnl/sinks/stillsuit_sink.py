@@ -39,8 +39,6 @@ class StillSuitSink(SinkElement):
             raise ValueError("Must provide config_name")
         if self.trigger_output is None:
             raise ValueError("Must provide trigger_output")
-        if os.path.exists(self.trigger_output):
-            raise ValueError("output db exists")
 
         self.out = stillsuit.StillSuit(config=self.config_name, dbname=":memory:")
 
@@ -216,6 +214,7 @@ class StillSuitSink(SinkElement):
             for event, trigger in zip(
                 self.event_dict["event"], self.event_dict["trigger"]
             ):
+                # FIXME: make insert event skip bankid
                 event.pop("bankid")
                 self.out.insert_event({"event": event, "trigger": trigger})
         self.event_dict = {t: [] for t in self.tables}
@@ -239,6 +238,7 @@ class StillSuitSink(SinkElement):
             self.process_row["end_time"] = int(now())
             self.out.insert_static({"process": [self.process_row]})
 
-            # Write in-memory database to file
-            print("Writing out db...")
-            self.out.to_file(self.trigger_output)
+            if self.is_online is False:
+                # Write in-memory database to file
+                print("Writing out db...")
+                self.out.to_file(self.trigger_output)

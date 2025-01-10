@@ -1,7 +1,7 @@
+import os
 from dataclasses import dataclass
 
 from gwpy.time import tconvert
-from sgn.base import SinkElement
 from sgn.control import HTTPControl, HTTPControlSinkElement
 
 
@@ -30,7 +30,8 @@ class SnapShotControl(HTTPControl):
             return False
         if elem not in cls.last_snapshot:
             raise ValueError(
-                "{elem} not found in last_snapshot, perhaps you forgot to call register_snapshot() when you initialized your element?"
+                "{elem} not found in last_snapshot, perhaps you forgot to call "
+                "register_snapshot() when you initialized your element?"
             )
         return t - cls.last_snapshot[elem] >= cls.snapshot_interval
 
@@ -38,7 +39,8 @@ class SnapShotControl(HTTPControl):
     def _update_last_snapshot_time(cls, elem, t):
         if elem not in cls.last_snapshot:
             raise ValueError(
-                "{elem} not found in last_snapshot, perhaps you forgot to call register_snapshot() when you initialized your element?"
+                "{elem} not found in last_snapshot, perhaps you forgot to call "
+                "register_snapshot() when you initialized your element?"
             )
         old_t = cls.last_snapshot[elem]
         cls.last_snapshot[elem] = t
@@ -71,4 +73,9 @@ class SnapShotControlSinkElement(HTTPControlSinkElement, SnapShotControl):
             self.name, int(tconvert("now"))
         )
         for desc, ext in zip(self.descriptions, self.extensions):
-            yield "%s-%s-%d-%d.%s" % (ifos, desc, start, duration, ext)
+            gpsdir = str(start)[:5]
+            try:
+                os.mkdir(gpsdir)
+            except OSError:
+                pass
+            yield "%s/%s-%s-%d-%d.%s" % (gpsdir, ifos, desc, start, duration, ext)
