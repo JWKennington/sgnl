@@ -16,6 +16,7 @@ import torch
 from ligo.lw import ligolw, lsctables
 from ligo.lw import utils as ligolw_utils
 from sgn.apps import Pipeline
+from sgn.base import get_sgn_logger
 from sgn.control import HTTPControl
 from sgn.sinks import NullSink
 from sgnligo.sinks import KafkaSink
@@ -26,7 +27,10 @@ from sgnl import simulation
 from sgnl.control import SnapShotControl
 from sgnl.sinks import GraceDBSink, ImpulseSink, StillSuitSink, StrikeSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
+from sgnl.strike_object import StrikeObject
 from sgnl.transforms import HorizonDistanceTracker, Itacacac, StrikeTransform, lloid
+
+LOGGER = get_sgn_logger("sgn-ts")
 
 
 @lsctables.use_in
@@ -133,13 +137,54 @@ def parse_command_line():
         "Ranking Statistic Options", "Adjust ranking statistic behaviour"
     )
     group.add_argument(
+        "--far-trials-factor",
+        metavar="trials",
+        type=float,
+        default=1.0,
+        help="Add trials factor to FAR before uploading to gracedb",
+    )
+    group.add_argument(
+        "--cap-singles",
+        action="store_true",
+        help="Cap singles to 1 / livetime if computing FAR. No effect otherwise",
+    )
+    group.add_argument(
         "--output-likelihood-file",
         metavar="filename",
         action="append",
         help="Set the name of the LIKELIHOOD_RATIO file to which to write likelihood "
         "ratio data collected from triggers (optional).  Can be given more than once. "
         "If given, exactly as many must be provided as there are --svd-bank options "
-        "and they will be writen to in order.",
+        "and they will be writen to in order. Forbidden for when --injections is set.",
+    )
+    group.add_argument(
+        "--input-likelihood-file",
+        metavar="filename",
+        action="append",
+        help="Set the name of the LIKELIHOOD_RATIO file from which to read likelihood "
+        "ratio data collected from triggers (optional).  Can be given more than once. "
+        "If given, exactly as many must be provided as there are --svd-bank options "
+        "and they will be read from in order.",
+    )
+    group.add_argument(
+        "--rank-stat-pdf-file",
+        metavar="filename",
+        help="Set the URL from which to load the ranking statistic PDF.  This is used "
+        "to compute false-alarm probabilities and false-alarm rates and is required "
+        "for online operation (when --data-source is devshm or white-realtime).  It "
+        "is forbidden for offline operation (all other data sources)",
+    )
+    group.add_argument(
+        "--zerolag-rank-stat-pdf-file",
+        metavar="filename",
+        action="append",
+        help="Record a histogram of the likelihood ratio ranking statistic values "
+        "assigned to zero-lag candidates in this XML file.  This is used to construct "
+        "the extinction model and set the overall false-alarm rate normalization "
+        "during online running.  Counts will be added to the file's contents. "
+        "Required when --data-source is devshm or white-realtime; forbidden otherwise. "
+        "If given, exactly as many must be provided as there are --svd-bank options "
+        "and they will be used in order.",
     )
 
     group = parser.add_argument_group("GracedB Options", "Adjust GracedB interaction")
@@ -249,44 +294,59 @@ def inspiral(
     data_source_info: DataSourceInfo,
     condition_info: ConditionInfo,
     svd_bank: List[str],
-    trigger_finding_duration: float = 1,
-    snr_min: float = 4,
+    analysis_tag: str = "test",
     coincidence_threshold: float = 0.005,
     event_config: str = None,
-    trigger_output: str = None,
-    ranking_stat_output: List[str] = None,
-    torch_dtype: str = "float32",
-    torch_device: str = "cpu",
-    injections: bool = False,
-    injection_file: str = None,
-    reconstruct_inj_segments: bool = False,
-    analysis_tag: str = "test",
-    job_tag: str = None,
-    output_kafka_server: str = None,
+    fake_sink: bool = False,
+    far_trials_factor: float = 1.0,
     gracedb_far_threshold: float = -1,
     gracedb_group: str = "Test",
+    gracedb_label: list[str] = None,
     gracedb_pipeline: str = "SGNL",
     gracedb_search: str = "MOCK",
-    gracedb_label: list[str] = None,
     gracedb_service_url: str = None,
-    fake_sink: bool = False,
-    verbose: bool = False,
     graph_name: str = None,
     impulse_bank: str = None,
     impulse_bankno: int = None,
     impulse_ifo: str = None,
-    nsubbank_pretend: int = None,
+    injections: bool = False,
+    injection_file: str = None,
+    input_likelihood_file: List[str] = None,
+    job_tag: str = None,
     nslice: int = -1,
+    nsubbank_pretend: int = None,
+    output_kafka_server: str = None,
+    output_likelihood_file: List[str] = None,
     process_params: dict = None,
+    rank_stat_pdf_file: List[str] = None,
+    reconstruct_inj_segments: bool = False,
+    snr_min: float = 4,
+    torch_device: str = "cpu",
+    torch_dtype: str = "float32",
+    trigger_output: str = None,
+    trigger_finding_duration: float = 1,
+    verbose: bool = False,
+    zerolag_rank_stat_pdf_file: List[str] = None,
 ):
+    #
+    # Decide if we are online or offline
+    #
+
+    IS_ONLINE = data_source_info.data_source in ["devshm", "white-realtime"]
+
     #
     # Sanity check
     #
+    if trigger_output is not None:
+        if IS_ONLINE:
+            LOGGER.warning(
+                "warning: trigger_output will not be produced in online mode"
+            )
+        elif os.path.exists(trigger_output):
+            raise ValueError(f"output db exists: {trigger_output}")
 
-    if trigger_output is not None and os.path.exists(trigger_output):
-        raise ValueError(f"output db exists: {trigger_output}")
-    if ranking_stat_output is not None:
-        for r in ranking_stat_output:
+    if output_likelihood_file is not None and input_likelihood_file is None:
+        for r in output_likelihood_file:
             if os.path.exists(r):
                 raise ValueError(f"ranking stat output exists: {r}")
 
@@ -321,7 +381,7 @@ def inspiral(
 
     # FIXME: put in check once we decide whether to put multiple banks in the same
     #        file or not
-    # if ranking_stat_output is not None and len(ranking_stat_output) != len(
+    # if output_likelihood_file is not None and len(output_likelihood_file) != len(
     #    trigger_output
     # ):
     #    raise ValueError(
@@ -337,22 +397,16 @@ def inspiral(
     if injection_file and not injections:
         raise ValueError("Must supply --injections when --injection-file is set")
     # if (
-    #     likelihood_snapshot_interval and not ranking_stat_output
+    #     likelihood_snapshot_interval and not output_likelihood_file
     # ) and not injections:
     #     raise ValueError(
     #         "must set --output-likelihood-file when --likelihood-snapshot-interval is"
     #         " set"
     #     )
-    if ranking_stat_output and injections:
+    if output_likelihood_file and injections:
         raise ValueError(
             "Must not set --output-likelihood-file when --injections is set"
         )
-
-    #
-    # Decide if we are online or offline
-    #
-
-    IS_ONLINE = data_source_info.data_source in ["devshm", "white-realtime"]
 
     #
     # Build pipeline
@@ -420,6 +474,24 @@ def inspiral(
 
     template_maxrate = bank_metadata["maxrate"]
 
+    #
+    # Initialize strike data object
+    #
+    strike_object = StrikeObject(
+        all_template_ids=sorted_bank.template_ids.numpy(),
+        bankids_map=sorted_bank.bankids_map,
+        coincidence_threshold=coincidence_threshold,
+        FAR_trialsfactor=far_trials_factor,
+        ifos=ifos,
+        injections=injections,
+        input_likelihood_file=input_likelihood_file,
+        is_online=IS_ONLINE,
+        output_likelihood_file=output_likelihood_file,
+        rank_stat_pdf_file=rank_stat_pdf_file,
+        verbose=verbose,
+        zerolag_rank_stat_pdf_file=zerolag_rank_stat_pdf_file,
+    )
+
     # Condition the data source if not doing an impulse test
     if data_source_info.data_source != "impulse":
         source_out_links, spectrum_out_links, whiten_latency_out_links = condition(
@@ -486,7 +558,7 @@ def inspiral(
         # connect itacacac
 
         itacacac_pads = ("stillsuit",)
-        if ranking_stat_output is not None:
+        if output_likelihood_file is not None:
             strike_pad = "strike"
             itacacac_pads += (strike_pad,)
         else:
@@ -573,7 +645,7 @@ def inspiral(
                     process_params=process_params,
                     program="sgnl-inspiral",
                     injection_list=injection_list,
-                    is_online=data_source_info == "devshm",
+                    is_online=IS_ONLINE,
                     nsubbank_pretend=bool(nsubbank_pretend),
                 ),
             )
@@ -581,20 +653,15 @@ def inspiral(
             #
             # Strike - background output
             #
-            if ranking_stat_output is not None:
+            if output_likelihood_file is not None:
                 strike_sink = StrikeSink(
                     name="StrikeSnk",
                     ifos=data_source_info.all_analysis_ifos,
-                    all_template_ids=sorted_bank.template_ids.numpy(),
+                    strike_object=strike_object,
+                    is_online=IS_ONLINE,
                     bankids_map=sorted_bank.bankids_map,
-                    ranking_stat_output={
-                        k: ranking_stat_output[i]
-                        for i, k in enumerate(sorted_bank.bankids_map)
-                    },
-                    coincidence_threshold=coincidence_threshold,
                     background_pad="trigs",
                     horizon_pads=["horizon_" + ifo for ifo in ifos],
-                    zerolag_pad="zerolag" if IS_ONLINE else None,
                 )
                 pipeline.insert(
                     strike_sink,
@@ -617,10 +684,7 @@ def inspiral(
                     )
                     pipeline.insert(
                         link_map={
-                            "StrikeSnk:snk:horizon_"
-                            + ifo: ifo
-                            + "_Horizon:src:"
-                            + ifo,
+                            "StrikeSnk:snk:horizon_" + ifo: ifo + "_Horizon:src:" + ifo,
                         }
                     )
             else:
@@ -642,7 +706,7 @@ def inspiral(
                         sink_pad_names=("trigs",),
                         event_pad="trigs",
                         kafka_pad="kafka",
-                        zerolag_pad="zerolag",
+                        strike_object=strike_object,
                     ),
                     GraceDBSink(
                         name="gracedb",
@@ -661,12 +725,12 @@ def inspiral(
                         analysis_tag=analysis_tag,
                         job_tag=job_tag,
                         delta_t=coincidence_threshold,
+                        strike_object=strike_object,
                     ),
                     link_map={
                         "StrikeTransform:snk:trigs": "Itacacac:src:stillsuit",
                         "StillSuitSnk:snk:trigs": "StrikeTransform:src:trigs",
                         "gracedb:snk:event": "StrikeTransform:src:trigs",
-                        "StrikeSnk:snk:zerolag": "StrikeTransform:src:zerolag",
                     },
                 )
                 pipeline.insert(
@@ -819,35 +883,39 @@ def main():
         data_source_info=data_source_info,
         condition_info=condition_info,
         svd_bank=options.svd_bank,
-        trigger_finding_duration=options.trigger_finding_duration,
-        snr_min=options.snr_min,
+        analysis_tag=options.analysis_tag,
         coincidence_threshold=options.coincidence_threshold,
         event_config=options.event_config,
-        trigger_output=options.trigger_output,
-        ranking_stat_output=options.output_likelihood_file,
-        torch_dtype=options.torch_dtype,
-        torch_device=options.torch_device,
-        injections=options.injections,
-        injection_file=options.injection_file,
-        reconstruct_inj_segments=options.reconstruct_inj_segments,
-        analysis_tag=options.analysis_tag,
-        job_tag=options.job_tag,
-        output_kafka_server=options.output_kafka_server,
+        fake_sink=options.fake_sink,
+        far_trials_factor=options.far_trials_factor,
         gracedb_far_threshold=options.gracedb_far_threshold,
         gracedb_group=options.gracedb_group,
+        gracedb_label=options.gracedb_label,
         gracedb_pipeline=options.gracedb_pipeline,
         gracedb_search=options.gracedb_search,
-        gracedb_label=options.gracedb_label,
         gracedb_service_url=options.gracedb_service_url,
-        fake_sink=options.fake_sink,
-        verbose=options.verbose,
         graph_name=options.graph_name,
         impulse_bank=options.impulse_bank,
         impulse_bankno=options.impulse_bankno,
         impulse_ifo=options.impulse_ifo,
+        injections=options.injections,
+        injection_file=options.injection_file,
+        input_likelihood_file=options.input_likelihood_file,
+        job_tag=options.job_tag,
         nsubbank_pretend=options.nsubbank_pretend,
         nslice=options.nslice,
+        output_kafka_server=options.output_kafka_server,
+        output_likelihood_file=options.output_likelihood_file,
         process_params=process_params,
+        rank_stat_pdf_file=options.rank_stat_pdf_file,
+        reconstruct_inj_segments=options.reconstruct_inj_segments,
+        snr_min=options.snr_min,
+        torch_device=options.torch_device,
+        torch_dtype=options.torch_dtype,
+        trigger_finding_duration=options.trigger_finding_duration,
+        trigger_output=options.trigger_output,
+        verbose=options.verbose,
+        zerolag_rank_stat_pdf_file=options.zerolag_rank_stat_pdf_file,
     )
 
 

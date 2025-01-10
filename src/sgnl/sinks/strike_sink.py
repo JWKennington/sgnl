@@ -1,16 +1,12 @@
 """A sink element to write out triggers to likelihood ratio class in strike."""
 
-# Copyright (C) 2024 Yun-Jing Huang, Prathamesh Joshi, Leo Tsukada
+# Copyright (C) 2024-2025 Yun-Jing Huang, Chad Hanna, Prathamesh Joshi, Leo Tsukada
 
 import io
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
-
-from strike.stats import likelihood_ratio
-from strike.stats.far import RankingStatPDF
 
 from sgnl.control import SnapShotControlSinkElement
+from sgnl.strike_object import StrikeObject
 
 
 @dataclass
@@ -33,49 +29,35 @@ def xml_string(rstat):
 @dataclass
 class StrikeSink(SnapShotControlSinkElement):
     ifos: list[str] = None
-    all_template_ids: Sequence[Any] = None
+    is_online: bool = False
+    strike_object: StrikeObject = None
     bankids_map: dict[str, list] = None
-    ranking_stat_output: dict[str, str] = None
-    coincidence_threshold: float = None
     background_pad: str = None
     horizon_pads: list[str] = None
-    zerolag_pad: str = None
 
     def __post_init__(self):
         assert isinstance(self.ifos, list)
         assert isinstance(self.background_pad, str)
         assert isinstance(self.horizon_pads, list)
-        self.sink_pad_names = (
-            (self.background_pad,) + tuple(self.horizon_pads) + (self.zerolag_pad,)
-        )
-        super().__post_init__()
-        self.ranking_stats = {}
-        if self.zerolag_pad is not None:
-            self.zerolagpdfs = {}
-        self.state_dict = {"xml": {}, "zerolagxml": {}}
-        for bankid, ids in self.bankids_map.items():
-            four_digit_id = "%04d" % int(bankid)
-            bank_template_ids = self.all_template_ids[ids]
-            bank_template_ids = tuple(bank_template_ids[bank_template_ids != -1])
-            # Ranking stat output
-            rstat = likelihood_ratio.LnLikelihoodRatio(
-                template_ids=bank_template_ids,
-                instruments=self.ifos,
-                delta_t=self.coincidence_threshold,
-            )
-            self.ranking_stats[bankid] = rstat
-            self.add_snapshot_filename(
-                "%s_SGNL_INSPIRAL_DIST_STATS" % four_digit_id, "xml.gz"
-            )
-            self.state_dict["xml"][four_digit_id] = xml_string(
-                self.ranking_stats[bankid]
-            )
+        assert self.strike_object is not None
+        self.sink_pad_names = (self.background_pad,) + tuple(self.horizon_pads)
 
-            if self.zerolag_pad is not None:
-                # FIXME: add option to read in existing files
-                self.zerolagpdfs[bankid] = RankingStatPDF(rstat, nsamples=0)
+        super().__post_init__()
+
+        if self.is_online:
+            # setup bottle
+            self.state_dict = {"xml": {}, "zerolagxml": {}}
+
+            for bankid in self.bankids_map:
+                four_digit_id = "%04d" % int(bankid)
+                self.add_snapshot_filename(
+                    "%s_SGNL_LIKELIHOOD_RATIO" % four_digit_id, "xml.gz"
+                )
+                self.state_dict["xml"][four_digit_id] = xml_string(
+                    self.strike_object.likelihood_ratios[bankid]
+                )
                 self.state_dict["zerolagxml"][four_digit_id] = xml_string(
-                    self.zerolagpdfs[bankid]
+                    self.strike_object.zerolag_rank_stat_pdfs[bankid]
                 )
 
     def pull(self, pad, frame):
@@ -117,7 +99,9 @@ class StrikeSink(SnapShotControlSinkElement):
                                     template_id=tid,
                                 )
                                 bg_events.append(bg_event)
-                        self.ranking_stats[bankid].train_noise(bg_events)
+                        self.strike_object.likelihood_ratios[bankid].train_noise(
+                            bg_events
+                        )
             #
             # Trigger rates
             #
@@ -127,9 +111,9 @@ class StrikeSink(SnapShotControlSinkElement):
             for ifo, trigger_rate in trigger_rates.items():
                 for bankid in self.bankids_map:
                     buf_seg, count = trigger_rate[bankid]
-                    self.ranking_stats[bankid].terms["P_of_tref_Dh"].triggerrates[
-                        ifo
-                    ].add_ratebin(list(buf_seg), count)
+                    self.strike_object.likelihood_ratios[bankid].terms[
+                        "P_of_tref_Dh"
+                    ].triggerrates[ifo].add_ratebin(list(buf_seg), count)
 
         elif self.rsnks[pad] in self.horizon_pads:
             if frame["data"].data is not None:  # happens for the first few buffers
@@ -148,35 +132,40 @@ class StrikeSink(SnapShotControlSinkElement):
                 for bankid in self.bankids_map:
                     # self.ranking_stats[bankid].horizon_history[ifo][horizon_time]
                     # = horizon
-                    self.ranking_stats[bankid].terms["P_of_tref_Dh"].horizon_history[
-                        ifo
-                    ][horizon_time] = horizon[bankid]
-
-        elif self.zerolag_pad is not None and self.rsnks[pad] == self.zerolag_pad:
-            zerolags = frame["zerolag"].data
-            for z in zerolags:
-                if "likelihood" in z:
-                    self.zerolagpdfs[z["bankid"]].zero_lag_lr_lnpdf.count[
-                        z["likelihood"],
-                    ] += 1
+                    self.strike_object.likelihood_ratios[bankid].terms[
+                        "P_of_tref_Dh"
+                    ].horizon_history[ifo][horizon_time] = horizon[bankid]
 
     def internal(self):
         SnapShotControlSinkElement.exchange_state(self.name, self.state_dict)
         if self.at_eos:
-            for bankid in self.bankids_map:
-                # FIXME correct file name assignment
-                # write ranking stats file
-                self.ranking_stats[bankid].save(self.ranking_stat_output[bankid])
-        if self.snapshot_ready():
-            for bankid, fn in zip(self.bankids_map, self.snapshot_filenames()):
-                four_digit_id = "%04d" % int(bankid)
-                self.state_dict["xml"][four_digit_id] = xml_string(
-                    self.ranking_stats[bankid]
-                )
-                self.ranking_stats[bankid].save(fn)
-                self.state_dict["zerolagxml"][four_digit_id] = xml_string(
-                    self.zerolagpdfs[bankid]
-                )
-                self.zerolagpdfs[bankid].save(
-                    fn.replace("DIST_STATS", "ZEROLAG_RANK_STAT_PDFS")
-                )
+            if self.is_online:
+                self.on_snapshot()
+            else:
+                for bankid in self.bankids_map:
+                    self.strike_object.likelihood_ratios[bankid].save(
+                        self.strike_object.output_likelihood_file[bankid]
+                    )
+        else:
+            if self.is_online and self.snapshot_ready():
+                self.on_snapshot()
+
+    def on_snapshot(self):
+        for bankid in self.bankids_map:
+            four_digit_id = "%04d" % int(bankid)
+
+            # update bottle
+            self.state_dict["xml"][four_digit_id] = xml_string(
+                self.strike_object.likelihood_ratios[bankid]
+            )
+            self.state_dict["zerolagxml"][four_digit_id] = xml_string(
+                self.strike_object.zerolag_rank_stat_pdfs[bankid]
+            )
+
+        # Update lr assignment
+        self.strike_object.update_assign_lr()
+
+        # Update FAP/FAR assignment
+        self.strike_object.load_rank_stat_pdf()
+
+        self.strike_object.save_snapshot(self.snapshot_filenames)
