@@ -28,7 +28,13 @@ from sgnl.control import SnapShotControl
 from sgnl.sinks import GraceDBSink, ImpulseSink, StillSuitSink, StrikeSink
 from sgnl.sort_bank import SortedBank, group_and_read_banks
 from sgnl.strike_object import StrikeObject
-from sgnl.transforms import HorizonDistanceTracker, Itacacac, StrikeTransform, lloid
+from sgnl.transforms import (
+    EyeCandy,
+    HorizonDistanceTracker,
+    Itacacac,
+    StrikeTransform,
+    lloid,
+)
 
 LOGGER = get_sgn_logger("sgn-ts")
 
@@ -524,6 +530,7 @@ def inspiral(
                     sink_pad_names=("data",),
                     source_pad_names=("latency",),
                     route=ifo + "_snrSlice_latency",
+                    interval=1,
                 ),
                 link_map={ifo + "_snrSlice_latency:snk:data": link},
             )
@@ -563,11 +570,6 @@ def inspiral(
             itacacac_pads += (strike_pad,)
         else:
             strike_pad = None
-        if output_kafka_server is not None:
-            kafka_pad = "kafka"
-            itacacac_pads += (kafka_pad,)
-        else:
-            kafka_pad = None
 
         pipeline.insert(
             Itacacac(
@@ -584,7 +586,7 @@ def inspiral(
                 coincidence_threshold=coincidence_threshold,
                 stillsuit_pad="stillsuit",
                 strike_pad=strike_pad,
-                kafka_pad=kafka_pad,
+                is_online=IS_ONLINE,
             ),
         )
         for ifo in ifos:
@@ -600,8 +602,9 @@ def inspiral(
                     sink_pad_names=("data",),
                     source_pad_names=("latency",),
                     route="all_itacacac_latency",
+                    interval=1,
                 ),
-                link_map={"ItacacacLatency:snk:data": "Itacacac:src:" + kafka_pad},
+                link_map={"ItacacacLatency:snk:data": "Itacacac:src:stillsuit"},
             )
 
         # Connect sink
@@ -647,12 +650,15 @@ def inspiral(
                     injection_list=injection_list,
                     is_online=IS_ONLINE,
                     nsubbank_pretend=bool(nsubbank_pretend),
+                    injections=injections,
                 ),
             )
 
             #
             # Strike - background output
             #
+            # FIXME: update online injection logic, StrikeSink is needed only for
+            # updating files on snapshot
             if output_likelihood_file is not None:
                 strike_sink = StrikeSink(
                     name="StrikeSnk",
@@ -704,9 +710,14 @@ def inspiral(
                     StrikeTransform(
                         name="StrikeTransform",
                         sink_pad_names=("trigs",),
-                        event_pad="trigs",
-                        kafka_pad="kafka",
+                        source_pad_names=("trigs",),
                         strike_object=strike_object,
+                    ),
+                    EyeCandy(
+                        name="EyeCandy",
+                        sink_pad_names=("trigs",),
+                        source_pad_names=("trigs",),
+                        template_sngls=sorted_bank.sngls,
                     ),
                     GraceDBSink(
                         name="gracedb",
@@ -731,6 +742,7 @@ def inspiral(
                         "StrikeTransform:snk:trigs": "Itacacac:src:stillsuit",
                         "StillSuitSnk:snk:trigs": "StrikeTransform:src:trigs",
                         "gracedb:snk:event": "StrikeTransform:src:trigs",
+                        "EyeCandy:snk:trigs": "StrikeTransform:src:trigs",
                     },
                 )
                 pipeline.insert(
@@ -760,9 +772,8 @@ def inspiral(
                     KafkaSink(
                         name="KafkaSnk",
                         sink_pad_names=(
-                            "itacacac_kafka",
                             "itacacac_latency",
-                            "strike_kafka",
+                            "eyecandy_kafka",
                         )
                         + tuple(ifo + "_datasource_latency" for ifo in ifos)
                         + tuple(ifo + "_whiten_latency" for ifo in ifos)
@@ -773,10 +784,7 @@ def inspiral(
                             for ifo in ifos
                         ]
                         + [
-                            "sgnl." + analysis_tag + ".latency_history_max",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".latency_history_median",
+                            "sgnl." + analysis_tag + ".latency_history",
                         ]
                         + [
                             "sgnl." + analysis_tag + ".all_itacacac_latency",
@@ -797,6 +805,9 @@ def inspiral(
                             "sgnl." + analysis_tag + ".coinc",
                         ]
                         + [
+                            "sgnl." + analysis_tag + ".uptime",
+                        ]
+                        + [
                             "sgnl." + analysis_tag + "." + ifo + "_datasource_latency"
                             for ifo in ifos
                         ]
@@ -808,11 +819,12 @@ def inspiral(
                             "sgnl." + analysis_tag + "." + ifo + "_snrSlice_latency"
                             for ifo in ifos
                         ],
+                        tag=job_tag,
+                        prefix="inj_" if "_inj" in job_tag else "",
                     ),
                     link_map={
-                        "KafkaSnk:snk:itacacac_kafka": "Itacacac:src:" + kafka_pad,
                         "KafkaSnk:snk:itacacac_latency": "ItacacacLatency:src:latency",
-                        "KafkaSnk:snk:strike_kafka": "StrikeTransform:src:kafka",
+                        "KafkaSnk:snk:eyecandy_kafka": "EyeCandy:src:trigs",
                     },
                 )
                 for ifo in ifos:
@@ -838,7 +850,10 @@ def inspiral(
     # Run pipeline
     if IS_ONLINE:
         if re.match(r"^\d{4}", job_tag):
-            HTTPControl.port = "5%s" % job_tag[:4]
+            if injections:
+                HTTPControl.port = "6%s" % job_tag[:4]
+            else:
+                HTTPControl.port = "5%s" % job_tag[:4]
         HTTPControl.tag = analysis_tag
         HTTPControl.registry_file = "%s_registry.txt" % job_tag
         with SnapShotControl():

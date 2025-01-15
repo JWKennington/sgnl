@@ -297,8 +297,8 @@ class DataCache:
 
         # generate the cache
         cache = []
-        for ifo, time_bins in time_bins.items():
-            for span in time_bins:
+        for ifo, time_bin in time_bins.items():
+            for span in time_bin:
                 path = cls._data_path(
                     name, start=span[0], root=root, create=create_dirs
                 )
@@ -455,7 +455,7 @@ class DataType(DataFileMixin, Enum):
     MARG_LIKELIHOOD_RATIO_PRIOR = (23, "xml.gz")
     RANK_STAT_PDFS = (30, "xml.gz")
     POST_RANK_STAT_PDFS = (31, "xml.gz")
-    ZEROLAG_DIST_STAT_PDFS = (32, "xml.gz")
+    ZEROLAG_RANK_STAT_PDFS = (32, "xml.gz")
     TEMPLATE_BANK = (40, "xml.gz")
     SPLIT_BANK = (41, "xml.gz")
     SVD_BANK = (42, "xml.gz")
@@ -507,3 +507,11 @@ def T050017_filename(instruments, description, seg, extension, path=None):
         )
     else:
         return "%s-%s-%d-%d.%s" % (instruments, description, start, duration, extension)
+
+
+def groups(lt, n):
+    """!
+    Given a list, returns back sublists with a maximum size n.
+    """
+    for i in range(0, len(lt), n):
+        yield lt[i : i + n]

@@ -174,6 +174,7 @@ def process_svd_bin(
         # load the old ranking stat pdf for this bin:
         old_pdf = far.RankingStatPDF.load(pdf_path, verbose=verbose)
     else:
+        # FIXME: should we provide an empty file in the setup dag?
         logger.warning("Couldn't find %s, starting from scratch", pdf_path)
         old_pdf = None
 

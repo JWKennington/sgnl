@@ -10,7 +10,6 @@ element
 from __future__ import annotations
 
 import math
-import resource
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import combinations
@@ -20,7 +19,6 @@ import lal
 import numpy as np
 import torch
 from ligo import segments
-from sgnligo.base import now
 from sgnts.base import (
     AdapterConfig,
     Array,
@@ -87,8 +85,6 @@ class Itacacac(TSTransform):
             str, the source pad name to output triggers to stillsuit
         stillsuit_pad:
             str, the source pad name to output background triggers to strike
-        kafka_pad:
-            str, the source pad name to output data to kafka
     """
 
     sample_rate: int = None
@@ -102,7 +98,7 @@ class Itacacac(TSTransform):
     coincidence_threshold: float = 0
     strike_pad: str = None
     stillsuit_pad: str = None
-    kafka_pad: str = None
+    is_online: bool = False
 
     def __post_init__(self):
 
@@ -110,8 +106,6 @@ class Itacacac(TSTransform):
         self.source_pad_names = (self.stillsuit_pad,)
         if self.strike_pad is not None:
             self.source_pad_names += (self.strike_pad,)
-        if self.kafka_pad is not None:
-            self.source_pad_names += (self.kafka_pad,)
         self.trigger_finding_samples = self.trigger_finding_duration * self.sample_rate
         assert self.trigger_finding_samples == int(
             self.trigger_finding_samples
@@ -589,7 +583,7 @@ class Itacacac(TSTransform):
             phase = torch.atan2(imag, real)
             sngls[ifo]["phase"] = phase.to("cpu").numpy()[mask]
 
-            if self.kafka_pad is not None:
+            if self.is_online:
                 # get snr snippet around the peak for the clustered coincs
                 # only for online case
                 snr_ts_snippet_clustered[ifo] = (
@@ -630,6 +624,26 @@ class Itacacac(TSTransform):
             self.make_coincs(triggers)
         )
 
+        self.max_snr_histories = {}
+        if self.is_online:
+            for ifo, snr in triggers["snrs"].items():
+                maxsnr_id = np.unravel_index(
+                    torch.argmax(snr).to("cpu").numpy(), snr.shape
+                )
+                max_snr = float(snr[maxsnr_id])
+                if max_snr >= self.snr_min:
+                    time = triggers["peak_locations"][ifo][maxsnr_id].to("cpu").numpy()
+                    time = (
+                        np.round(
+                            (Offset.fromsamples(time, self.rate) + self.offset)
+                            / Offset.MAX_RATE
+                            * 1_000_000_000
+                        ).astype(int)
+                        + Offset.offset_ref_t0
+                        + self.end_time_delta[maxsnr_id[0]]
+                    ) / 1_000_000_000
+                    self.max_snr_histories[ifo] = {"time": time, "snr": max_snr}
+
         # FIXME: this part and clustered_coinc is lowering the GPU utilization
         for trig_type in triggers.keys():
             if trig_type != "snr_ts_snippet":
@@ -655,64 +669,6 @@ class Itacacac(TSTransform):
             single_background_masks,
             clustered_coinc,
         )
-
-    def output_kafka(self, triggers, clustered_coinc, ts, te):
-        kafkadata = {}
-        mincoinc_time = min(
-            float(np.min(sngls["time"])) for sngls in clustered_coinc["sngls"].values()
-        )
-        mediancoinc_time = np.median(
-            list(
-                float(np.min(sngls["time"]))
-                for sngls in clustered_coinc["sngls"].values()
-            )
-        ).item()
-        trig_snrs = triggers["snrs"]
-        trig_peak_locations = triggers["peak_locations"]
-        for ifo, snr in trig_snrs.items():
-            maxsnr_id = np.unravel_index(np.argmax(snr), snr.shape)
-            kafkadata[ifo + "_snr_history"] = {
-                "time": [
-                    (
-                        np.round(
-                            (
-                                Offset.fromsamples(
-                                    trig_peak_locations[ifo][maxsnr_id],
-                                    self.rate,
-                                )
-                                + self.offset
-                            )
-                            / Offset.MAX_RATE
-                            * 1_000_000_000
-                        ).astype(int)
-                        + Offset.offset_ref_t0
-                        + self.end_time_delta[maxsnr_id[0]]
-                    )
-                    / 1_000_000_000
-                ],
-                "data": [
-                    trig_snrs[ifo][maxsnr_id].item(),
-                ],
-            }
-
-        # FIXME: find a better place to calculate ram
-        ram = (
-            resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-            + resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
-        ) / 1048576.0
-        kafkadata["ram_history"] = {"time": [float(now())], "data": [float(ram)]}
-
-        # kafkadata["events"] = {"time": float(now())}
-
-        kafkadata["latency_history_max"] = {
-            "time": [mincoinc_time / 1_000_000_000],
-            "data": [(now().ns() - mincoinc_time) / 1_000_000_000],
-        }
-        kafkadata["latency_history_median"] = {
-            "time": [mediancoinc_time / 1_000_000_000],
-            "data": [(now().ns() - mediancoinc_time) / 1_000_000_000],
-        }
-        return {"kafka": EventBuffer(ts=ts, te=te, data=kafkadata)}
 
     def output_background(self, triggers, single_background_masks, ts, te):
         # Populate background snr, chisq, time for each bank, ifo
@@ -810,7 +766,7 @@ class Itacacac(TSTransform):
                     trig["epoch_end"] = te
                     trigs_this_event.append(trig)
 
-                    if self.kafka_pad is not None:
+                    if self.is_online:
                         # Prepare the snr time series snippet
                         # snr time series for subthreshold ifos have length of the
                         # autocorrelation length
@@ -836,7 +792,7 @@ class Itacacac(TSTransform):
                         snr_ts_this_event[ifo] = None
                 else:
                     trigs_this_event.append(None)
-                    if self.kafka_pad is not None:
+                    if self.is_online:
                         # Get the subthreshold snr time series
                         # snr time series for subthreshold ifos have length of trigger
                         # finding window. This will be used for subthreshold trigger
@@ -890,6 +846,7 @@ class Itacacac(TSTransform):
             "event": EventBuffer(ts, te, data=out_events),
             "trigger": EventBuffer(ts, te, data=out_triggers),
             "snr_ts": EventBuffer(ts, te, data=out_snr_ts),
+            "max_snr_histories": EventBuffer(ts, te, data=self.max_snr_histories),
         }
 
     def internal(self):
@@ -923,15 +880,12 @@ class Itacacac(TSTransform):
                 "event": EventBuffer(ts, te, data=None),
                 "trigger": EventBuffer(ts, te, data=None),
                 "snr_ts": EventBuffer(ts, te, data=None),
+                "max_snr_histories": EventBuffer(ts, te, data=None),
             }
             if self.strike_pad is not None:
                 background_events = {
                     "background": EventBuffer(ts, te, data=None),
                     "trigger_rates": EventBuffer(ts, te, data=None),
-                }
-            if self.kafka_pad is not None:
-                kafka_events = {
-                    "kafka": EventBuffer(ts, te, data=None),
                 }
         else:
             (
@@ -947,15 +901,12 @@ class Itacacac(TSTransform):
                     "event": EventBuffer(ts, te, data=None),
                     "trigger": EventBuffer(ts, te, data=None),
                     "snr_ts": EventBuffer(ts, te, data=None),
+                    "max_snr_histories": EventBuffer(
+                        ts, te, data=self.max_snr_histories
+                    ),
                 }
-                if self.kafka_pad is not None:
-                    kafka_events = {
-                        "kafka": EventBuffer(ts, te, data=None),
-                    }
             else:
                 events = self.output_events(clustered_coinc, ts, te)
-                if self.kafka_pad is not None:
-                    kafka_events = self.output_kafka(triggers, clustered_coinc, ts, te)
 
             if self.strike_pad is not None:
                 background_events = self.output_background(
@@ -968,10 +919,6 @@ class Itacacac(TSTransform):
         if self.strike_pad is not None:
             self.output_frames[self.strike_pad] = EventFrame(
                 events=background_events, EOS=frame.EOS
-            )
-        if self.kafka_pad is not None:
-            self.output_frames[self.kafka_pad] = EventFrame(
-                events=kafka_events, EOS=frame.EOS
             )
 
     def new(self, pad):

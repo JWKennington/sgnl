@@ -151,7 +151,6 @@ h1_range:
 		--psd-fft-length 4 \
 		--input-sample-rate 16384 \
 		--channel-name H1=FAKE \
-		--scald-config inspiral.yml \
 		--output-kafka-server ${KAFKA_SERVER} \
 		--analysis-tag ${TAG}
 
@@ -161,7 +160,6 @@ l1_range:
 		--psd-fft-length 4 \
 		--input-sample-rate 16384 \
 		--channel-name L1=FAKE \
-		--scald-config inspiral.yml \
 		--output-kafka-server ${KAFKA_SERVER} \
 		--analysis-tag ${TAG}
 
@@ -171,7 +169,6 @@ v1_range:
 		--psd-fft-length 4 \
 		--input-sample-rate 16384 \
 		--channel-name V1=FAKE \
-		--scald-config inspiral.yml \
 		--output-kafka-server ${KAFKA_SERVER} \
 		--analysis-tag ${TAG}
 

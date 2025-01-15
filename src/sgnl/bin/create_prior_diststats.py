@@ -65,6 +65,7 @@ def parse_command_line():
     parser.add_argument(
         "--output-likelihood-file",
         metavar="filename",
+        action="append",
         help="Write merged raw likelihood data to this LIKELIHOOD_RATIO file.",
     )
     parser.add_argument(
@@ -121,6 +122,7 @@ def parse_command_line():
     parser.add_argument(
         "--write-empty-rankingstatpdf",
         metavar="filename",
+        action="append",
         help="If provided, the rankingstat created in this script will be used to "
         "bootstrap the creation of an empty rankingstatpdf. This option is meant to be "
         "used during the setup stage of an online analysis to create the zerolag pdf "
@@ -290,22 +292,24 @@ def main():
     # if provided, create an empty rankingstatpdf too
     #
 
-    if options.write_empty_rankingstatpdf:
-        rankingstatpdf = far.RankingStatPDF(rankingstat, nsamples=0)
-        rankingstatpdf.save(
-            options.write_empty_rankingstatpdf,
-            process_name="sgnl-create-prior-diststats",
-            process_params={},
-            verbose=options.verbose,
-        )
+    for filename in options.write_empty_rankingstatpdf:
+        if options.write_empty_rankingstatpdf:
+            rankingstatpdf = far.RankingStatPDF(rankingstat, nsamples=0)
+            rankingstatpdf.save(
+                filename,
+                process_name="sgnl-create-prior-diststats",
+                process_params=process_params,
+                verbose=options.verbose,
+            )
 
     #
     # record results in output file
     #
 
-    rankingstat.save(
-        url=options.output_likelihood_file,
-        process_name="strike_create_prior_diststats",
-        process_params=process_params,
-        verbose=options.verbose,
-    )
+    for filename in options.output_likelihood_file:
+        rankingstat.save(
+            url=filename,
+            process_name="sgnl-create-prior-diststats",
+            process_params=process_params,
+            verbose=options.verbose,
+        )

@@ -50,7 +50,7 @@ def main():
         "network_snr": "snr",
         "network_chisq_weighted_snr": "eff snr",
         "likelihood": "logL",
-        "far": "far",
+        "combined_far": "far",
     }
     tables_section.append(
         {
@@ -62,7 +62,7 @@ def main():
                     "network_snr": (lambda x: "%.3f" % x),
                     "network_chisq_weighted_snr": (lambda x: "%.3f" % x),
                     "likelihood": (lambda x: "%.2f" % x),
-                    "far": (lambda x: "%.2e" % x),
+                    "combined_far": (lambda x: "%.2e" % x),
                 },
             ),
             "table-headers": table_headers,

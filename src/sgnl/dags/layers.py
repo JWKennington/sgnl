@@ -1,38 +1,20 @@
-# Copyright (C) 2020  Patrick Godwin (patrick.godwin@ligo.org)
-# Copyright (C) 2024  Cort Posnansky (cort.posnansky@ligo.org)
-#
-# This program is free software; you can redistribute it and/or modify it
-# under the terms of the GNU General Public License as published by the
-# Free Software Foundation; either version 2 of the License, or (at your
-# option) any later version.
-#
-# This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the GNU General
-# Public License for more details.
-#
-# You should have received a copy of the GNU General Public License along
-# with this program; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+"""A module to contruct layers in a DAG for inspiral workflows."""
 
+# Copyright (C) 2020       Patrick Godwin
+# Copyright (C) 2024-2025  Yun-Jing Huang, Cort Posnansky
 
+import itertools
 import os
 
 from ezdag import Argument, Layer, Node, Option
 
 from sgnl.dags import util
-from sgnl.dags.util import condor_scratch_space, format_ifo_args, to_ifo_list
-
-# from gstlal import plugins
-# from gstlal.datafind import DataType, DataCache
-# from gstlal.dags import Argument, Option
-# from gstlal.dags import util as dagutil
-# from gstlal.dags.layers import Layer, Node
+from sgnl.dags.util import condor_scratch_space, format_ifo_args, groups, to_ifo_list
 
 DEFAULT_MAX_FILES = 500
 
 
-def create_layer(executable, condor_config, resource_requests, name=None):
+def create_layer(executable, condor_config, resource_requests, retries=3, name=None):
     # Default submit file options
     submit_description = create_submit_description(condor_config)
 
@@ -44,7 +26,7 @@ def create_layer(executable, condor_config, resource_requests, name=None):
         submit_description.update(condor_config[executable])
 
     # Set file transfer
-    if condor_config.transfer_files:
+    if condor_config.transfer_files is not None:
         transfer_files = condor_config.transfer_files
     else:
         transfer_files = True
@@ -54,6 +36,7 @@ def create_layer(executable, condor_config, resource_requests, name=None):
         name=name if name else executable,
         transfer_files=transfer_files,
         submit_description=submit_description,
+        retries=retries,
     )
 
 
@@ -572,6 +555,8 @@ def create_prior(
     prior_cache,
     ifos,
     min_ifos,
+    write_empty_zerolag=None,
+    write_empty_marg_zerolag=None,
 ):
     executable = "sgnl-create-prior-diststats"
     resource_requests = {
@@ -587,15 +572,37 @@ def create_prior(
         Option("min-instruments", min_ifos),
         Option("coincidence-threshold", coincidence_threshold),
     ]
-    for svd_bin, prior in prior_cache.groupby("bin").items():
+    zerolag_pdf = write_empty_zerolag.groupby("bin")
+    marg_zerolag_pdf = write_empty_marg_zerolag.files[0]
+    for i, (svd_bin, prior) in enumerate(prior_cache.groupby("bin").items()):
         inputs = [
             Option("svd-file", svd_banks[svd_bin].files),
             Option("mass-model-file", mass_model),
         ]
+        outputs = [Option("output-likelihood-file", prior.files)]
+        if write_empty_zerolag:
+            # create an empty rankingstatpdf using the first svd bin's prior file
+            # as a bootstrap. This is meant to be used during the setup stage of
+            # an online analysis to create the zerolag pdf file
+            if i == 0:
+                outputs += [
+                    Option(
+                        "write-empty-rankingstatpdf",
+                        zerolag_pdf[(svd_bin)].files + [marg_zerolag_pdf],
+                    )
+                ]
+            else:
+                outputs += [
+                    Option(
+                        "write-empty-rankingstatpdf",
+                        zerolag_pdf[(svd_bin)].files + [" /dev/null"],
+                    )
+                ]
+
         layer += Node(
             arguments=arguments,
             inputs=inputs,
-            outputs=Option("output-likelihood-file", prior.files),
+            outputs=outputs,
         )
 
     return layer
@@ -1004,3 +1011,677 @@ def summary_page(
             )
 
     return [seg_layer, sim_layer, results_layer]
+
+
+def filter_online(
+    psd_config,
+    filter_config,
+    upload_config,
+    services_config,
+    source_config,
+    condor_config,
+    ref_psd_cache,
+    svd_bank_cache,
+    lr_cache,
+    svd_stats,
+    zerolag_pdf_cache,
+    marg_pdf_cache,
+    ifos,
+    tag,
+):
+    executable = "sgnl-inspiral"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "5GB",
+        "request_disk": "2GB",
+    }
+    layer = create_layer(executable, condor_config, resource_requests, retries=1000)
+
+    assert source_config.data_source == "devshm"
+
+    # set up common options
+    common_opts = [
+        Option("data-source", "devshm"),
+        Option("source-queue-timeout", source_config.source_queue_timeout),
+        Option(
+            "shared-memory-dir", format_ifo_args(ifos, source_config.shared_memory_dir)
+        ),
+        Option("track-psd"),
+        Option("psd-fft-length", psd_config.fft_length),
+        Option("channel-name", format_ifo_args(ifos, source_config.channel_name)),
+        Option(
+            "state-channel-name",
+            format_ifo_args(ifos, source_config.state_channel_name),
+        ),
+        Option(
+            "state-vector-on-bits",
+            format_ifo_args(ifos, source_config.state_vector_on_bits),
+        ),
+        # Option("tmp-space", dagutil.condor_scratch_space()),
+        Option("coincidence-threshold", filter_config.coincidence_threshold),
+        Option("analysis-tag", tag),
+        Option("far-trials-factor", upload_config.far_trials_factor),
+        Option("gracedb-far-threshold", upload_config.gracedb_far_threshold),
+        # Option("likelihood-snapshot-interval",
+        # config.filter.likelihood_snapshot_interval),
+        # Option("snr-min", filter_config.snr_min),
+    ]
+
+    # Set torch-dtype
+    if filter_config.torch_dtype:
+        torch_dtype = filter_config.torch_dtype
+    else:
+        torch_dtype = "float32"
+    common_opts.append(Option("torch-dtype", torch_dtype))
+
+    # Set torch-device
+    if filter_config.torch_device:
+        torch_device = filter_config.torch_device
+    else:
+        torch_device = "cpu"
+    common_opts.append(Option("torch-device", torch_device))
+
+    # Set trigger-finding-duration
+    if filter_config.trigger_finding_duration:
+        trigger_finding_duration = filter_config.trigger_finding_duration
+    else:
+        trigger_finding_duration = 1
+    common_opts.append(Option("trigger-finding-duration", trigger_finding_duration))
+
+    if services_config.kafka_server:
+        common_opts.append(Option("output-kafka-server", services_config.kafka_server))
+
+    if filter_config.cap_singles:
+        common_opts.append(Option("cap-singles"))
+
+    if filter_config.verbose:
+        common_opts.extend([Option("verbose")])
+
+    lrs = lr_cache.groupby("bin")
+    zerolag_pdfs = zerolag_pdf_cache.groupby("bin")
+
+    for svd_bin, svd_banks in svd_bank_cache.groupby("bin").items():
+        job_tag = f"{int(svd_bin):04d}_noninj"
+
+        filter_opts = [
+            Option("job-tag", job_tag),
+            # FIXME: fix gate threshold
+            # Option("ht-gate-threshold", calc_gate_threshold(config, svd_bin)),
+            Option("ht-gate-threshold", svd_stats.bins[svd_bin]["ht_gate_threshold"]),
+        ]
+
+        filter_opts.extend(common_opts)
+
+        layer += Node(
+            arguments=filter_opts,
+            inputs=[
+                Option("svd-bank", svd_banks.files),
+                Option("reference-psd", ref_psd_cache),
+                Option("event-config", filter_config.event_config_file),
+                Option("input-likelihood-file", lrs[svd_bin].files),
+                Option("rank-stat-pdf", marg_pdf_cache.files),
+            ],
+            outputs=[
+                Option("output-likelihood-file", lrs[svd_bin].files),
+                Option("zerolag-rank-stat-pdf", zerolag_pdfs[(svd_bin)].files),
+            ],
+        )
+
+    return layer
+
+
+def injection_filter_online(
+    psd_config,
+    filter_config,
+    upload_config,
+    services_config,
+    source_config,
+    condor_config,
+    ref_psd_cache,
+    svd_bank_cache,
+    lr_cache,
+    svd_stats,
+    marg_pdf_cache,
+    ifos,
+    tag,
+):
+    executable = "sgnl-inspiral"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "5GB",
+        "request_disk": "2GB",
+    }
+    layer = create_layer(
+        executable,
+        condor_config,
+        resource_requests,
+        retries=1000,
+        name=executable + "-inj",
+    )
+
+    assert source_config.data_source == "devshm"
+
+    # set up common options
+    common_opts = [
+        Option("data-source", "devshm"),
+        Option("source-queue-timeout", source_config.source_queue_timeout),
+        Option(
+            "shared-memory-dir",
+            format_ifo_args(ifos, source_config.inj_shared_memory_dir),
+        ),
+        Option("track-psd"),
+        Option("psd-fft-length", psd_config.fft_length),
+        Option("channel-name", format_ifo_args(ifos, source_config.inj_channel_name)),
+        Option(
+            "state-channel-name",
+            format_ifo_args(ifos, source_config.state_channel_name),
+        ),
+        Option(
+            "state-vector-on-bits",
+            format_ifo_args(ifos, source_config.state_vector_on_bits),
+        ),
+        # Option("tmp-space", dagutil.condor_scratch_space()),
+        Option("coincidence-threshold", filter_config.coincidence_threshold),
+        Option("analysis-tag", tag),
+        Option("far-trials-factor", upload_config.far_trials_factor),
+        Option("injections"),
+        # Option("likelihood-snapshot-interval",
+        # config.filter.likelihood_snapshot_interval),
+        # Option("snr-min", filter_config.snr_min),
+    ]
+
+    # Set torch-dtype
+    if filter_config.torch_dtype:
+        torch_dtype = filter_config.torch_dtype
+    else:
+        torch_dtype = "float32"
+    common_opts.append(Option("torch-dtype", torch_dtype))
+
+    # Set torch-device
+    if filter_config.torch_device:
+        torch_device = filter_config.torch_device
+    else:
+        torch_device = "cpu"
+    common_opts.append(Option("torch-device", torch_device))
+
+    # Set trigger-finding-duration
+    if filter_config.trigger_finding_duration:
+        trigger_finding_duration = filter_config.trigger_finding_duration
+    else:
+        trigger_finding_duration = 1
+    common_opts.append(Option("trigger-finding-duration", trigger_finding_duration))
+
+    if services_config.kafka_server:
+        common_opts.append(Option("output-kafka-server", services_config.kafka_server))
+
+    if filter_config.cap_singles:
+        common_opts.append(Option("cap-singles"))
+
+    if filter_config.verbose:
+        common_opts.extend([Option("verbose")])
+
+    lrs = lr_cache.groupby("bin")
+
+    for svd_bin, svd_banks in svd_bank_cache.groupby("bin").items():
+        job_tag = f"{int(svd_bin):04d}_inj"
+
+        filter_opts = [
+            Option("job-tag", job_tag),
+            # FIXME: fix gate threshold
+            # Option("ht-gate-threshold", calc_gate_threshold(config, svd_bin)),
+            Option("ht-gate-threshold", svd_stats.bins[svd_bin]["ht_gate_threshold"]),
+        ]
+
+        filter_opts.extend(common_opts)
+
+        layer += Node(
+            arguments=filter_opts,
+            inputs=[
+                Option("svd-bank", svd_banks.files),
+                Option("reference-psd", ref_psd_cache),
+                Option("event-config", filter_config.event_config_file),
+                Option("input-likelihood-file", lrs[svd_bin].files),
+                Option("rank-stat-pdf", marg_pdf_cache.files),
+            ],
+        )
+
+    return layer
+
+
+def marginalize_online(
+    condor_config, services_config, svd_bins, tag, marg_pdf_cache, fast_burnin=False
+):
+    executable = "sgnl-ll-marginalize-likelihoods-online"
+    resource_requests = {
+        "request_cpus": 2,
+        "request_memory": "4GB",
+        "request_disk": "5GB",
+    }
+    layer = create_layer(executable, condor_config, resource_requests, retries=1000)
+
+    registries = list(f"{int(svd_bin):04d}_noninj_registry.txt" for svd_bin in svd_bins)
+    arguments = [
+        Option("registry", registries),
+        Option("output", list(marg_pdf_cache.files)),
+        Option("output-kafka-server", services_config.kafka_server),
+        Option("tag", tag),
+        Option("verbose"),
+    ]
+
+    if fast_burnin:
+        arguments.append(Option("fast-burnin"))
+
+    layer += Node(arguments=arguments)
+
+    return layer
+
+
+def track_noise(
+    condor_config,
+    source_config,
+    filter_config,
+    psd_config,
+    metrics_config,
+    services_config,
+    ifos,
+    tag,
+    ref_psd,
+    injection=False,
+):
+    executable = "sgnl-ll-dq"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "1GB",
+    }
+    if injection is True:
+        name = executable + "-inj"
+    else:
+        name = executable
+
+    layer = create_layer(
+        executable, condor_config, resource_requests, retries=1000, name=name
+    )
+
+    assert source_config.data_source == "devshm"
+    for ifo in ifos:
+        if injection is True:
+            channel_names = [source_config.inj_channel_name[ifo]]
+        else:
+            channel_names = [source_config.channel_name[ifo]]
+        for channel in channel_names:
+            # set up datasource options
+            if injection is True:
+                memory_location = source_config.inj_shared_memory_dir[ifo]
+            else:
+                memory_location = source_config.shared_memory_dir[ifo]
+            arguments = [
+                Option("data-source", "devshm"),
+                Option("shared-memory-dir", f"{ifo}={memory_location}"),
+            ]
+            if injection is True:
+                arguments.append(Option("injections"))
+
+            arguments.extend(
+                [
+                    Option("analysis-tag", tag),
+                    Option("psd-fft-length", psd_config.fft_length),
+                    Option("channel-name", f"{ifo}={channel}"),
+                    Option(
+                        "state-channel-name",
+                        f"{ifo}={source_config.state_channel_name[ifo]}",
+                    ),
+                    Option(
+                        "state-vector-on-bits",
+                        f"{ifo}={source_config.state_vector_on_bits[ifo]}",
+                    ),
+                    Option("reference-psd", ref_psd),
+                ]
+            )
+
+            if services_config.kafka_server:
+                arguments.extend(
+                    [Option("output-kafka-server", services_config.kafka_server)]
+                )
+
+            layer += Node(arguments=arguments)
+
+    return layer
+
+
+def count_events(condor_config, services_config, upload_config, tag, zerolag_pdf):
+    executable = "sgnl-ll-trigger-counter"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "1GB",
+    }
+    layer = create_layer(executable, condor_config, resource_requests, retries=1000)
+
+    layer += Node(
+        arguments=[
+            Option("kafka-server", services_config.kafka_server),
+            Option("output-period", 300),
+            Option("topic", "coinc"),
+            Option("tag", tag),
+        ],
+        outputs=Option("output", zerolag_pdf.files),
+    )
+
+    return layer
+
+
+def upload_events(
+    condor_config, upload_config, services_config, metrics_config, svd_bins, tag
+):
+    executable = "sgnl-ll-inspiral-event-uploader"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "1GB",
+    }
+    layer = create_layer(executable, condor_config, resource_requests, retries=1000)
+
+    input_topics = (
+        ["events", "inj_events"]
+        if upload_config.enable_injection_uploads
+        else ["events"]
+    )
+
+    for input_topic in input_topics:
+        arguments = [
+            Option("kafka-server", services_config.kafka_server),
+            Option("gracedb-group", upload_config.gracedb_group),
+            Option("gracedb-pipeline", upload_config.gracedb_pipeline),
+            Option("gracedb-search", upload_config.gracedb_search),
+            Option("far-threshold", upload_config.aggregator_far_threshold),
+            Option("far-trials-factor", upload_config.aggregator_far_trials_factor),
+            Option("upload-cadence-type", upload_config.aggregator_cadence_type),
+            Option("upload-cadence-factor", upload_config.aggregator_cadence_factor),
+            Option("num-jobs", len(svd_bins)),
+            Option("tag", tag),
+            Option("input-topic", input_topic),
+            Option("rootdir", "event_uploader"),
+            Option("verbose"),
+            Option("scald-config", metrics_config.scald_config),
+            Option("max-partitions", 10),
+        ]
+
+        # add gracedb service url
+        if "inj_" in input_topic:
+            arguments.append(
+                Option("gracedb-service-url", upload_config.inj_gracedb_service_url)
+            )
+            arguments.append(Option("gracedb-search", upload_config.inj_gracedb_search))
+        else:
+            arguments.append(
+                Option("gracedb-service-url", upload_config.gracedb_service_url)
+            )
+            arguments.append(Option("gracedb-search", upload_config.gracedb_search))
+
+        layer += Node(arguments=arguments)
+
+    return layer
+
+
+def plot_events(condor_config, upload_config, services_config, tag):
+
+    executable = "sgnl-ll-inspiral-event-plotter"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "3GB",
+        "request_disk": "1GB",
+    }
+    layer = create_layer(executable, condor_config, resource_requests, retries=1000)
+
+    upload_topics = (
+        ["uploads", "inj_uploads"]
+        if upload_config.enable_injection_uploads
+        else ["uploads"]
+    )
+    ranking_stat_topics = (
+        ["ranking_stat", "inj_ranking_stat"]
+        if upload_config.enable_injection_uploads
+        else ["ranking_stat"]
+    )
+
+    to_upload = (
+        "RANKING_DATA",
+        "RANKING_PLOTS",
+        "SNR_PLOTS",
+        "PSD_PLOTS",
+        "DTDPHI_PLOTS",
+    )
+
+    for upload_topic, ranking_stat_topic in zip(upload_topics, ranking_stat_topics):
+        for upload in to_upload:
+            arguments = [
+                Option("kafka-server", services_config.kafka_server),
+                Option("upload-topic", upload_topic),
+                Option("ranking-stat-topic", ranking_stat_topic),
+                Option("tag", tag),
+                Option("plot", upload),
+                Option("verbose"),
+            ]
+
+            # add gracedb service url
+            if "inj_" in upload_topic:
+                arguments.append(
+                    Option("gracedb-service-url", upload_config.inj_gracedb_service_url)
+                )
+            else:
+                arguments.append(
+                    Option("gracedb-service-url", upload_config.gracedb_service_url)
+                )
+
+            layer += Node(arguments=arguments)
+
+    return layer
+
+
+def collect_metrics(
+    dag,
+    condor_config,
+    metrics_config,
+    services_config,
+    filter_config,
+    tag,
+    ifos,
+    svd_bins,
+):
+    executable = "scald"
+
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "1GB",
+    }
+    metric_leader_layer = create_layer(
+        executable,
+        condor_config,
+        resource_requests,
+        retries=1000,
+        name="scald_event_collector",
+    )
+
+    # FIXME when is this layer used?
+    # metric_layer = create_layer(executable, condor_config, resource_requests,
+    # retries=1000, name="scald_event_collector")
+
+    # set up common options
+    common_opts = [
+        Argument("command", "aggregate"),
+        Option("config", metrics_config.scald_config),
+        Option("uri", f"kafka://{tag}-collect@{services_config.kafka_server}"),
+    ]
+
+    # set topic_prefix to distinguish inj and noninj topics
+    topic_prefix = ["", "inj_"] if filter_config.injections else [""]
+
+    # define metrics used for aggregation jobs
+    snr_metrics = [
+        f"{prefix}{ifo}_snr_history" for ifo in ifos for prefix in topic_prefix
+    ]
+    range_metrics = [f"{prefix}range_history" for prefix in topic_prefix]
+    network_metrics = []
+    for prefix, topic in list(
+        itertools.product(
+            topic_prefix,
+            ("likelihood_history", "snr_history", "latency_history", "far_history"),
+        )
+    ):
+        network_metrics.append(f"{prefix}{topic}")
+
+    heartbeat_metrics = []
+    for prefix, topic in list(
+        itertools.product(
+            topic_prefix,
+            (
+                "uptime",
+                "event_uploader_heartbeat",
+                "event_plotter_heartbeat",
+                "pastro_uploader_heartbeat",
+            ),
+        )
+    ):
+        heartbeat_metrics.append(f"{prefix}{topic}")
+    heartbeat_metrics.append("marginalize_likelihoods_online_heartbeat")
+    heartbeat_metrics.append("trigger_counter_heartbeat")
+
+    state_metrics = [
+        f"{prefix}{ifo}_strain_dropped" for ifo in ifos for prefix in topic_prefix
+    ]  # FIXME do we need this?
+    usage_metrics = [f"{prefix}ram_history" for prefix in topic_prefix]
+
+    latency_metrics = [
+        f"{prefix}{ifo}_{stage}_latency"
+        for ifo in ifos
+        for stage in ("datasource", "whitening", "snrSlice")
+        for prefix in topic_prefix
+    ]
+    latency_metrics.extend([f"{prefix}all_itacacac_latency" for prefix in topic_prefix])
+
+    agg_metrics = list(
+        itertools.chain(
+            snr_metrics,
+            range_metrics,
+            network_metrics,
+            usage_metrics,
+            state_metrics,
+            latency_metrics,
+            heartbeat_metrics,
+        )
+    )
+
+    # gates = [
+    #    f"{gate}segments" for gate in ("statevector", "dqvector", "whiteht", "idq")
+    # ]
+    # seg_metrics = [
+    #    f"{prefix}{ifo}_{gate}"
+    #    for ifo in ifos
+    #    for gate in gates
+    #    for prefix in topic_prefix
+    # ]
+
+    # set up partitioning
+    # FIXME don't hard code the 1000
+    max_agg_jobs = 1000
+    num_jobs = len(svd_bins)
+    agg_job_bounds = list(range(0, num_jobs, max_agg_jobs))
+    min_topics_per_job = 1
+
+    # timeseries metrics
+    agg_metrics = groups(
+        agg_metrics, max(max_agg_jobs // (4 * num_jobs), min_topics_per_job)
+    )
+    # seg_metrics = groups(
+    #    seg_metrics, max(max_agg_jobs // (4 * num_jobs), min_topics_per_job)
+    # )
+
+    # for metrics in itertools.chain(agg_metrics, seg_metrics):
+    for metrics in itertools.chain(
+        agg_metrics,
+    ):
+        for i, _ in enumerate(agg_job_bounds):
+            # add jobs to consume each metric
+            arguments = list(common_opts)
+            topics = []
+            schemas = []
+            for metric in metrics:
+                if "latency_history" in metric:
+                    # for latency history we want to
+                    # aggregate by max and median so
+                    # we need two schemas
+                    for aggfunc in ("max", "median"):
+                        topics.append(f"sgnl.{tag}.{metric}")
+                        schemas.append(f"{metric}_{aggfunc}")
+                else:
+                    topics.append(f"sgnl.{tag}.{metric}")
+                    schemas.append(metric)
+
+            arguments.extend(
+                [
+                    Option("data-type", "timeseries"),
+                    Option("topic", topics),
+                    Option("schema", schemas),
+                ]
+            )
+
+            # elect first metric collector as leader
+            if i == 0:
+                arguments.append(Option("across-jobs"))
+                metric_leader_layer += Node(arguments=arguments)
+            else:
+                raise ValueError("not implemented")
+                # metric_layer += Node(arguments=arguments) # FIXME
+
+    # if metric_layer.nodes:
+    #    dag.attach(metric_leader_layer)
+    #    dag.attach(metric_layer)
+    # else:
+    #    dag.attach(metric_leader_layer)
+    return metric_leader_layer
+
+
+def collect_metrics_event(
+    condor_config,
+    metrics_config,
+    services_config,
+    filter_config,
+    tag,
+):
+    executable = "scald"
+
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "2GB",
+        "request_disk": "1GB",
+    }
+    event_layer = create_layer(
+        executable,
+        condor_config,
+        resource_requests,
+        retries=1000,
+        name="scald_event_collector_event",
+    )
+    # event metrics
+    schemas = ["coinc", "inj_coinc"] if filter_config.injections else ["coinc"]
+
+    common_opts = [
+        Argument("command", "aggregate"),
+        Option("config", metrics_config.scald_config),
+        Option("uri", f"kafka://{tag}-collect@{services_config.kafka_server}"),
+    ]
+    for schema in schemas:
+        event_arguments = list(common_opts)
+        event_arguments.extend(
+            [
+                Option("data-type", "triggers"),
+                Option("topic", f"sgnl.{tag}.{schema}"),
+                Option("schema", schema),
+                Option("uri", f"kafka://{tag}-collect@{services_config.kafka_server}"),
+            ]
+        )
+        event_layer += Node(arguments=event_arguments)
+
+    return event_layer
