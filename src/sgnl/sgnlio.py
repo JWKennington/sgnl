@@ -65,7 +65,7 @@ class SgnlDB(stillsuit.StillSuit):
         """
 
         _missed, _found = self.get_missed_found(
-            selection_func=lambda r: r["event"]["far"] <= far_threshold
+            selection_func=lambda r: r["event"]["combined_far"] <= far_threshold
         )
         _segments = self.segments(name=segments_name)
 

@@ -10,7 +10,6 @@ import io
 import json
 import logging
 import os
-import signal
 import threading
 import time
 import timeit
@@ -282,7 +281,6 @@ def main():
     HTTPControl.registry_file = "sgnl_trigger_counter_registry.txt"
     HTTPControl.get_queues["trigger_counter"] = Queue(1)
     HTTPControl.post_queues["trigger_counter"] = Queue(1)
-    HTTPControl.handled_signals = {signal.SIGINT, signal.SIGTERM}
     with HTTPControl() as sgn_control:
         ZLC = ZeroLagCounts(
             kafka_server=options.kafka_server,

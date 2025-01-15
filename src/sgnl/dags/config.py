@@ -56,9 +56,11 @@ def build_config(config_path, dag_dir):
     assert (
         config_in.condor.accounting_group
     ), "The condor section of the config must specify an accounting-group"
-    assert (
-        config_in.condor.container
-    ), "The condor section of the config must specify a container"
+
+    # FIXME uncomment once we have a container
+    # assert (
+    #     config_in.condor.container
+    # ), "The condor section of the config must specify a container"
 
     # Overwrite default config values with those from the input config
     config = DotDict(recursive_update(default_config, config_in))

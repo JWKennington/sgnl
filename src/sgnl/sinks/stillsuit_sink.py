@@ -10,13 +10,14 @@ from typing import Any, Sequence
 import stillsuit
 import yaml
 from ligo import segments
-from sgn.sinks import SinkElement
 from sgnligo.base import now
 from sgnts.base import Offset
 
+from sgnl.control import SnapShotControlSinkElement
+
 
 @dataclass
-class StillSuitSink(SinkElement):
+class StillSuitSink(SnapShotControlSinkElement):
     ifos: list = None
     config_name: str = None
     trigger_output: str = None
@@ -32,21 +33,35 @@ class StillSuitSink(SinkElement):
     jobid: int = 0
     nsubbank_pretend: bool = False
     verbose: bool = False
+    injections: bool = False
 
     def __post_init__(self):
         super().__post_init__()
         if self.config_name is None:
             raise ValueError("Must provide config_name")
-        if self.trigger_output is None:
+        if not self.is_online and self.trigger_output is None:
             raise ValueError("Must provide trigger_output")
-
-        self.out = stillsuit.StillSuit(config=self.config_name, dbname=":memory:")
 
         self.tables = ["trigger", "event"]
         self.event_dict = {t: [] for t in self.tables}
 
         with open(self.config_name) as f:
             self.config = yaml.safe_load(f)
+
+        if self.is_online:
+            bankids = sorted(set([sid.split("_")[0] for sid in self.subbankids]))
+            for bankid in bankids:
+                four_digit_id = "%04d" % int(bankid)
+
+                # FIXME: use job_tag?? but what to use with multi-bank mode?
+                if self.injections:
+                    four_digit_id = four_digit_id + "_inj"
+                else:
+                    four_digit_id = four_digit_id + "_noninj"
+
+                self.add_snapshot_filename(
+                    "%s_SGNL_TRIGGERS" % four_digit_id, "sqlite.gz"
+                )
 
         #
         # Process
@@ -56,14 +71,13 @@ class StillSuitSink(SinkElement):
         self.process_row["is_online"] = int(self.is_online)
         self.process_row["node"] = socket.gethostname()
         self.process_row["program"] = self.program
-        self.process_row["start_time"] = int(now())
         self.process_row["unix_procid"] = os.getpid()
         self.process_row["username"] = self.get_username()
 
         #
         # Process params
         #
-        params = []
+        self.params = []
         if self.process_params is not None:
             for name, values in self.process_params.items():
                 name = "--%s" % name.replace("_", "-")
@@ -75,20 +89,19 @@ class StillSuitSink(SinkElement):
                         param_row["param"] = name
                         param_row["program"] = self.program
                         param_row["value"] = str(v)
-                        params.append(param_row)
+                        self.params.append(param_row)
                     continue
 
                 param_row = self.init_config_row(self.config["process_params"])
                 param_row["param"] = name
                 param_row["program"] = self.program
                 param_row["value"] = str(values)
-                params.append(param_row)
-        self.out.insert_static({"process_params": params})
+                self.params.append(param_row)
 
         #
         # Filter
         #
-        filters = []
+        self.filters = []
         if self.nsubbank_pretend:
             subbank = self.template_sngls[0]
             for template_id, sngl in subbank.items():
@@ -107,7 +120,7 @@ class StillSuitSink(SinkElement):
                 filter_row["spin2x"] = sngl.spin2x
                 filter_row["spin2y"] = sngl.spin2y
                 filter_row["spin2z"] = sngl.spin2z
-                filters.append(filter_row)
+                self.filters.append(filter_row)
         else:
             for i, subbank in enumerate(self.template_sngls):
                 for template_id, sngl in subbank.items():
@@ -126,16 +139,9 @@ class StillSuitSink(SinkElement):
                     filter_row["spin2x"] = sngl.spin2x
                     filter_row["spin2y"] = sngl.spin2y
                     filter_row["spin2z"] = sngl.spin2z
-                    filters.append(filter_row)
-        self.out.insert_static({"filter": filters})
+                    self.filters.append(filter_row)
 
-        #
-        # Segments
-        #
-        ifos = self.segments_pad_map.values()
-        self.segments = segments.segmentlistdict(
-            {ifo: segments.segmentlist() for ifo in ifos}
-        )
+        self.init_static()
 
         #
         # Simulation
@@ -220,25 +226,48 @@ class StillSuitSink(SinkElement):
         self.event_dict = {t: [] for t in self.tables}
 
         if self.at_eos:
+            for fn in self.snapshot_filenames():
+                self.on_snapshot(fn)
 
-            # Write out segments
-            self.segments.coalesce()
-            out_segments = []
-            for ifo, seg in self.segments.items():
-                for segment in seg:
-                    segment_row = self.init_config_row(self.config["segment"])
-                    segment_row["start_time"] = Offset.tons(segment[0])
-                    segment_row["end_time"] = Offset.tons(segment[1])
-                    segment_row["ifo"] = ifo
-                    segment_row["name"] = "afterhtgate"
-                    out_segments.append(segment_row)
-            self.out.insert_static({"segment": out_segments})
+        if self.is_online and self.snapshot_ready():
+            for fn in self.snapshot_filenames():
+                self.on_snapshot(fn)
+            self.init_static()
 
-            # Add end time in process table
-            self.process_row["end_time"] = int(now())
-            self.out.insert_static({"process": [self.process_row]})
+    def init_static(self):
+        print("Initialize a new db...")
+        self.process_row["start_time"] = int(now())
 
-            if self.is_online is False:
-                # Write in-memory database to file
-                print("Writing out db...")
-                self.out.to_file(self.trigger_output)
+        self.out = stillsuit.StillSuit(config=self.config_name, dbname=":memory:")
+        self.out.insert_static({"process_params": self.params})
+        self.out.insert_static({"filter": self.filters})
+        #
+        # Segments
+        #
+        ifos = self.segments_pad_map.values()
+        self.segments = segments.segmentlistdict(
+            {ifo: segments.segmentlist() for ifo in ifos}
+        )
+
+    def on_snapshot(self, fn):
+        # Write out segments
+        self.segments.coalesce()
+        out_segments = []
+        for ifo, seg in self.segments.items():
+            for segment in seg:
+                segment_row = self.init_config_row(self.config["segment"])
+                segment_row["start_time"] = Offset.tons(segment[0])
+                segment_row["end_time"] = Offset.tons(segment[1])
+                segment_row["ifo"] = ifo
+                segment_row["name"] = "afterhtgate"
+                out_segments.append(segment_row)
+        self.out.insert_static({"segment": out_segments})
+
+        # Add end time in process table
+        self.process_row["end_time"] = int(now())
+        self.out.insert_static({"process": [self.process_row]})
+
+        # Write in-memory database to file
+        print(f"Writing out db {fn}...")
+        self.out.to_file(fn)
+        self.out.db.close()

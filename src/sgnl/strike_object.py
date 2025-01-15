@@ -149,6 +149,11 @@ class StrikeObject:
                         "Must specify --input-likelihood-file when running"
                         " online injection job"
                     )
+                else:
+                    self.input_likelihood_file = {
+                        k: self.input_likelihood_file[i]
+                        for i, k in enumerate(self.bankids_map)
+                    }
                 if self.output_likelihood_file is not None:
                     raise ValueError(
                         "Must not specify --output-likelihood-file when "
@@ -218,9 +223,9 @@ class StrikeObject:
             lr = self.likelihood_ratios[bankid]
 
             # re-load likelihood ratio file for injection jobs
-            if (
-                in_lr_file is not None
-                and in_lr_file != self.output_likelihood_file[bankid]
+            if in_lr_file is not None and (
+                self.output_likelihood_file is None
+                or in_lr_file != self.output_likelihood_file[bankid]
             ):
                 params_before = (
                     lr.template_ids,

@@ -221,7 +221,7 @@ def main():
         for event in indb.get_events(nanosec_to_sec=True):
             indb.default_cursor.execute(
                 """
-            UPDATE event SET far=? WHERE __event_id=?;
+            UPDATE event SET combined_far=? WHERE __event_id=?;
                                         """,
                 (
                     float(fapfar.far_from_rank(event["event"]["likelihood"])),

@@ -23,11 +23,6 @@ def parse_command_line():
     ConditionInfo.append_options(parser)
 
     parser.add_argument(
-        "--scald-config",
-        metavar="path",
-        help="sets ligo-scald options based on yaml configuration.",
-    )
-    parser.add_argument(
         "--output-kafka-server",
         metavar="addr",
         help="Set the server address and port number for output data. Optional",
@@ -64,6 +59,11 @@ def parse_command_line():
         ' horizon distance and range calculation. Default is 900 Hz.",
     )
     parser.add_argument(
+        "--injections",
+        action="store_true",
+        help="Whether the program is processing injection channels.",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Be verbose (optional)."
     )
 
@@ -75,12 +75,12 @@ def parse_command_line():
 def ll_dq(
     data_source_info,
     condition_info,
-    scald_config,
     output_kafka_server,
     analysis_tag,
     horizon_approximant,
     horizon_f_min,
     horizon_f_max,
+    injections,
     verbose,
 ):
     #
@@ -157,6 +157,7 @@ def ll_dq(
             tag=[
                 ifo,
             ],
+            prefix="inj_" if injections else "",
         ),
     )
 
@@ -181,12 +182,12 @@ def main():
     ll_dq(
         data_source_info,
         condition_info,
-        options.scald_config,
         options.output_kafka_server,
         options.analysis_tag,
         options.horizon_approximant,
         options.horizon_f_min,
         options.horizon_f_max,
+        options.injections,
         options.verbose,
     )
 

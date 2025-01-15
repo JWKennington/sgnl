@@ -46,8 +46,8 @@ class StrikeSink(SnapShotControlSinkElement):
 
         if self.is_online:
             # setup bottle
-            self.state_dict = {"xml": {}, "zerolagxml": {}}
 
+            self.state_dict = {"xml": {}, "zerolagxml": {}}
             for bankid in self.bankids_map:
                 four_digit_id = "%04d" % int(bankid)
                 self.add_snapshot_filename(
@@ -137,7 +137,8 @@ class StrikeSink(SnapShotControlSinkElement):
                     ].horizon_history[ifo][horizon_time] = horizon[bankid]
 
     def internal(self):
-        SnapShotControlSinkElement.exchange_state(self.name, self.state_dict)
+        if self.is_online:
+            SnapShotControlSinkElement.exchange_state(self.name, self.state_dict)
         if self.at_eos:
             if self.is_online:
                 self.on_snapshot()
@@ -161,11 +162,5 @@ class StrikeSink(SnapShotControlSinkElement):
             self.state_dict["zerolagxml"][four_digit_id] = xml_string(
                 self.strike_object.zerolag_rank_stat_pdfs[bankid]
             )
-
-        # Update lr assignment
-        self.strike_object.update_assign_lr()
-
-        # Update FAP/FAR assignment
-        self.strike_object.load_rank_stat_pdf()
 
         self.strike_object.save_snapshot(self.snapshot_filenames)

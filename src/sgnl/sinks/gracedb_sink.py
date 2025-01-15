@@ -256,7 +256,7 @@ def publish_gracedb(client, xmldoc, group, pipeline, search, labels):
 def min_far_event(events, triggers, snr_ts, thresh):
     if not events:
         return None, None, None
-    min_far, min_ix = min((e["far"], n) for n, e in enumerate(events))
+    min_far, min_ix = min((e["combined_far"], n) for n, e in enumerate(events))
     if min_far is not None and min_far <= thresh:
         return (
             events[min_ix],
@@ -467,7 +467,7 @@ def event_trigs_to_coinc_xmldoc(
         {
             "time": "end",
             "network_snr": "snr",
-            "far": "combined_far",
+            "combined_far": "combined_far",
             "likelihood": None,
         },
         {"time": ns_to_gps},
@@ -488,7 +488,7 @@ def event_trigs_to_coinc_xmldoc(
         {
             "time": None,
             "network_snr": None,
-            "far": None,
+            "combined_far": None,
         },
         {},
     )
