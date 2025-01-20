@@ -74,6 +74,8 @@ class StrikeObject:
     bankids_map: dict[str, list] = None
     cap_singles: bool = False
     coincidence_threshold: float = None
+    compress_likelihood_ratio: bool = False
+    compress_likelihood_ratio_threshold: float = 0.03
     FAR_trialsfactor: float = 1
     ifos: list = None
     injections: bool = False
@@ -112,9 +114,17 @@ class StrikeObject:
             # load input files
             for bankid, lr_file in self.input_likelihood_file.items():
                 self.likelihood_ratios[bankid] = LnLikelihoodRatio.load(lr_file)
+                if self.compress_likelihood_ratio:
+                    self.likelihood_ratios[bankid].terms[
+                        "P_of_tref_Dh"
+                    ].horizon_history.compress(
+                        threshold=self.compress_likelihood_ratio_threshold,
+                        verbose=self.verbose,
+                    )
+
             self.ln_lr_from_triggers = {}
             self.likelihood_ratio_uploads = {}
-            self.update_assign_lr()
+            self.update_assign_lr(reload_file=False)
 
             self.rank_stat_pdf = None
             self.fapfar = None
@@ -127,6 +137,8 @@ class StrikeObject:
                     bid: RankingStatPDF.load(zerolag_pdf_file)
                     for bid, zerolag_pdf_file in self.zerolag_rank_stat_pdf_file.items()
                 }
+            else:
+                self.zerolag_rank_stat_pdfs = None
 
     def _validate(self):
         if self.is_online is False:
@@ -217,15 +229,19 @@ class StrikeObject:
                         for i, k in enumerate(self.bankids_map)
                     }
 
-    def update_assign_lr(self):
+    def update_assign_lr(self, reload_file=True):
 
         for bankid, in_lr_file in self.input_likelihood_file.items():
             lr = self.likelihood_ratios[bankid]
 
             # re-load likelihood ratio file for injection jobs
-            if in_lr_file is not None and (
-                self.output_likelihood_file is None
-                or in_lr_file != self.output_likelihood_file[bankid]
+            if (
+                reload_file
+                and in_lr_file is not None
+                and (
+                    self.output_likelihood_file is None
+                    or in_lr_file != self.output_likelihood_file[bankid]
+                )
             ):
                 params_before = (
                     lr.template_ids,
@@ -233,6 +249,11 @@ class StrikeObject:
                     lr.min_instruments,
                     lr.delta_t,
                 )
+
+                # FIXME combine this hack with frankenstein class
+                trigger_rates_before = lr.terms["P_of_tref_Dh"].triggerrates
+                horizon_history_before = lr.terms["P_of_tref_Dh"].horizon_history
+
                 for tries in range(10):
                     try:
                         lr = LnLikelihoodRatio.load(in_lr_file)
@@ -258,6 +279,8 @@ class StrikeObject:
                         % self.input_likelihood_file
                     )
                 else:
+                    lr.terms["P_of_tref_Dh"].triggerrates = trigger_rates_before
+                    lr.terms["P_of_tref_Dh"].horizon_history = horizon_history_before
                     self.likelihood_ratios[bankid] = lr
 
             if lr.is_healthy(self.verbose):

@@ -1062,6 +1062,8 @@ def filter_online(
         Option("analysis-tag", tag),
         Option("far-trials-factor", upload_config.far_trials_factor),
         Option("gracedb-far-threshold", upload_config.gracedb_far_threshold),
+        Option("gracedb-group", upload_config.gracedb_group),
+        Option("gracedb-search", upload_config.gracedb_search),
         # Option("likelihood-snapshot-interval",
         # config.filter.likelihood_snapshot_interval),
         # Option("snr-min", filter_config.snr_min),
@@ -1096,6 +1098,18 @@ def filter_online(
 
     if filter_config.verbose:
         common_opts.extend([Option("verbose")])
+
+    # compress ranking stat if requested
+    if filter_config.compress_likelihood_ratio:
+        common_opts.extend(
+            [
+                Option("compress-likelihood-ratio"),
+                Option(
+                    "compress-likelihood-ratio-threshold",
+                    filter_config.compress_likelihood_ratio_threshold,
+                ),
+            ]
+        )
 
     lrs = lr_cache.groupby("bin")
     zerolag_pdfs = zerolag_pdf_cache.groupby("bin")
@@ -1184,6 +1198,9 @@ def injection_filter_online(
         Option("coincidence-threshold", filter_config.coincidence_threshold),
         Option("analysis-tag", tag),
         Option("far-trials-factor", upload_config.far_trials_factor),
+        Option("gracedb-far-threshold", upload_config.gracedb_far_threshold),
+        Option("gracedb-group", upload_config.gracedb_group),
+        Option("gracedb-search", upload_config.inj_gracedb_search),
         Option("injections"),
         # Option("likelihood-snapshot-interval",
         # config.filter.likelihood_snapshot_interval),
@@ -1219,6 +1236,18 @@ def injection_filter_online(
 
     if filter_config.verbose:
         common_opts.extend([Option("verbose")])
+
+    # compress ranking stat if requested
+    if filter_config.compress_likelihood_ratio:
+        common_opts.extend(
+            [
+                Option("compress-likelihood-ratio"),
+                Option(
+                    "compress-likelihood-ratio-threshold",
+                    filter_config.compress_likelihood_ratio_threshold,
+                ),
+            ]
+        )
 
     lrs = lr_cache.groupby("bin")
 
@@ -1393,7 +1422,6 @@ def upload_events(
             Option("kafka-server", services_config.kafka_server),
             Option("gracedb-group", upload_config.gracedb_group),
             Option("gracedb-pipeline", upload_config.gracedb_pipeline),
-            Option("gracedb-search", upload_config.gracedb_search),
             Option("far-threshold", upload_config.aggregator_far_threshold),
             Option("far-trials-factor", upload_config.aggregator_far_trials_factor),
             Option("upload-cadence-type", upload_config.aggregator_cadence_type),
@@ -1401,7 +1429,6 @@ def upload_events(
             Option("num-jobs", len(svd_bins)),
             Option("tag", tag),
             Option("input-topic", input_topic),
-            Option("rootdir", "event_uploader"),
             Option("verbose"),
             Option("scald-config", metrics_config.scald_config),
             Option("max-partitions", 10),
@@ -1573,15 +1600,17 @@ def collect_metrics(
         )
     )
 
-    # gates = [
-    #    f"{gate}segments" for gate in ("statevector", "dqvector", "whiteht", "idq")
-    # ]
-    # seg_metrics = [
-    #    f"{prefix}{ifo}_{gate}"
-    #    for ifo in ifos
-    #    for gate in gates
-    #    for prefix in topic_prefix
-    # ]
+    gates = [
+        # f"{gate}segments" for gate in ("statevector", "dqvector", "whiteht", "idq")
+        f"{gate}segments"
+        for gate in ("statevector", "afterhtgate")
+    ]
+    seg_metrics = [
+        f"{prefix}{ifo}_{gate}"
+        for ifo in ifos
+        for gate in gates
+        for prefix in topic_prefix
+    ]
 
     # set up partitioning
     # FIXME don't hard code the 1000
@@ -1594,14 +1623,11 @@ def collect_metrics(
     agg_metrics = groups(
         agg_metrics, max(max_agg_jobs // (4 * num_jobs), min_topics_per_job)
     )
-    # seg_metrics = groups(
-    #    seg_metrics, max(max_agg_jobs // (4 * num_jobs), min_topics_per_job)
-    # )
+    seg_metrics = groups(
+        seg_metrics, max(max_agg_jobs // (4 * num_jobs), min_topics_per_job)
+    )
 
-    # for metrics in itertools.chain(agg_metrics, seg_metrics):
-    for metrics in itertools.chain(
-        agg_metrics,
-    ):
+    for metrics in itertools.chain(agg_metrics, seg_metrics):
         for i, _ in enumerate(agg_job_bounds):
             # add jobs to consume each metric
             arguments = list(common_opts)

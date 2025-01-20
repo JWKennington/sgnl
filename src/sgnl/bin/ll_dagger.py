@@ -212,15 +212,15 @@ def main():
             )
             dag.attach(layer)
 
-            # layer = layers.upload_events(
-            #    config.condor,
-            #    config.upload,
-            #    config.services,
-            #    config.metrics,
-            #    svd_bins,
-            #    config.tag,
-            # )
-            # dag.attach(layer)
+            layer = layers.upload_events(
+                config.condor,
+                config.upload,
+                config.services,
+                config.metrics,
+                svd_bins,
+                config.tag,
+            )
+            dag.attach(layer)
 
             # if config.snr_optimizer:
             #     dag.optimize_snr()
@@ -230,10 +230,10 @@ def main():
             # FIXME: uncomment once we have pastro working
             # dag.upload_pastro(marg_pdf)
 
-            # layer = layers.plot_events(
-            #    config.condor, config.upload, config.services, config.tag
-            # )
-            # dag.attach(layer)
+            layer = layers.plot_events(
+                config.condor, config.upload, config.services, config.tag
+            )
+            dag.attach(layer)
 
             layer = layers.collect_metrics(
                 dag,

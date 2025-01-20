@@ -71,8 +71,10 @@ class StrikeTransform(TransformElement):
                             copytrig["epoch_end"] /= 1e9
                             trigs.append(copytrig)
 
-                    e["likelihood"] = self.strike_object.ln_lr_from_triggers[bankid](
-                        trigs, self.strike_object.offset_vectors
+                    e["likelihood"] = float(
+                        self.strike_object.ln_lr_from_triggers[bankid](
+                            trigs, self.strike_object.offset_vectors
+                        )
                     )
 
                     if self.strike_object.fapfar is not None:
@@ -98,11 +100,12 @@ class StrikeTransform(TransformElement):
                         e["false_alarm_probability"] = None
                         e["combined_far"] = None
 
-                    self.strike_object.zerolag_rank_stat_pdfs[
-                        bankid
-                    ].zero_lag_lr_lnpdf.count[
-                        e["likelihood"],
-                    ] += 1
+                    if self.strike_object.zerolag_rank_stat_pdfs is not None:
+                        self.strike_object.zerolag_rank_stat_pdfs[
+                            bankid
+                        ].zero_lag_lr_lnpdf.count[
+                            e["likelihood"],
+                        ] += 1
                 else:
                     e["likelihood"] = None
                     e["false_alarm_probability"] = None

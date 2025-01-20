@@ -30,6 +30,7 @@ def xml_string(rstat):
 class StrikeSink(SnapShotControlSinkElement):
     ifos: list[str] = None
     is_online: bool = False
+    injections: bool = False
     strike_object: StrikeObject = None
     bankids_map: dict[str, list] = None
     background_pad: str = None
@@ -44,7 +45,7 @@ class StrikeSink(SnapShotControlSinkElement):
 
         super().__post_init__()
 
-        if self.is_online:
+        if self.is_online and not self.injections:
             # setup bottle
 
             self.state_dict = {"xml": {}, "zerolagxml": {}}
@@ -116,27 +117,35 @@ class StrikeSink(SnapShotControlSinkElement):
                     ].triggerrates[ifo].add_ratebin(list(buf_seg), count)
 
         elif self.rsnks[pad] in self.horizon_pads:
-            if frame["data"].data is not None:  # happens for the first few buffers
-                ifo = frame["data"].data["ifo"]
-                horizon = frame["data"].data["horizon"]
-                horizon_time = (
-                    frame["data"].data["time"] / 1_000_000_000
-                )  # NOTE: This is the start time. Do we want the end time?
-                # FIXME: We set the same horizon history for every svd bin
-                # since the horizon distance calculation in
-                # sgnligo/transforms/condition.py
-                # uses the same template for every svd bin
-                # When that is changed, this will need to be made
-                # bin dependent as well, which would require
-                # bankid info to be piped along with the horizon distance
+            data = frame["data"]
+            if data.ts - data.te == 0:
+                return
+
+            ifo = data.data["ifo"]
+            horizon = data.data["horizon"]
+            horizon_time = data.data["epoch"] / 1_000_000_000
+            # Epoch is the mid point of the most recent FFT
+            # interval used to obtain this PSD
+            if (
+                horizon is not None
+                and float(data.data["n_samples"] / data.data["navg"]) > 0.3
+            ):
+                # n_samples / navg is the "stability", which is a measure of the
+                # fraction of the configured averaging timescale used to obtain this
+                # measurement.
                 for bankid in self.bankids_map:
-                    # self.ranking_stats[bankid].horizon_history[ifo][horizon_time]
-                    # = horizon
                     self.strike_object.likelihood_ratios[bankid].terms[
                         "P_of_tref_Dh"
                     ].horizon_history[ifo][horizon_time] = horizon[bankid]
+            else:
+                for bankid in self.bankids_map:
+                    self.strike_object.likelihood_ratios[bankid].terms[
+                        "P_of_tref_Dh"
+                    ].horizon_history[ifo][horizon_time] = 0
 
     def internal(self):
+        if self.injections:
+            return
         if self.is_online:
             SnapShotControlSinkElement.exchange_state(self.name, self.state_dict)
         if self.at_eos:

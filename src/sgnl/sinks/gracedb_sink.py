@@ -46,6 +46,7 @@ class GraceDBSink(HTTPControlSinkElement):
     spectrum_pads: list[str] = None
     delta_t: float = 0.005
     strike_object: StrikeObject = None
+    channel_dict: dict[str, str] = None
 
     def __post_init__(self):
         self.sink_pad_names = (self.event_pad,) + self.spectrum_pads
@@ -86,7 +87,8 @@ class GraceDBSink(HTTPControlSinkElement):
         if self.rsnks[pad] == self.event_pad:
             self.events = frame
         else:
-            self.psds[self.rsnks[pad]] = frame.metadata["psd"]
+            if frame.metadata["psd"] is not None:
+                self.psds[self.rsnks[pad]] = frame.metadata["psd"]
 
     def internal(self):
         HTTPControlSinkElement.exchange_state(self.name, self.state)
@@ -109,6 +111,7 @@ class GraceDBSink(HTTPControlSinkElement):
                     self.on_ifos,
                     self.process_params,
                     self.delta_t,
+                    self.channel_dict,
                 )
 
                 # add psd frequeny series
@@ -154,10 +157,6 @@ def publish_kafka(
 ):
     """Send the xmldoc to kafka, where it will eventually be uploaded to gracedb"""
 
-    #
-    # make sure the directory where we will write the files to disk exists
-    #
-
     # coinc_table_row = lsctables.CoincTable.get_table(xmldoc)[0]
     coinc_inspiral_row = lsctables.CoincInspiralTable.get_table(xmldoc)[0]
     sngl_inspiral_table = lsctables.SnglInspiralTable.get_table(xmldoc)
@@ -190,6 +189,10 @@ def publish_kafka(
         search,
     )
     end_time = int(coinc_inspiral_row.end)
+
+    #
+    # make sure the directory where we will write the files to disk exists
+    #
 
     gracedb_uploads_gps_dir = os.path.join("gracedb_uploads", str(end_time)[:5])
     if not os.path.exists(gracedb_uploads_gps_dir):
@@ -256,7 +259,14 @@ def publish_gracedb(client, xmldoc, group, pipeline, search, labels):
 def min_far_event(events, triggers, snr_ts, thresh):
     if not events:
         return None, None, None
-    min_far, min_ix = min((e["combined_far"], n) for n, e in enumerate(events))
+    min_far, min_ix = min(
+        (
+            (e["combined_far"], n)
+            for n, e in enumerate(events)
+            if e["combined_far"] is not None
+        ),
+        default=(None, None),
+    )
     if min_far is not None and min_far <= thresh:
         return (
             events[min_ix],
@@ -324,7 +334,7 @@ def sngl_map(row, sngldict, _filter_id, exclude):
 
 
 def event_trigs_to_coinc_xmldoc(
-    event, trigs, snr_ts, sngls_dict, on_ifos, process_params, delta_t
+    event, trigs, snr_ts, sngls_dict, on_ifos, process_params, delta_t, channel_dict
 ):
     """Given an event dict and a trigs list of dicts corresponding to single
     event as well as the parameters in the sngls_dict corresponding, construct an
@@ -338,7 +348,7 @@ def event_trigs_to_coinc_xmldoc(
     # Add tables that depend on the number of triggers
     # NOTE: tables are initilize to 0 or null values depending on the type.
     time_slide_table = add_table_with_n_rows(
-        xmldoc, lsctables.TimeSlideTable, len(snr_ts)
+        xmldoc, lsctables.TimeSlideTable, len(on_ifos)
     )
     sngl_inspiral_table = add_table_with_n_rows(
         xmldoc, lsctables.SnglInspiralTable, len(snr_ts)
@@ -384,6 +394,9 @@ def event_trigs_to_coinc_xmldoc(
             dt = snr_ts_this_ifo.deltaT
             idx0 = int((coinc_segment[0] - t0) / dt)
             idxf = int(math.ceil((coinc_segment[1] - t0) / dt))
+            if idx0 == idxf:
+                # FIXME when does this happen?
+                continue
             maxid = numpy.argmax(abs(snr_ts_this_ifo_array[idx0:idxf]))
             maxsnr = abs(snr_ts_this_ifo_array[idx0 + maxid])
             phase = math.atan2(
@@ -419,7 +432,7 @@ def event_trigs_to_coinc_xmldoc(
                     "time": int(peakt * 1e9),
                     "phase": phase,
                     "chisq": None,
-                    "snr": maxsnr,
+                    "snr": float(maxsnr),
                 }
             )
 
@@ -427,9 +440,15 @@ def event_trigs_to_coinc_xmldoc(
         event["network_snr"] = sum(trig["snr"] ** 2 for trig in trigs) ** 0.5
         event["time"] = min(trig["time"] for trig in trigs)
 
+    for n, ifo in enumerate(on_ifos):
+        time_slide_table[n].instrument = ifo
+
     for n, row in enumerate(sngl_inspiral_table):
         sngl_map(row, sngls_dict, trigs[n]["_filter_id"], exclude=())
         row.event_id = n
+        row.channel = channel_dict[row.ifo]
+        row.chisq_dof = 1
+        row.eff_distance = float("nan")
         col_map(
             row,
             trigs[n],
@@ -442,7 +461,6 @@ def event_trigs_to_coinc_xmldoc(
             },
             {"time": ns_to_gps},
         )
-        time_slide_table[n].instrument = row.ifo
         coinc_map_table[n].event_id = row.event_id
         coinc_map_table[n].table_name = "sngl_inspiral"
         found_ifos.append(row.ifo)
@@ -468,6 +486,7 @@ def event_trigs_to_coinc_xmldoc(
             "time": "end",
             "network_snr": "snr",
             "combined_far": "combined_far",
+            "false_alarm_probability": "false_alarm_rate",
             "likelihood": None,
         },
         {"time": ns_to_gps},

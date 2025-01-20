@@ -32,7 +32,6 @@ from ligo.lw import ligolw, lsctables
 from ligo.lw import param as ligolw_param
 from ligo.lw import utils as ligolw_utils
 from ligo.scald import utils
-from strike.stats import far
 from strike.stats.likelihood_ratio import LnLikelihoodRatio
 
 from sgnl.plots.util import set_matplotlib_cache_directory
@@ -42,7 +41,6 @@ set_matplotlib_cache_directory()  # FIXME: I don't know if this needs to be done
 from strike.plots.stats import (  # noqa: E402
     plot_dtdphi,
     plot_horizon_distance_vs_time,
-    plot_likelihood_ratio_ccdf,
     plot_rates,
     plot_snr_chi_pdf,
 )
@@ -65,7 +63,7 @@ matplotlib.rcParams.update(
         "legend.fontsize": 8.0,
         "figure.dpi": 100,
         "savefig.dpi": 100,
-        "text.usetex": True,
+        "text.usetex": False,
     }
 )
 from matplotlib import figure  # noqa: E402
@@ -488,12 +486,9 @@ class EventPlotter(events.EventProcessor):
         )
         rankingstat = LnLikelihoodRatio.from_xml(xmldoc)
         rankingstat.finish()
+        # FIXME: this is needed for the likelihood_ratio_ccdf plot, do we want this?
         # rankingstatpdf = far.RankingStatPDF.from_xml(xmldoc, "strike_rankingstatpdf")
-        # FIXME: replace with the real ranking stat file
-        rankingstatpdf = far.RankingStatPDF.load(
-            "H1L1V1-SGNL_POST_RANK_STAT_PDFS-1241725020-760106.xml.gz"
-        )
-        fapfar = far.FAPFAR(rankingstatpdf.new_with_extinction())
+        # fapfar = far.FAPFAR(rankingstatpdf.new_with_extinction())
 
         # generate and upload plots
         for plot_type in ["background_pdf", "injection_pdf", "zero_lag_pdf", "LR"]:
@@ -546,29 +541,29 @@ class EventPlotter(events.EventProcessor):
                         fig.savefig(filename)
                     plt.close(fig)
 
-        fig = plot_likelihood_ratio_ccdf(
-            fapfar,
-            (
-                0.0,
-                max(40.0, coinc_event.likelihood - coinc_event.likelihood % 5.0 + 5.0),
-            ),
-            ln_likelihood_ratio_markers=(coinc_event.likelihood,),
-        )
-        filename = "{}_likehoodratio_ccdf.{}".format(event["gid"], self.format)
-        if not self.no_upload:
-            upload_fig(
-                fig,
-                self.client,
-                event["gid"],
-                filename=filename,
-                log_message="Likelihood Ratio CCDF",
-                tagname="background",
-            )
-        if self.output_path is not None:
-            filename = os.path.join(self.output_path, filename)
-            self.logger.info("writing %s ...", filename)
-            fig.savefig(filename)
-        plt.close(fig)
+        # fig = plot_likelihood_ratio_ccdf(
+        #     fapfar,
+        #     (
+        #       0.0,
+        #       max(40.0, coinc_event.likelihood - coinc_event.likelihood % 5.0 + 5.0),
+        #     ),
+        #     ln_likelihood_ratio_markers=(coinc_event.likelihood,),
+        # )
+        # filename = "{}_likehoodratio_ccdf.{}".format(event["gid"], self.format)
+        # if not self.no_upload:
+        #     upload_fig(
+        #         fig,
+        #         self.client,
+        #         event["gid"],
+        #         filename=filename,
+        #         log_message="Likelihood Ratio CCDF",
+        #         tagname="background",
+        #     )
+        # if self.output_path is not None:
+        #     filename = os.path.join(self.output_path, filename)
+        #     self.logger.info("writing %s ...", filename)
+        #     fig.savefig(filename)
+        # plt.close(fig)
 
         fig = plot_horizon_distance_vs_time(
             rankingstat, (event["time"] - 14400.0, event["time"]), tref=event["time"]

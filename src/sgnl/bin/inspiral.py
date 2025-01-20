@@ -155,6 +155,19 @@ def parse_command_line():
         help="Cap singles to 1 / livetime if computing FAR. No effect otherwise",
     )
     group.add_argument(
+        "--compress-likelihood-ratio",
+        action="store_true",
+        help="Choose whether to compress the ranking stat upon start up. Only used "
+        "when --ranking-stat-input is set.",
+    )
+    group.add_argument(
+        "--compress-likelihood-ratio-threshold",
+        type=float,
+        default=0.03,
+        help="Only keep horizon distance values that differ by this much, "
+        "fractionally, from their neighbours (default = 0.03).",
+    )
+    group.add_argument(
         "--output-likelihood-file",
         metavar="filename",
         action="append",
@@ -302,6 +315,8 @@ def inspiral(
     svd_bank: List[str],
     analysis_tag: str = "test",
     coincidence_threshold: float = 0.005,
+    compress_likelihood_ratio: bool = False,
+    compress_likelihood_ratio_threshold: float = 0.03,
     event_config: str = None,
     fake_sink: bool = False,
     far_trials_factor: float = 1.0,
@@ -414,6 +429,9 @@ def inspiral(
             "Must not set --output-likelihood-file when --injections is set"
         )
 
+    if output_kafka_server is not None and not IS_ONLINE:
+        raise ValueError("output_kafka_server can only be set if in online mode")
+
     #
     # Build pipeline
     #
@@ -487,6 +505,8 @@ def inspiral(
         all_template_ids=sorted_bank.template_ids.numpy(),
         bankids_map=sorted_bank.bankids_map,
         coincidence_threshold=coincidence_threshold,
+        compress_likelihood_ratio=compress_likelihood_ratio,
+        compress_likelihood_ratio_threshold=compress_likelihood_ratio_threshold,
         FAR_trialsfactor=far_trials_factor,
         ifos=ifos,
         injections=injections,
@@ -500,7 +520,7 @@ def inspiral(
 
     # Condition the data source if not doing an impulse test
     if data_source_info.data_source != "impulse":
-        source_out_links, spectrum_out_links, whiten_latency_out_links = condition(
+        condition_out_links, spectrum_out_links, whiten_latency_out_links = condition(
             pipeline=pipeline,
             condition_info=condition_info,
             ifos=ifos,
@@ -511,12 +531,13 @@ def inspiral(
         )
     else:
         spectrum_out_links = None
+        condition_out_links = source_out_links
 
     # connect LLOID
     lloid_output_source_link = lloid(
         pipeline,
         sorted_bank,
-        source_out_links,
+        condition_out_links,
         nslice,
         torch_device,
         dtype,
@@ -559,13 +580,15 @@ def inspiral(
             )
             if ifo == impulse_ifo:
                 pipeline.insert(
-                    link_map={"imsink0:snk:" + ifo + "_src": source_out_links[ifo]}
+                    link_map={"imsink0:snk:" + ifo + "_src": condition_out_links[ifo]}
                 )
     else:
+        #
         # connect itacacac
+        #
 
         itacacac_pads = ("stillsuit",)
-        if output_likelihood_file is not None:
+        if output_likelihood_file is not None or (IS_ONLINE and injections):
             strike_pad = "strike"
             itacacac_pads += (strike_pad,)
         else:
@@ -595,17 +618,82 @@ def inspiral(
                     "Itacacac:snk:" + ifo: lloid_output_source_link[ifo],
                 }
             )
-        if output_kafka_server is not None:
+
+        if IS_ONLINE:
+            #
+            # connect LR and FAR assignment
+            #
             pipeline.insert(
-                Latency(
-                    name="ItacacacLatency",
-                    sink_pad_names=("data",),
-                    source_pad_names=("latency",),
-                    route="all_itacacac_latency",
-                    interval=1,
+                StrikeTransform(
+                    name="StrikeTransform",
+                    sink_pad_names=("trigs",),
+                    source_pad_names=("trigs",),
+                    strike_object=strike_object,
                 ),
-                link_map={"ItacacacLatency:snk:data": "Itacacac:src:stillsuit"},
+                link_map={
+                    "StrikeTransform:snk:trigs": "Itacacac:src:stillsuit",
+                },
             )
+            if output_kafka_server is not None:
+                pipeline.insert(
+                    Latency(
+                        name="ItacacacLatency",
+                        sink_pad_names=("data",),
+                        source_pad_names=("latency",),
+                        route="all_itacacac_latency",
+                        interval=1,
+                    ),
+                    EyeCandy(
+                        name="EyeCandy",
+                        source_pad_names=("trigs",),
+                        template_sngls=sorted_bank.sngls,
+                        event_pad="trigs",
+                        state_vector_pads={ifo: "state_vector_" + ifo for ifo in ifos},
+                        ht_gate_pads={ifo: "ht_gate_" + ifo for ifo in ifos},
+                    ),
+                    GraceDBSink(
+                        name="gracedb",
+                        event_pad="event",
+                        spectrum_pads=tuple(ifo for ifo in ifos),
+                        template_sngls=sorted_bank.sngls,
+                        on_ifos=ifos,
+                        process_params=process_params,
+                        output_kafka_server=output_kafka_server,
+                        far_thresh=gracedb_far_threshold,
+                        gracedb_group=gracedb_group,
+                        gracedb_pipeline=gracedb_pipeline,
+                        gracedb_search=gracedb_search,
+                        gracedb_label=gracedb_label,
+                        gracedb_service_url=gracedb_service_url,
+                        analysis_tag=analysis_tag,
+                        job_tag=job_tag,
+                        delta_t=coincidence_threshold,
+                        strike_object=strike_object,
+                        channel_dict=data_source_info.channel_dict,
+                    ),
+                    link_map={
+                        "ItacacacLatency:snk:data": "Itacacac:src:stillsuit",
+                        "gracedb:snk:event": "StrikeTransform:src:trigs",
+                        "EyeCandy:snk:trigs": "StrikeTransform:src:trigs",
+                    },
+                )
+                pipeline.insert(
+                    link_map={
+                        "EyeCandy:snk:state_vector_" + ifo: source_out_links[ifo]
+                        for ifo in ifos
+                    }
+                )
+                pipeline.insert(
+                    link_map={
+                        "EyeCandy:snk:ht_gate_" + ifo: condition_out_links[ifo]
+                        for ifo in ifos
+                    }
+                )
+                pipeline.insert(
+                    link_map={
+                        "gracedb:snk:" + ifo: spectrum_out_links[ifo] for ifo in ifos
+                    }
+                )
 
         # Connect sink
         if fake_sink:
@@ -654,17 +742,38 @@ def inspiral(
                 ),
             )
 
+            for ifo in ifos:
+                pipeline.insert(
+                    link_map={
+                        "StillSuitSnk:snk:segments_" + ifo: condition_out_links[ifo],
+                    }
+                )
+
+            if IS_ONLINE:
+                pipeline.insert(
+                    link_map={
+                        "StillSuitSnk:snk:trigs": "StrikeTransform:src:trigs",
+                    },
+                )
+            else:
+                pipeline.insert(
+                    link_map={
+                        "StillSuitSnk:snk:trigs": "Itacacac:src:stillsuit",
+                    },
+                )
+
             #
             # Strike - background output
             #
             # FIXME: update online injection logic, StrikeSink is needed only for
             # updating files on snapshot
-            if output_likelihood_file is not None:
+            if output_likelihood_file is not None or (IS_ONLINE and injections):
                 strike_sink = StrikeSink(
                     name="StrikeSnk",
                     ifos=data_source_info.all_analysis_ifos,
                     strike_object=strike_object,
                     is_online=IS_ONLINE,
+                    injections=injections,
                     bankids_map=sorted_bank.bankids_map,
                     background_pad="trigs",
                     horizon_pads=["horizon_" + ifo for ifo in ifos],
@@ -702,66 +811,6 @@ def inspiral(
                     link_map={
                         "NullSink:snk:" + ifo: spectrum_out_links[ifo] for ifo in ifos
                     },
-                )
-
-            if IS_ONLINE:
-                # connect LR and FAR assignment
-                pipeline.insert(
-                    StrikeTransform(
-                        name="StrikeTransform",
-                        sink_pad_names=("trigs",),
-                        source_pad_names=("trigs",),
-                        strike_object=strike_object,
-                    ),
-                    EyeCandy(
-                        name="EyeCandy",
-                        sink_pad_names=("trigs",),
-                        source_pad_names=("trigs",),
-                        template_sngls=sorted_bank.sngls,
-                    ),
-                    GraceDBSink(
-                        name="gracedb",
-                        event_pad="event",
-                        spectrum_pads=tuple(ifo for ifo in ifos),
-                        template_sngls=sorted_bank.sngls,
-                        on_ifos=ifos,
-                        process_params=process_params,
-                        output_kafka_server=output_kafka_server,
-                        far_thresh=gracedb_far_threshold,
-                        gracedb_group=gracedb_group,
-                        gracedb_pipeline=gracedb_pipeline,
-                        gracedb_search=gracedb_search,
-                        gracedb_label=gracedb_label,
-                        gracedb_service_url=gracedb_service_url,
-                        analysis_tag=analysis_tag,
-                        job_tag=job_tag,
-                        delta_t=coincidence_threshold,
-                        strike_object=strike_object,
-                    ),
-                    link_map={
-                        "StrikeTransform:snk:trigs": "Itacacac:src:stillsuit",
-                        "StillSuitSnk:snk:trigs": "StrikeTransform:src:trigs",
-                        "gracedb:snk:event": "StrikeTransform:src:trigs",
-                        "EyeCandy:snk:trigs": "StrikeTransform:src:trigs",
-                    },
-                )
-                pipeline.insert(
-                    link_map={
-                        "gracedb:snk:" + ifo: spectrum_out_links[ifo] for ifo in ifos
-                    }
-                )
-            else:
-                pipeline.insert(
-                    link_map={
-                        "StillSuitSnk:snk:trigs": "Itacacac:src:stillsuit",
-                    },
-                )
-
-            for ifo in ifos:
-                pipeline.insert(
-                    link_map={
-                        "StillSuitSnk:snk:segments_" + ifo: source_out_links[ifo],
-                    }
                 )
 
             if output_kafka_server is not None:
@@ -817,6 +866,14 @@ def inspiral(
                         ]
                         + [
                             "sgnl." + analysis_tag + "." + ifo + "_snrSlice_latency"
+                            for ifo in ifos
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + "." + ifo + "_statevectorsegments"
+                            for ifo in ifos
+                        ]
+                        + [
+                            "sgnl." + analysis_tag + "." + ifo + "_afterhtgatesegments"
                             for ifo in ifos
                         ],
                         tag=job_tag,
@@ -900,6 +957,8 @@ def main():
         svd_bank=options.svd_bank,
         analysis_tag=options.analysis_tag,
         coincidence_threshold=options.coincidence_threshold,
+        compress_likelihood_ratio=options.compress_likelihood_ratio,
+        compress_likelihood_ratio_threshold=options.compress_likelihood_ratio_threshold,
         event_config=options.event_config,
         fake_sink=options.fake_sink,
         far_trials_factor=options.far_trials_factor,
