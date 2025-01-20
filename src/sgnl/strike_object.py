@@ -153,7 +153,11 @@ class StrikeObject:
                 # noninj
                 # if --output-likelihood-file is not set, likelihood file won't be
                 # created
-                pass
+                if self.output_likelihood_file is not None:
+                    self.output_likelihood_file = {
+                        k: self.output_likelihood_file[i]
+                        for i, k in enumerate(self.bankids_map)
+                    }
         else:
             if self.injections is True:
                 if self.input_likelihood_file is None:
