@@ -226,8 +226,11 @@ class StillSuitSink(SnapShotControlSinkElement):
         self.event_dict = {t: [] for t in self.tables}
 
         if self.at_eos:
-            for fn in self.snapshot_filenames():
-                self.on_snapshot(fn)
+            if self.is_online:
+                for fn in self.snapshot_filenames():
+                    self.on_snapshot(fn)
+            else:
+                self.on_snapshot(self.trigger_output)
 
         if self.is_online and self.snapshot_ready():
             for fn in self.snapshot_filenames():
