@@ -820,7 +820,7 @@ class Itacacac(TSTransform):
             {
                 "time": min(
                     trig["time"][j] for trig in clustered_coinc["sngls"].values()
-                ),
+                ).item(),
                 "network_snr": clustered_coinc["clustered_snr"][j].item(),
                 "bankid": clustered_coinc["clustered_bankids"][j],
             }

@@ -16,11 +16,20 @@ from sgnts.base import EventBuffer, EventFrame
 class EyeCandy(TransformElement):
 
     template_sngls: list = None
+    event_pad: str = None
+    state_vector_pads: dict[str, str] = None
+    ht_gate_pads: dict[str, str] = None
 
     def __post_init__(self):
+        self.sink_pad_names = (
+            (self.event_pad,)
+            + tuple(self.state_vector_pads.values())
+            + tuple(self.ht_gate_pads.values())
+        )
         super().__post_init__()
 
-        self.frame = None
+        self.ifos = self.state_vector_pads.keys()
+
         self.sngls_dict = {}
         for sub in self.template_sngls:
             for tid, sngl in sub.items():
@@ -28,9 +37,10 @@ class EyeCandy(TransformElement):
 
         self.outframe = None
         self.startup_time = float(now())
+        self.frames = {pad: None for pad in self.sink_pad_names}
 
     def pull(self, pad, frame):
-        self.frame = frame
+        self.frames[self.rsnks[pad]] = frame
 
     def internal(self):
         super().internal()
@@ -38,6 +48,33 @@ class EyeCandy(TransformElement):
         time_now = float(now())
 
         kafka_data = {}
+
+        #
+        # Segments
+        #
+        # statevectorsegments
+        for ifo in self.ifos:
+            kafka_data[ifo + "_statevectorsegments"] = {"time": [], "data": []}
+            state_frame = self.frames[self.state_vector_pads[ifo]]
+            for buf in state_frame:
+                kafka_data[ifo + "_statevectorsegments"]["time"].append(
+                    float(buf.t0 / 1e9)
+                )
+                kafka_data[ifo + "_statevectorsegments"]["data"].append(
+                    0 if buf.is_gap else 1
+                )
+
+        # afterhtgate
+        for ifo in self.ifos:
+            kafka_data[ifo + "_afterhtgatesegments"] = {"time": [], "data": []}
+            ht_gate_frame = self.frames[self.ht_gate_pads[ifo]]
+            for buf in ht_gate_frame:
+                kafka_data[ifo + "_afterhtgatesegments"]["time"].append(
+                    float(buf.t0 / 1e9)
+                )
+                kafka_data[ifo + "_afterhtgatesegments"]["data"].append(
+                    0 if buf.is_gap else 1
+                )
 
         #
         # ram history
@@ -49,9 +86,17 @@ class EyeCandy(TransformElement):
         kafka_data["ram_history"] = {"time": [time_now], "data": [float(ram)]}
 
         #
+        # uptime
+        #
+        kafka_data["uptime"] = {
+            "time": [float(now())],
+            "data": [float(now()) - self.startup_time],
+        }
+
+        #
         # ifo snr history
         #
-        frame = self.frame
+        frame = self.frames[self.event_pad]
         max_snrs = frame["max_snr_histories"].data
 
         if max_snrs is not None:
@@ -95,22 +140,24 @@ class EyeCandy(TransformElement):
         #
         # likelihood history, far history
         #
-        max_likelihood, max_likelihood_t, max_likelihood_far = max(
-            (e["likelihood"], e["time"], e["combined_far"]) for e in events
-        )
-        max_likelihood_t /= 1e9
+        lr_events = [e for e in events if e["likelihood"] is not None]
+        if len(lr_events) > 0:
+            max_likelihood, max_likelihood_t, max_likelihood_far = max(
+                (e["likelihood"], e["time"], e["combined_far"]) for e in events
+            )
+            max_likelihood_t /= 1e9
 
-        # FIXME: what to do when likelihood is -inf?
-        if max_likelihood is not None and not math.isinf(max_likelihood):
-            kafka_data["likelihood_history"] = {
-                "time": [float(max_likelihood_t)],
-                "data": [float(max_likelihood)],
-            }
-        if max_likelihood_far is not None:
-            kafka_data["far_history"] = {
-                "time": [float(max_likelihood_t)],
-                "data": [float(max_likelihood_far)],
-            }
+            # FIXME: what to do when likelihood is -inf?
+            if max_likelihood is not None and not math.isinf(max_likelihood):
+                kafka_data["likelihood_history"] = {
+                    "time": [float(max_likelihood_t)],
+                    "data": [float(max_likelihood)],
+                }
+            if max_likelihood_far is not None:
+                kafka_data["far_history"] = {
+                    "time": [float(max_likelihood_t)],
+                    "data": [float(max_likelihood_far)],
+                }
 
         #
         # coinc dict
@@ -148,14 +195,6 @@ class EyeCandy(TransformElement):
         #     self.heartbeat_time = int(t)
         #     self.client.write(f"sgnl.{self.analysis}.{self.topic_prefix}events",
         #     {'time': self.heartbeat_time}, tags='heartbeat')
-
-        #
-        # uptime
-        #
-        kafka_data["uptime"] = {
-            "time": [float(now())],
-            "data": [float(now()) - self.startup_time],
-        }
 
         #
         # segments FIXME
