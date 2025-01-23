@@ -247,14 +247,14 @@ def main():
             )
             dag.attach(layer)
 
-            # layer = layers.collect_metrics_event(
-            #    config.condor,
-            #    config.metrics,
-            #    config.services,
-            #    config.filter,
-            #    config.tag,
-            # )
-            # dag.attach(layer)
+            layer = layers.collect_metrics_event(
+                config.condor,
+                config.metrics,
+                config.services,
+                config.filter,
+                config.tag,
+            )
+            dag.attach(layer)
 
     # Write dag and script to disk
     dag.write(pathlib.Path(args.dag_dir), write_script=True)

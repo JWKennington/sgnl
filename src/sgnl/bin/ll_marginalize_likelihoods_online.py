@@ -461,7 +461,8 @@ def main():
         # period in an HL EW analysis with 1000 templates / bin
         # NOTE: This option is not meant to be used for analyses other than
         # the one mentioned above.
-        if num_extincted >= 0.99 * len(registries) or (
+        # if num_extincted >= 0.99 * len(registries) or (
+        if num_extincted >= 0.9 * len(registries) or (
             options.fast_burnin and num_extincted >= 0.666667 * len(registries)
         ):
             data.save(

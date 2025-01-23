@@ -166,8 +166,8 @@ class EyeCandy(TransformElement):
         for e, t in zip(events, triggers):
             # FIXME: do we need anything else?
             coinc_dict = {
-                "snr": e["network_snr"],
-                "end": e["time"] / 1e9,
+                "snr": float(e["network_snr"]),
+                "end": float(e["time"] / 1e9),
             }
             for ti in t:
                 if ti is not None:
@@ -180,10 +180,12 @@ class EyeCandy(TransformElement):
                         coinc_dict[ifo + "_" + col] = float(getattr(sngl_row, col))
 
             if e["likelihood"] is not None:
-                coinc_dict["likelihood"] = e["likelihood"]
+                coinc_dict["likelihood"] = float(e["likelihood"])
             if e["combined_far"] is not None:
-                coinc_dict["false_alarm_probability"] = e["false_alarm_probability"]
-                coinc_dict["combined_far"] = e["combined_far"]
+                coinc_dict["false_alarm_probability"] = float(
+                    e["false_alarm_probability"]
+                )
+                coinc_dict["combined_far"] = float(e["combined_far"])
             coinc_dict_list.append(coinc_dict)
 
         kafka_data["coinc"] = coinc_dict_list
