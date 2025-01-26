@@ -292,8 +292,8 @@ def main():
     # if provided, create an empty rankingstatpdf too
     #
 
-    for filename in options.write_empty_rankingstatpdf:
-        if options.write_empty_rankingstatpdf:
+    if options.write_empty_rankingstatpdf:
+        for filename in options.write_empty_rankingstatpdf:
             rankingstatpdf = far.RankingStatPDF(rankingstat, nsamples=0)
             rankingstatpdf.save(
                 filename,
