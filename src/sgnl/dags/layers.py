@@ -572,15 +572,18 @@ def create_prior(
         Option("min-instruments", min_ifos),
         Option("coincidence-threshold", coincidence_threshold),
     ]
-    zerolag_pdf = write_empty_zerolag.groupby("bin")
-    marg_zerolag_pdf = write_empty_marg_zerolag.files[0]
+    if write_empty_zerolag:
+        zerolag_pdf = write_empty_zerolag.groupby("bin")
+    if write_empty_marg_zerolag:
+        marg_zerolag_pdf = write_empty_marg_zerolag.files[0]
+
     for i, (svd_bin, prior) in enumerate(prior_cache.groupby("bin").items()):
         inputs = [
             Option("svd-file", svd_banks[svd_bin].files),
             Option("mass-model-file", mass_model),
         ]
         outputs = [Option("output-likelihood-file", prior.files)]
-        if write_empty_zerolag:
+        if write_empty_zerolag and write_empty_marg_zerolag:
             # create an empty rankingstatpdf using the first svd bin's prior file
             # as a bootstrap. This is meant to be used during the setup stage of
             # an online analysis to create the zerolag pdf file
@@ -614,7 +617,7 @@ def cluster_snr(
     executable = "stillsuit-merge-reduce"
     resource_requests = {
         "request_cpus": 1,
-        "request_memory": "2GB",
+        "request_memory": "6GB",
         "request_disk": "2GB",
     }
     layer = create_layer(
@@ -653,7 +656,7 @@ def merge_and_reduce(
     executable = "stillsuit-merge-reduce"
     resource_requests = {
         "request_cpus": 1,
-        "request_memory": "2GB",
+        "request_memory": "6GB",
         "request_disk": "2GB",
     }
     layer = create_layer(
@@ -697,7 +700,7 @@ def assign_likelihood(
     executable = "sgnl-assign-likelihood"
     resource_requests = {
         "request_cpus": 1,
-        "request_memory": "2GB",
+        "request_memory": "6GB",
         "request_disk": "3GB",
     }
 
@@ -783,7 +786,7 @@ def extinct_bin(
     executable = "sgnl-extinct-bin"
     resource_requests = {
         "request_cpus": 1,
-        "request_memory": "2GB",
+        "request_memory": "4GB",
         "request_disk": "1GB",
     }
 
@@ -897,7 +900,7 @@ def assign_far(
     executable = "sgnl-extinct-bin"
     resource_requests = {
         "request_cpus": 1,
-        "request_memory": "2GB",
+        "request_memory": "6GB",
         "request_disk": "4GB",
     }
 
@@ -956,7 +959,7 @@ def summary_page(
     executable = "sgnl-add-segments"
     resource_requests = {
         "request_cpus": 1,
-        "request_memory": "2GB",
+        "request_memory": "6GB",
         "request_disk": "4GB",
     }
     seg_layer = create_layer(executable, condor_config, resource_requests)
@@ -964,7 +967,7 @@ def summary_page(
     executable = "sgnl-sim-page"
     resource_requests = {
         "request_cpus": 1,
-        "request_memory": "2GB",
+        "request_memory": "6GB",
         "request_disk": "10GB",
     }
 
@@ -973,7 +976,7 @@ def summary_page(
     executable = "sgnl-results-page"
     resource_requests = {
         "request_cpus": 1,
-        "request_memory": "2GB",
+        "request_memory": "6GB",
         "request_disk": "10GB",
     }
 
