@@ -425,6 +425,11 @@ class EventUploader(events.EventProcessor):
                     )
                 )
             ):
+                self.logger.info(
+                    "handle: process_event num %d [%.1f, %.1f]",
+                    len(event["candidates"]),
+                    *key,
+                )
                 self.process_event(event, key)
 
         # clean out old events
@@ -477,8 +482,8 @@ class EventUploader(events.EventProcessor):
                 window[0],
                 window[1],
             )
-            self.send_favored_event(event, window)
             gid = self.upload_event(event)
+            self.send_favored_event(event, window)
             if gid:
                 event["num_sent"] += 1
                 event["gid"] = gid

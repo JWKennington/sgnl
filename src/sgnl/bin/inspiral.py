@@ -643,14 +643,6 @@ def inspiral(
                         route="all_itacacac_latency",
                         interval=1,
                     ),
-                    EyeCandy(
-                        name="EyeCandy",
-                        source_pad_names=("trigs",),
-                        template_sngls=sorted_bank.sngls,
-                        event_pad="trigs",
-                        state_vector_pads={ifo: "state_vector_" + ifo for ifo in ifos},
-                        ht_gate_pads={ifo: "ht_gate_" + ifo for ifo in ifos},
-                    ),
                     GraceDBSink(
                         name="gracedb",
                         event_pad="event",
@@ -671,11 +663,24 @@ def inspiral(
                         strike_object=strike_object,
                         channel_dict=data_source_info.channel_dict,
                     ),
+                    EyeCandy(
+                        name="EyeCandy",
+                        source_pad_names=("trigs",),
+                        template_sngls=sorted_bank.sngls,
+                        event_pad="trigs",
+                        state_vector_pads={ifo: "state_vector_" + ifo for ifo in ifos},
+                        ht_gate_pads={ifo: "ht_gate_" + ifo for ifo in ifos},
+                    ),
                     link_map={
                         "ItacacacLatency:snk:data": "Itacacac:src:stillsuit",
                         "gracedb:snk:event": "StrikeTransform:src:trigs",
                         "EyeCandy:snk:trigs": "StrikeTransform:src:trigs",
                     },
+                )
+                pipeline.insert(
+                    link_map={
+                        "gracedb:snk:" + ifo: spectrum_out_links[ifo] for ifo in ifos
+                    }
                 )
                 pipeline.insert(
                     link_map={
@@ -687,11 +692,6 @@ def inspiral(
                     link_map={
                         "EyeCandy:snk:ht_gate_" + ifo: condition_out_links[ifo]
                         for ifo in ifos
-                    }
-                )
-                pipeline.insert(
-                    link_map={
-                        "gracedb:snk:" + ifo: spectrum_out_links[ifo] for ifo in ifos
                     }
                 )
 

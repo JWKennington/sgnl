@@ -2,10 +2,10 @@
 element
 """
 
-# Copyright (C) 2011 Chad Hanna, Kipp Cannon
-# Copyright (C) 2018 Cody Messick, Alex Pace
-# Copyright (C) 2019 Cody Messick
-# Copyright (C) 2024 Yun-Jing Huang
+# Copyright (C) 2011      Chad Hanna, Kipp Cannon
+# Copyright (C) 2018      Cody Messick, Alex Pace
+# Copyright (C) 2019      Cody Messick
+# Copyright (C) 2024-2025 Yun-Jing Huang
 
 from __future__ import annotations
 
@@ -798,6 +798,7 @@ class Itacacac(TSTransform):
                         # finding window. This will be used for subthreshold trigger
                         # finding in the GraceDBSink
                         snr_ts_snippet = clustered_coinc["snr_ts_clustered"][ifo][j]
+                        assert snr_ts_snippet.shape[-1] > 0, f"{ifo}"
                         snr_ts_snippet_out = lal.CreateCOMPLEX8TimeSeries(
                             name="snr",
                             epoch=Offset.tosec(self.offset),
@@ -818,9 +819,9 @@ class Itacacac(TSTransform):
 
         out_events = [
             {
-                "time": min(
-                    trig["time"][j] for trig in clustered_coinc["sngls"].values()
-                ).item(),
+                "time": list(dict(sorted(clustered_coinc["sngls"].items())).values())[
+                    0
+                ]["time"][j].item(),
                 "network_snr": clustered_coinc["clustered_snr"][j].item(),
                 "bankid": clustered_coinc["clustered_bankids"][j],
             }

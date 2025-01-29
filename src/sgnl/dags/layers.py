@@ -5,6 +5,7 @@
 
 import itertools
 import os
+import shutil
 
 from ezdag import Argument, Layer, Node, Option
 
@@ -1714,3 +1715,65 @@ def collect_metrics_event(
         event_layer += Node(arguments=event_arguments)
 
     return event_layer
+
+
+def upload_pastro(
+    condor_config, services_config, upload_config, pastro_config, tag, marg_pdf_cache
+):
+
+    executable = "sgnl-ll-pastro-uploader"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "3GB",
+        "request_disk": "2GB",
+    }
+
+    layer = create_layer(
+        executable,
+        condor_config,
+        resource_requests,
+        retries=1000,
+    )
+
+    input_topics = (
+        ["uploads", "inj_uploads"]
+        if upload_config.enable_injection_uploads
+        else ["uploads"]
+    )
+
+    for model, options in pastro_config.items():
+        # make a copy of the model file for injection
+        #  jobs to avoid issues with IO
+        # FIXME this is so hacky
+        if upload_config.enable_injection_uploads:
+            path, filename = options.mass_model.split("/")
+            inj_mass_model = os.path.join(path, "inj_" + filename)
+            shutil.copy(options.mass_model, inj_mass_model)
+        for input_topic in input_topics:
+            arguments = [
+                Option("kafka-server", services_config.kafka_server),
+                Option("tag", tag),
+                Option("input-topic", input_topic),
+                Option("model-name", model),
+                Option("pastro-filename", options.upload_file),
+                Option(
+                    "pastro-model-file",
+                    options.mass_model if input_topic == "uploads" else inj_mass_model,
+                ),
+                Option("rank-stat", marg_pdf_cache.files),
+                Option("verbose"),
+            ]
+
+            # add gracedb service url
+            if "inj_" in input_topic:
+                arguments.append(
+                    Option("gracedb-service-url", upload_config.inj_gracedb_service_url)
+                )
+            else:
+                arguments.append(
+                    Option("gracedb-service-url", upload_config.gracedb_service_url)
+                )
+
+            layer += Node(arguments=arguments)
+
+    return layer

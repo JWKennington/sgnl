@@ -261,7 +261,7 @@ class StrikeObject:
                 for tries in range(10):
                     try:
                         lr = LnLikelihoodRatio.load(in_lr_file)
-                    except OSError as e:
+                    except (OSError, EOFError) as e:
                         print(
                             f"Error in reading rank stat on try {tries}: {e}",
                             file=sys.stderr,

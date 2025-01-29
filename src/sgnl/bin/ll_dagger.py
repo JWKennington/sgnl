@@ -228,7 +228,15 @@ def main():
             #     dag.optimizer_add_skymap()
 
             # FIXME: uncomment once we have pastro working
-            # dag.upload_pastro(marg_pdf)
+            layer = layers.upload_pastro(
+                config.condor,
+                config.services,
+                config.upload,
+                config.pastro,
+                config.tag,
+                marg_pdf,
+            )
+            dag.attach(layer)
 
             layer = layers.plot_events(
                 config.condor, config.upload, config.services, config.tag

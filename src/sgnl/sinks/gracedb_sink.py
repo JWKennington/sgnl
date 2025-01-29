@@ -94,7 +94,7 @@ class GraceDBSink(HTTPControlSinkElement):
         HTTPControlSinkElement.exchange_state(self.name, self.state)
 
         # send event data to kafka or gracedb
-        if self.client and self.state["far-threshold"] > 0:
+        if self.client and self.state["far-threshold"] >= 0:
 
             event, trigs, snr_ts = min_far_event(
                 self.events["event"].data,
@@ -343,21 +343,15 @@ def event_trigs_to_coinc_xmldoc(
     # Initialize the main document
     xmldoc = ligolw.Document()
     xmldoc.appendChild(ligolw.LIGO_LW())
-    ligolw_process.register_to_xmldoc(xmldoc, "sngl-inspiral", process_params)
+    # FIXME bayestar needs the program name
+    ligolw_process.register_to_xmldoc(xmldoc, "sgnl-inspiral", process_params)
 
     # Add tables that depend on the number of triggers
     # NOTE: tables are initilize to 0 or null values depending on the type.
     time_slide_table = add_table_with_n_rows(
         xmldoc, lsctables.TimeSlideTable, len(on_ifos)
     )
-    sngl_inspiral_table = add_table_with_n_rows(
-        xmldoc, lsctables.SnglInspiralTable, len(snr_ts)
-    )
-    # coinc_map_table = add_table_with_n_rows(xmldoc, lsctables.CoincMapTable,
-    # len(trigs))
-    coinc_map_table = add_table_with_n_rows(
-        xmldoc, lsctables.CoincMapTable, len(snr_ts)
-    )
+
     found_ifos = []
 
     # Add subthreshold trigger
@@ -394,10 +388,38 @@ def event_trigs_to_coinc_xmldoc(
             dt = snr_ts_this_ifo.deltaT
             idx0 = int((coinc_segment[0] - t0) / dt)
             idxf = int(math.ceil((coinc_segment[1] - t0) / dt))
-            if idx0 == idxf:
-                # FIXME when does this happen?
-                continue
-            maxid = numpy.argmax(abs(snr_ts_this_ifo_array[idx0:idxf]))
+            length = snr_ts_this_ifo_array.shape[-1]
+            # if idx0 < 0:
+            #    # FIXME: there are cases where the trigger is at the edge of the
+            #    # trigger finding window, so there is not half_autocorr_length
+            #    # of samples, so pad zeros in front
+            #    snr_ts_this_ifo_array = numpy.concatenate(numpy.zeros(-idx0),
+            #       snr_ts_this_ifo_array[:idxf])
+            #    seq = abs(snr_ts_this_ifo_array)
+            #    t0 = coinc_segment[0]
+            #    idx0 = 0
+            #    idxf = seq.shape[-1]
+            #    print('idx0 < 0', idx0, file=sys.stderr)
+            # elif idxf > length:
+            #    snr_ts_this_ifo_array = numpy.concatenate(snr_ts_this_ifo_array[idx0:],
+            #       numpy.zeros(idxf-length))
+            #    seq = abs(snr_ts_this_ifo_array)
+            #    t0 = coinc_segment[0]
+            #    idx0 = 0
+            #    idxf = seq.shape[-1]
+            #    print('idxf > length', idxf, file=sys.stderr)
+            # else:
+
+            if idx0 < 0 or idxf > length:
+                # FIXME: should we actually skip if we don't have enough samples?
+                print("warning: not enougth samples to find coincidence")
+                idx0 = max(0, idx0)
+                idxf = min(idxf, length)
+
+            seq = abs(snr_ts_this_ifo_array[idx0:idxf])
+
+            maxid = numpy.argmax(seq)
+
             maxsnr = abs(snr_ts_this_ifo_array[idx0 + maxid])
             phase = math.atan2(
                 snr_ts_this_ifo_array[idx0 + maxid].imag,
@@ -406,14 +428,39 @@ def event_trigs_to_coinc_xmldoc(
             peakt = float(t0) + (idx0 + maxid) * dt
 
             deltaT = snr_ts_this_ifo.deltaT
-            snr_ts_snippet = snr_ts_this_ifo_array[
-                idx0
-                + maxid
-                - half_autocorr_length : idx0
-                + maxid
-                + 1
-                + half_autocorr_length
-            ]
+
+            snip0 = idx0 + maxid - half_autocorr_length
+            snipf = idx0 + maxid + half_autocorr_length + 1
+            sniplength = snr_ts_this_ifo_array.shape[-1]
+
+            # if snip0 < 0:
+            #    print('pad zeros', )
+            #    snr_ts_snippet = numpy.concatenate(numpy.zeros(-snip),
+            #       snr_ts_this_ifo_array[:snipf])
+            # elif snipf > sniplength:
+            #    snr_ts_snippet = numpy.concatenate(snr_ts_this_ifo_array[snip0:],
+            #       numpy.zeros(snipf-sniplength))
+            # else:
+
+            if snip0 < 0 or snipf > sniplength:
+                # FIXME: in gstlal it says Bayestar needs at least 26.3ms
+                print(
+                    ifo,
+                    "not enough samples to produce snr snippet",
+                    f"{snip0=} {snipf=} {sniplength=}",
+                )
+                continue
+
+            snr_ts_snippet = snr_ts_this_ifo_array[snip0:snipf]
+            if snr_ts_snippet.shape[-1] == 0:
+                print(
+                    f"{ifo=} {idx0=} {idxf=} {maxid=} {half_autocorr_length=}",
+                    f"{coinc_segment=} {trigger_time=} {coincidence_window=} {t0=}",
+                    f"{dt=} {snr_ts_this_ifo_array.shape=}",
+                    file=sys.stderr,
+                )
+                raise ValueError("no snr ts snippet")
+
             snr_ts_snippet_out = lal.CreateCOMPLEX8TimeSeries(
                 name="snr",
                 epoch=peakt - half_autocorr_length * deltaT,
@@ -443,6 +490,13 @@ def event_trigs_to_coinc_xmldoc(
     for n, ifo in enumerate(on_ifos):
         time_slide_table[n].instrument = ifo
 
+    sngl_inspiral_table = add_table_with_n_rows(
+        xmldoc, lsctables.SnglInspiralTable, len(trigs)
+    )
+    coinc_map_table = add_table_with_n_rows(xmldoc, lsctables.CoincMapTable, len(trigs))
+    coinc_def_table = add_table_with_n_rows(xmldoc, lsctables.CoincDefTable, 1)
+    coinc_def_table[0].description = "sngl_inspiral<-->sngl_inspiral coincidences"
+    coinc_def_table[0].search = "inspiral"
     for n, row in enumerate(sngl_inspiral_table):
         sngl_map(row, sngls_dict, trigs[n]["_filter_id"], exclude=())
         row.event_id = n
