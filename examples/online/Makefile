@@ -4,6 +4,7 @@ H1_SVD_BANK=H1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
 L1_SVD_BANK=L1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
 V1_SVD_BANK=V1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
 EVENT_CONFIG=../../config/fake_cbc.yaml
+PASTRO_MODEL_FILE=fgmc_model_O4.h5
 
 KAFKA_SERVER=localhost-v4:9196
 GRACEDB_GROUP=CBC
@@ -258,6 +259,18 @@ marginalize_likelihood:
 		--output-kafka-server ${KAFKA_SERVER} \
 		--tag ${TAG} \
 		--verbose
+
+pastro_uploader:
+	sgnl-ll-inspiral-pastro-uploader \
+		--kafka-server ${KAFKA_SERVER} \
+		--tag ${TAG} \
+		--input-topic uploads \
+		--model-name FGMC \
+		--pastro-filename gstlal.p_astro.json \
+		--pastro-model-file ${PASTRO_MODEL_FILE} \
+		--rank-stat ${RANK_STAT} \
+		--verbose \
+		--gracedb-service-url ${GRACEDB_URL}
 
 clean:
 	rm -rf out.sqlite likelihood_ratio.xml.gz
