@@ -560,14 +560,23 @@ class Itacacac(TSTransform):
             sngl_snr = trig_snrs[ifo][range(self.nsubbank), max_locations]
             sngl_chisq = trig_chisqs[ifo][range(self.nsubbank), max_locations]
 
+            # FIXME: this is trying to resolve rounding issues at large gps times
+            # Do we need to be this precise?
+            max_peak_locations = max_peak_locations.astype(np.uint64)
+            trig_time_sec = max_peak_locations // self.rate
+            trig_ns_samples = max_peak_locations % self.rate
+
+            ref_time_sec = self.offset // Offset.MAX_RATE
+            ref_ns_offsets = self.offset % Offset.MAX_RATE
+
+            total_time = (trig_time_sec + ref_time_sec) * 1_000_000_000 + np.round(
+                (ref_ns_offsets + Offset.fromsamples(trig_ns_samples, self.rate))
+                / Offset.MAX_RATE
+                * 1_000_000_000
+            ).astype(np.uint64)
+
             sngls[ifo]["time"] = (
-                np.round(
-                    (Offset.fromsamples(max_peak_locations, self.rate) + self.offset)
-                    / Offset.MAX_RATE
-                    * 1_000_000_000
-                ).astype(int)
-                + Offset.offset_ref_t0
-                + self.end_time_delta
+                total_time + Offset.offset_ref_t0 + self.end_time_delta
             )[mask]
             sngls[ifo]["snr"] = sngl_snr[mask]
             sngls[ifo]["chisq"] = sngl_chisq[mask]
