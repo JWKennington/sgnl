@@ -151,13 +151,11 @@ def ll_dq(
             name="HorizonSnk",
             sink_pad_names=("horizon",),
             output_kafka_server=output_kafka_server,
-            topics=[
-                "sgnl." + analysis_tag + ".range_history",
-            ],
+            time_series_topics=["range_history"],
             tag=[
                 ifo,
             ],
-            prefix="inj_" if injections else "",
+            prefix="sgnl." + analysis_tag + "." + ("inj_" if injections else ""),
         ),
     )
 

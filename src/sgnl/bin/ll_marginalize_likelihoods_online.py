@@ -178,10 +178,12 @@ def process_svd_bin(
         logger.warning("Couldn't find %s, starting from scratch", pdf_path)
         old_pdf = None
 
+    logger.info("calc_rank_pdfs...")
     # create the new ranking stat pdf and marginalize as we go
     new_pdf_status, pdf = calc_rank_pdfs(
         url, ranking_stat_samples, num_cores, verbose=verbose
     )
+    logger.info("Finished calc_rank_pdfs")
 
     # add the old and new pdfs if they are available
     if new_pdf_status and old_pdf:
@@ -195,6 +197,7 @@ def process_svd_bin(
     if pdf:
         pdf.zero_lag_lr_lnpdf.count.array[:] = 0.0
 
+    logger.info("Saving %s...", pdf_path)
     # save the new PDF + old PDF (if it exists) to disk
     if new_pdf_status:
         pdf.save(
@@ -221,6 +224,7 @@ def process_svd_bin(
             # LR calculation has started and we are ready to perform first-round
             # extinction
             extinction_status = 1
+            logger.info("new_with_extinction...")
             pdf = pdf.new_with_extinction()
         else:
             # add a zeroed-out PDF instead, so that the template ids get added to data

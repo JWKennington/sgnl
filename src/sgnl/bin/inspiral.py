@@ -648,7 +648,7 @@ def inspiral(
                         event_pad="event",
                         spectrum_pads=tuple(ifo for ifo in ifos),
                         template_sngls=sorted_bank.sngls,
-                        on_ifos=ifos,
+                        analysis_ifos=ifos,
                         process_params=process_params,
                         output_kafka_server=output_kafka_server,
                         far_thresh=gracedb_far_threshold,
@@ -828,56 +828,33 @@ def inspiral(
                         + tuple(ifo + "_whiten_latency" for ifo in ifos)
                         + tuple(ifo + "_snrSlice_latency" for ifo in ifos),
                         output_kafka_server=output_kafka_server,
-                        topics=[
-                            "sgnl." + analysis_tag + "." + ifo + "_snr_history"
+                        time_series_topics=[
+                            "latency_history",
+                            "all_itacacac_latency",
+                            "likelihood_history",
+                            "far_history",
+                            "ram_history",
+                            "uptime",
+                        ]
+                        + [
+                            ifo + topic
                             for ifo in ifos
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".latency_history",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".all_itacacac_latency",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".likelihood_history",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".far_history",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".ram_history",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".events",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".coinc",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + ".uptime",
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + "." + ifo + "_datasource_latency"
-                            for ifo in ifos
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + "." + ifo + "_whitening_latency"
-                            for ifo in ifos
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + "." + ifo + "_snrSlice_latency"
-                            for ifo in ifos
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + "." + ifo + "_statevectorsegments"
-                            for ifo in ifos
-                        ]
-                        + [
-                            "sgnl." + analysis_tag + "." + ifo + "_afterhtgatesegments"
-                            for ifo in ifos
+                            for topic in [
+                                "_snr_history",
+                                "_datasource_latency",
+                                "_whitening_latency",
+                                "_snrSlice_latency",
+                                "_statevectorsegments",
+                                "_afterhtgatesegments",
+                            ]
                         ],
+                        trigger_topics=["coinc"],
                         tag=job_tag,
-                        prefix="inj_" if "_inj" in job_tag else "",
+                        prefix="sgnl."
+                        + analysis_tag
+                        + "."
+                        + ("inj_" if "_inj" in job_tag else ""),
+                        interval=3,
                     ),
                     link_map={
                         "KafkaSnk:snk:itacacac_latency": "ItacacacLatency:src:latency",

@@ -40,7 +40,7 @@ class GraceDBSink(HTTPControlSinkElement):
     template_sngls: list = None
     analysis_tag: str = "mockery"
     job_tag: str = None
-    on_ifos: list = None
+    analysis_ifos: list = None
     process_params: dict = None
     event_pad: str = None
     spectrum_pads: list[str] = None
@@ -68,7 +68,7 @@ class GraceDBSink(HTTPControlSinkElement):
 
         # set up kafka producer or a gracedb client
         if self.output_kafka_server is not None:
-            print("sending events to kafka")
+            print("GraceDBSink: sending events to kafka", flush=True, file=sys.stderr)
             self.client = Producer(
                 {
                     "bootstrap.servers": self.output_kafka_server,
@@ -108,7 +108,7 @@ class GraceDBSink(HTTPControlSinkElement):
                     trigs,
                     snr_ts,
                     self.sngls_dict,
-                    self.on_ifos,
+                    self.analysis_ifos,
                     self.process_params,
                     self.delta_t,
                     self.channel_dict,
@@ -123,7 +123,7 @@ class GraceDBSink(HTTPControlSinkElement):
                         xmldoc,
                         self.job_tag,
                         self.analysis_tag,
-                        "".join(sorted(self.on_ifos)),
+                        "".join(sorted(self.analysis_ifos)),
                         self.gracedb_group,
                         self.gracedb_search,
                         self.strike_object,
@@ -179,6 +179,7 @@ def publish_kafka(
         ),
         key=job_tag,
     )
+    client.poll(0)
 
     background_bin = int(sngl_inspiral_table[0].Gamma1)
     description = "%s_%s_%s_%s_%s" % (
@@ -226,6 +227,7 @@ def publish_kafka(
             }
         ),
     )
+    client.poll(0)
 
 
 def publish_gracedb(client, xmldoc, group, pipeline, search, labels):
@@ -334,7 +336,14 @@ def sngl_map(row, sngldict, _filter_id, exclude):
 
 
 def event_trigs_to_coinc_xmldoc(
-    event, trigs, snr_ts, sngls_dict, on_ifos, process_params, delta_t, channel_dict
+    event,
+    trigs,
+    snr_ts,
+    sngls_dict,
+    analysis_ifos,
+    process_params,
+    delta_t,
+    channel_dict,
 ):
     """Given an event dict and a trigs list of dicts corresponding to single
     event as well as the parameters in the sngls_dict corresponding, construct an
@@ -344,13 +353,20 @@ def event_trigs_to_coinc_xmldoc(
     xmldoc = ligolw.Document()
     xmldoc.appendChild(ligolw.LIGO_LW())
     # FIXME bayestar needs the program name
-    ligolw_process.register_to_xmldoc(xmldoc, "sgnl-inspiral", process_params)
+    ligolw_process.register_to_xmldoc(
+        xmldoc,
+        "sgnl-inspiral",
+        process_params,
+        instruments=analysis_ifos,
+        is_online=True,
+    )
 
     # Add tables that depend on the number of triggers
     # NOTE: tables are initilize to 0 or null values depending on the type.
     time_slide_table = add_table_with_n_rows(
-        xmldoc, lsctables.TimeSlideTable, len(on_ifos)
+        xmldoc, lsctables.TimeSlideTable, len(analysis_ifos)
     )
+    process_id = lsctables.ProcessTable.get_table(xmldoc)[0].process_id
 
     found_ifos = []
 
@@ -487,8 +503,9 @@ def event_trigs_to_coinc_xmldoc(
         event["network_snr"] = sum(trig["snr"] ** 2 for trig in trigs) ** 0.5
         event["time"] = min(trig["time"] for trig in trigs)
 
-    for n, ifo in enumerate(on_ifos):
+    for n, ifo in enumerate(analysis_ifos):
         time_slide_table[n].instrument = ifo
+        time_slide_table[n].process_id = process_id
 
     sngl_inspiral_table = add_table_with_n_rows(
         xmldoc, lsctables.SnglInspiralTable, len(trigs)
@@ -503,6 +520,7 @@ def event_trigs_to_coinc_xmldoc(
         row.channel = channel_dict[row.ifo]
         row.chisq_dof = 1
         row.eff_distance = float("nan")
+        row.process_id = process_id
         col_map(
             row,
             trigs[n],
@@ -565,7 +583,8 @@ def event_trigs_to_coinc_xmldoc(
         },
         {},
     )
-    coinc_event_table[0].instruments = ",".join(sorted(on_ifos))
+    coinc_event_table[0].instruments = ",".join(sorted(found_ifos))
+    coinc_event_table[0].process_id = process_id
 
     # coinc_def_table = add_table_with_n_rows(xmldoc, lsctables.CoincDefTable, 1)
 
