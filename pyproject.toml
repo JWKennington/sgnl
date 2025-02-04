@@ -113,7 +113,9 @@ sgnl = [
 ]
 
 [tool.setuptools_scm]
+fallback_version = "v0.0.0"
 write_to = "src/sgnl/_version.py"
+
 
 [tool.coverage.paths]
 source = [
