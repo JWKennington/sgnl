@@ -7,6 +7,7 @@ stages:
   - deploy
   - .post
 
+
 include:
   - component: git.ligo.org/computing/gitlab/components/python/sdist@1
   - component: git.ligo.org/computing/gitlab/components/python/wheel@1
@@ -44,6 +45,15 @@ include:
       image_name: sgnl
       pull_image_tag: $CI_COMMIT_SHA
       push_image_tag: $CI_COMMIT_TAG
+
+
+sdist:
+  cache: []
+  before_script:
+    - export SETUPTOOLS_SCM_DEBUG=1
+
+wheel:
+  cache: []
 
 python_test:
   before_script:
