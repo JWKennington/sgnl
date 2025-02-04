@@ -1,3 +1,12 @@
+stages:
+  - .pre
+  - build
+  - test
+  - container
+  - publish
+  - deploy
+  - .post
+
 include:
   - component: git.ligo.org/computing/gitlab/components/python/sdist@1
   - component: git.ligo.org/computing/gitlab/components/python/wheel@1
@@ -21,7 +30,20 @@ include:
   - component: git.ligo.org/computing/gitlab/components/mkdocs/pages@1
     inputs:
       pages_when: "default"
-
+  - component: git.ligo.org/computing/cicd-components/docker/build@1
+    rules:
+      - if: $CI_COMMIT_TAG =~ /^\S+$/
+    inputs:
+      dockerfile: container/Dockerfile
+      image_name: sgnl
+      image_tag:  $CI_COMMIT_SHA
+  - component: git.ligo.org/computing/gitlab/components/docker/push@1
+    rules:
+      - if: $CI_COMMIT_TAG =~ /^\S+$/
+    inputs:
+      image_name: sgnl
+      pull_image_tag: $CI_COMMIT_SHA
+      push_image_tag: $CI_COMMIT_TAG
 
 python_test:
   before_script:
