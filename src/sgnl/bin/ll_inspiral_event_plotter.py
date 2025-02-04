@@ -197,7 +197,7 @@ def load_rankingstat_xml_with_retries(filename, logger):
                 filename, contenthandler=LnLikelihoodRatio.LIGOLWContentHandler
             )
             break
-        except SAXParseException as e:
+        except (SAXParseException, OSError) as e:
             if tries < 2:
                 logger.warning(
                     "Failed to load rankingstat located at %s. Trying again.", filename
