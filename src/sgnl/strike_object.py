@@ -8,6 +8,7 @@ import os
 import shutil
 import sys
 import time
+import zlib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -261,7 +262,7 @@ class StrikeObject:
                 for tries in range(10):
                     try:
                         lr = LnLikelihoodRatio.load(in_lr_file)
-                    except (OSError, EOFError) as e:
+                    except (OSError, EOFError, zlib.error) as e:
                         print(
                             f"Error in reading rank stat on try {tries}: {e}",
                             file=sys.stderr,
