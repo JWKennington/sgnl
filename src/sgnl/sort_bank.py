@@ -381,7 +381,7 @@ class SortedBank:
         urates = list(unique_rates.keys())
         downpads = {r: None for r in urates}
         downpad = 0
-        downpads[2048] = 0
+        downpads[urates[0]] = 0
         for urate in urates[1:]:
             downpad += Offset.fromsamples(DOWN_HALF_LENGTH, urate)
             downpads[urate] = downpad
