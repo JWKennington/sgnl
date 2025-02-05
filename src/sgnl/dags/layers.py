@@ -1125,7 +1125,8 @@ def filter_online(
             Option("job-tag", job_tag),
             # FIXME: fix gate threshold
             # Option("ht-gate-threshold", calc_gate_threshold(config, svd_bin)),
-            Option("ht-gate-threshold", svd_stats.bins[svd_bin]["ht_gate_threshold"]),
+            # Option("ht-gate-threshold", svd_stats.bins[svd_bin]["ht_gate_threshold"]),
+            Option("ht-gate-threshold", filter_config.ht_gate_threshold),
         ]
 
         filter_opts.extend(common_opts)
@@ -1262,7 +1263,8 @@ def injection_filter_online(
             Option("job-tag", job_tag),
             # FIXME: fix gate threshold
             # Option("ht-gate-threshold", calc_gate_threshold(config, svd_bin)),
-            Option("ht-gate-threshold", svd_stats.bins[svd_bin]["ht_gate_threshold"]),
+            # Option("ht-gate-threshold", svd_stats.bins[svd_bin]["ht_gate_threshold"]),
+            Option("ht-gate-threshold", filter_config.ht_gate_threshold),
         ]
 
         filter_opts.extend(common_opts)
