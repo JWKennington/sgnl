@@ -39,10 +39,10 @@ def group_and_read_banks(
     if len(ifoset) != 1:
         raise ValueError("The ifos have different sets of svd bank files provided.")
 
-    ifos = list(list(ifoset)[0])
+    ifos = sorted(list(ifoset)[0])
     if source_ifos and ifos != source_ifos:
         raise ValueError(
-            f"Data source ifos must be the same as svd bank ifos. {source_ifos} {ifos}"
+            f"Data source ifos: {source_ifos} must be the same as svd bank ifos: {ifos}"
         )
 
     banks = {ifo: [] for ifo in ifos}
