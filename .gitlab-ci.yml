@@ -39,8 +39,10 @@ include:
   - component: git.ligo.org/computing/gitlab/components/docker/push@1
     inputs:
       stage: publish
+      deploy_when: tags
       pull_image_tag: $CI_COMMIT_SHA
       push_image_tag: $CI_COMMIT_TAG
+      
 
 sdist:
   cache: []
