@@ -35,6 +35,12 @@ include:
     inputs:
       stage:      container
       dockerfile: container/Dockerfile
+      image_tag:  $CI_COMMIT_SHA
+  - component: git.ligo.org/computing/gitlab/components/docker/push@1
+    inputs:
+      stage: publish
+      pull_image_tag: $CI_COMMIT_SHA
+      push_image_tag: $CI_COMMIT_TAG
 
 sdist:
   cache: []
