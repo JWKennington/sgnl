@@ -176,6 +176,66 @@ def median_psd(psd_config, condor_config, ref_psd_cache, median_psd_cache):
     return layer
 
 
+def svd_bank(svd_config, condor_config, all_ifos, split_bank_cache, median_psd_cache, svd_cache, svd_bins, svd_stats):
+    executable = "sgnl-inspiral-svd-bank"
+    resource_requests = {
+        "request_cpus": 1,
+        "request_memory": "7GB",
+        "request_disk": "2GB",
+    }
+    layer = create_layer(executable, condor_config, resource_requests)
+
+    arguments = [
+        Option("f-low", svd_config.f_low),
+        Option("f-final", svd_config.max_f_final),
+        Option("approximant", svd_config.approximant),
+        Option("overlap", svd_config.overlap),
+        Option("instrument", to_ifo_list(all_ifos)),
+        Option("n", svd_config.num_split_templates),
+        Option("num-banks", svd_config.num_banks),
+        Option("sort-by", svd_config.sort_by),
+    ]
+
+    split_banks = split_bank_cache.groupby("bin")
+    for (ifo, svd_bin), svd_banks in svd_cache.groupby("ifo", "bin").items():
+
+        # grab sub-bank specific configuration if available
+        if "bank_name" in svd_stats['bins'][svd_bin]:
+            bank_name = svd_stats['bins'][svd_bin]["bank_name"]
+            svd_config = svd_config.sub_banks[bank_name]
+        else:
+            svd_config = svd_config
+
+        arguments = [
+            Option("instrument-override", ifo),
+            Option("flow", svd_config.f_low),
+            Option("samples-min", svd_config.samples_min),
+            Option("samples-max-64", svd_config.samples_max_64),
+            Option("samples-max-256", svd_config.samples_max_256),
+            Option("samples-max", svd_config.samples_max),
+            Option("svd-tolerance", svd_config.tolerance),
+            Option("autocorrelation-length", svd_stats['bins'][svd_bin]["ac_length"]),
+        ]
+        if "max_duration" in svd_config:
+            arguments.append(Option("max-duration", svd_config.max_duration))
+        if "sample_rate" in svd_config:
+            arguments.append(Option("sample-rate", svd_config.sample_rate))
+        # FIXME figure out where this option should live
+        #if 'use_bankchisq' in config.rank and config.rank.use_bankchisq:
+        #    arguments.append(Option("use-bankchisq"))
+
+        layer += Node(
+            arguments = arguments,
+            inputs = [
+                Option("reference-psd", median_psd_cache.files),
+                Option("template-banks", sorted(split_banks[svd_bin].files)),
+            ],
+            outputs = Option("write-svd", svd_banks.files)
+        )
+
+    return layer
+
+
 def filter(
     psd_config,
     svd_config,
