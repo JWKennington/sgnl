@@ -64,6 +64,7 @@ sgnl-plot-psd = "sgnl.bin.plot_psd:main"
 sgnl-reference-psd = "sgnl.bin.reference_psd:main"
 sgnl-results-page = "sgnl.bin.results_page:main"
 sgnl-sim-page = "sgnl.bin.sim_page:main"
+sgnl-inspiral-svd-bank = "sgnl.bin.inspiral_svd_bank:main"
 
 [project.optional-dependencies]
 test = [

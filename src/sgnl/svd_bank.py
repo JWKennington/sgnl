@@ -4,6 +4,7 @@
 # Copyright (C) 2010 Kipp Cannon, Chad Hanna, Leo Singer
 # Copyright (C) 2024 Yun-Jing Huang
 
+import sys
 import tempfile
 import warnings
 from collections.abc import Sequence
@@ -11,11 +12,18 @@ from dataclasses import dataclass
 from typing import Any
 
 import lal
+import numpy
+import scipy
 from ligo.lw import array as ligolw_array
-from ligo.lw import ligolw, lsctables
+from ligo.lw import (
+    ligolw,
+    lsctables,
+)
 from ligo.lw import param as ligolw_param
 from ligo.lw import utils as ligolw_utils
+from ligo.lw.utils import process as ligolw_process
 
+from sgnl import cbc_template_fir, chirptime, spawaveform, templates
 from sgnl.psd import HorizonDistance, condition_psd
 
 Attributes = ligolw.sax.xmlreader.AttributesImpl
@@ -30,86 +38,433 @@ ligolw_param.use_in(DefaultContentHandler)
 lsctables.use_in(DefaultContentHandler)
 
 
+# FIXME do we want to hardcode the program?
+def read_approximant(xmldoc, programs=("gstlal_bank_splitter",)):
+    process_ids = set()
+    for program in programs:
+        process_ids |= lsctables.ProcessTable.get_table(xmldoc).get_ids_by_program(
+            program
+        )
+    if not process_ids:
+        raise ValueError(
+            "document must contain process entries from %s" % ", ".join(programs)
+        )
+    approximant = set(
+        row.pyvalue
+        for row in lsctables.ProcessParamsTable.get_table(xmldoc)
+        if (row.process_id in process_ids) and (row.param == "--approximant")
+    )
+    if not approximant:
+        raise ValueError(
+            "document must contain an 'approximant' process_params entry from %s"
+            % ", ".join("'%s'" for program in programs)
+        )
+    if len(approximant) > 1:
+        raise ValueError("document must contain only one approximant")
+    approximant = approximant.pop()
+    templates.sgnl_valid_approximant(approximant)
+    return approximant
+
+
+def check_ffinal_and_find_max_ffinal(xmldoc):
+    f_final = lsctables.SnglInspiralTable.get_table(xmldoc).getColumnByName("f_final")
+    if not all(f_final):
+        raise ValueError("f_final column not populated")
+    return max(f_final)
+
+
+def max_stat_thresh(coeffs, fap, samp_tol=100.0):
+    num = int(samp_tol / fap)
+    out = numpy.zeros(num)
+    for c in coeffs:
+        out += c * scipy.randn(num) ** 2
+    out.sort()
+    return float(out[-int(samp_tol)])
+
+
+def sum_of_squares_threshold_from_fap(fap, coefficients):
+    return max_stat_thresh(coefficients, fap)
+
+
 @dataclass
 class BankFragment:
     rate: int
     start: float
     end: float
-    # orthogonal_template_bank: Sequence[Any]
-    # singular_values: Sequence[Any]
-    # mix_matrix: Sequence[Any]
-    # chifacs: Sequence[Any]
+
+    def __post_init__(self):
+        self.orthogonal_template_bank = None
+        self.singular_values = None
+        self.mix_matrix = None
+        self.chifacs = None
+
     # sum_of_squares_weights: Sequence[Any]
+    def set_template_bank(
+        self,
+        template_bank,
+        tolerance,
+        snr_thresh,
+        identity_transform=False,
+        verbose=False,
+    ):
+        if verbose:
+            print("\t%d templates of %d samples" % template_bank.shape, file=sys.stderr)
+
+        (
+            self.orthogonal_template_bank,
+            self.singular_values,
+            self.mix_matrix,
+            self.chifacs,
+        ) = cbc_template_fir.decompose_templates(
+            template_bank, tolerance, identity=identity_transform
+        )
+
+        if verbose:
+            print(
+                "\tidentified %d components" % self.orthogonal_template_bank.shape[0],
+                file=sys.stderr,
+            )
 
 
 @dataclass
 class Bank:
-    sngl_inspiral_table: Sequence[Any]
-    filter_length: float
-    gate_threshold: float
-    logname: str
+    bank_xmldoc: object
+    psd: Sequence[Any]
+    time_slices: Sequence[Any]
     snr_threshold: float
-    template_bank_filename: str
-    bank_id: str
-    bank_type: str
-    autocorrelation_bank: Sequence[Any]
-    autocorrelation_mask: Sequence[Any]
-    sigmasq: Sequence[Any]
-    bank_correlation_matrix: Sequence[Any]
-    horizon_factors: dict[int, float]
-    processed_psd: Sequence[Any]
-    bank_fragments: list[Any]
+    tolerance: float
+    clipleft: int = None
+    clipright: int = None
+    flow: float = 40.0
+    autocorrelation_length: int = None
+    logname: str = None
+    identity_transform: bool = False
+    verbose: bool = False
+    bank_id: int = None
+    fhigh: float = None
+
+    def __post_init__(self):
+        self.template_bank_filename = None
+        self.filter_length = self.time_slices["end"].max()
+        self.snr_threshold = self.snr_threshold
+        if self.logname is not None and not self.logname:
+            raise ValueError("logname cannot be empty if it is set")
+        (
+            self.template_bank,
+            self.autocorrelation_bank,
+            self.autocorrelation_mask,
+            self.sigmasq,
+            self.bank_workspace,
+        ) = cbc_template_fir.generate_templates(
+            lsctables.SnglInspiralTable.get_table(self.bank_xmldoc),
+            read_approximant(self.bank_xmldoc),
+            self.psd,
+            self.flow,
+            self.time_slices,
+            autocorrelation_length=self.autocorrelation_length,
+            fhigh=self.fhigh,
+            verbose=self.verbose,
+        )
+
+        sngl_inspiral_table = lsctables.SnglInspiralTable.get_table(self.bank_xmldoc)
+        self.sngl_inspiral_table = sngl_inspiral_table.copy()
+        self.sngl_inspiral_table.extend(sngl_inspiral_table)
+        self.processed_psd = self.bank_workspace.psd
+        self.newdeltaF = 1.0 / self.bank_workspace.working_duration
+        self.working_f_low = self.bank_workspace.working_f_low
+        self.f_low = self.bank_workspace.f_low
+        self.sample_rate_max = self.bank_workspace.sample_rate_max
+        self.bank_fragments = [
+            BankFragment(rate, begin, end)
+            for rate, begin, end in self.bank_workspace.time_slices
+        ]
+        self.bank_correlation_matrix = None
+
+        for i, bank_fragment in enumerate(self.bank_fragments):
+            if self.verbose:
+                print(
+                    "constructing template decomposition %d of %d:  %g s ... %g s"
+                    % (
+                        i + 1,
+                        len(self.bank_fragments),
+                        -bank_fragment.end,
+                        -bank_fragment.start,
+                    ),
+                    file=sys.stderr,
+                )
+            bank_fragment.set_template_bank(
+                self.template_bank[i],
+                self.tolerance,
+                self.snr_threshold,
+                identity_transform=self.identity_transform,
+                verbose=self.verbose,
+            )
+            cmix = (
+                bank_fragment.mix_matrix[:, ::2]
+                + 1.0j * bank_fragment.mix_matrix[:, 1::2]
+            )
+
+            if self.bank_correlation_matrix is None:
+                self.bank_correlation_matrix = numpy.dot(numpy.conj(cmix.T), cmix)
+            else:
+                self.bank_correlation_matrix += numpy.dot(numpy.conj(cmix.T), cmix)
+
+        clipright = (
+            len(self.sngl_inspiral_table) - self.clipright
+            if self.clipright is not None
+            else None
+        )
+        doubled_clipright = clipright * 2 if clipright is not None else None
+        doubled_clipleft = self.clipleft * 2 if self.clipleft is not None else None
+
+        new_sngl_table = self.sngl_inspiral_table.copy()
+        for row in self.sngl_inspiral_table[self.clipleft : clipright]:
+            row.Gamma1 = int(self.bank_id.split("_")[0])
+            new_sngl_table.append(row)
+        self.sngl_inspiral_table = new_sngl_table
+        self.autocorrelation_bank = self.autocorrelation_bank[
+            self.clipleft : clipright, :
+        ]
+        self.autocorrelation_mask = self.autocorrelation_mask[
+            self.clipleft : clipright, :
+        ]
+        self.sigmasq = self.sigmasq[self.clipleft : clipright]
+        self.bank_correlation_matrix = self.bank_correlation_matrix[
+            self.clipleft : clipright, self.clipleft : clipright
+        ]
+        for frag in self.bank_fragments:
+            if frag.mix_matrix is not None:
+                frag.mix_matrix = frag.mix_matrix[:, doubled_clipleft:doubled_clipright]
+            frag.chifacs = frag.chifacs[doubled_clipleft:doubled_clipright]
 
     def get_rates(self):
         return set(bank_fragment.rate for bank_fragment in self.bank_fragments)
 
-
-def preferred_horizon_distance_template(banks):
-    template_id, m1, m2, s1z, s2z = min(
-        (row.template_id, row.mass1, row.mass2, row.spin1z, row.spin2z)
-        for bank in banks
-        for row in bank.sngl_inspiral_table
-    )
-    return template_id, m1, m2, s1z, s2z
+    def set_template_bank_filename(self, name):
+        self.template_bank_filename = name
 
 
-def horizon_distance_func(banks):
-    """
-    Takes a dictionary of objects returned by read_banks keyed by instrument
-    """
-    # span is [15 Hz, 0.85 * Nyquist frequency]
-    # find the Nyquist frequency for the PSD to be used for each
-    # instrument.  require them to all match
-    nyquists = set((max(bank.get_rates()) / 2.0 for bank in banks))
-    if len(nyquists) != 1:
-        warnings.warn(
-            "all banks should have the same Nyquist frequency to define a consistent"
-            " horizon distance function (got %s)"
-            % ", ".join("%g" % rate for rate in sorted(nyquists)),
-            stacklevel=2,
+def cal_higher_f_low(bank_sngl_table, f_high, flow, approximant, max_duration):
+    def time_freq_bound(flow, max_duration, m1, m2, j1, j2, f_max):
+        """
+        To find the root of the function (flow)
+        """
+        return (
+            chirptime.imr_time(f=flow, m1=m1, m2=m2, j1=j1, j2=j2, f_max=f_max)
+            - max_duration
         )
-    # assume default 4 s PSD.  this is not required to be correct, but
-    # for best accuracy it should not be larger than the true value and
-    # for best performance it should not be smaller than the true
-    # value.
-    deltaF = 1.0 / 4.0
-    # use the minimum template id as the cannonical horizon function
-    template_id, m1, m2, s1z, s2z = preferred_horizon_distance_template(banks)
 
-    return template_id, HorizonDistance(
-        15.0,
-        0.85 * max(nyquists),
-        deltaF,
-        m1,
-        m2,
-        spin1=(0.0, 0.0, s1z),
-        spin2=(0.0, 0.0, s2z),
+    time_constrained_f_low = []
+    for row in bank_sngl_table:
+        m1_SI = lal.MSUN_SI * row.mass1
+        m2_SI = lal.MSUN_SI * row.mass2
+        spin1 = numpy.dot(row.spin1, row.spin1) ** 0.5
+        spin2 = numpy.dot(row.spin2, row.spin2) ** 0.5
+        f_max = min(
+            row.f_final,
+            (
+                2
+                * chirptime.ringf(
+                    lal.MSUN_SI * row.mass1 + lal.MSUN_SI * row.mass2,
+                    chirptime.overestimate_j_from_chi(max(spin1, spin2)),
+                )
+                if approximant in templates.sgnl_IMR_approximants
+                else spawaveform.ffinal(row.mass1, row.mass2, "bkl_isco")
+            ),
+        )
+
+        time_constrained_f_low.append(
+            scipy.optimize.fsolve(
+                time_freq_bound,
+                x0=flow,
+                args=(max_duration, m1_SI, m2_SI, spin1, spin2, f_max),
+            )
+        )
+    f_low = float(max(flow, max(time_constrained_f_low)))
+    if f_high is not None and f_high < f_low:
+        raise ValueError(
+            "Lower frequency must be lower than higher frequency cut off! Input "
+            "max_duration is too short."
+        )
+
+    return f_low
+
+
+def build_bank(
+    template_bank_url,
+    psd,
+    flow,
+    max_duration,
+    svd_tolerance,
+    clipleft=None,
+    clipright=None,
+    padding=1.5,
+    identity_transform=False,
+    verbose=False,
+    snr_threshold=0,
+    autocorrelation_length=201,
+    samples_min=1024,
+    samples_max_256=1024,
+    samples_max_64=2048,
+    samples_max=4096,
+    bank_id=None,
+    contenthandler=None,
+    sample_rate=None,
+    instrument_override=None,
+):
+    bank_xmldoc = ligolw_utils.load_url(
+        template_bank_url, contenthandler=contenthandler, verbose=verbose
     )
+    bank_sngl_table = lsctables.SnglInspiralTable.get_table(bank_xmldoc)
+    # FIXME Do we want to hardcode the program here?
+    (approximant,) = ligolw_process.get_process_params(
+        bank_xmldoc, "gstlal_bank_splitter", "--approximant"
+    )
+    fhigh = check_ffinal_and_find_max_ffinal(bank_xmldoc)
+    flow = cal_higher_f_low(bank_sngl_table, fhigh, flow, approximant, max_duration)
+    if instrument_override is not None:
+        for row in bank_sngl_table:
+            row.ifo = instrument_override
+
+    time_freq_bounds = templates.time_slices(
+        bank_sngl_table,
+        fhigh=check_ffinal_and_find_max_ffinal(bank_xmldoc),
+        flow=flow,
+        padding=padding,
+        samples_min=samples_min,
+        samples_max_256=samples_max_256,
+        samples_max_64=samples_max_64,
+        samples_max=samples_max,
+        sample_rate=sample_rate,
+        verbose=verbose,
+    )
+
+    if sample_rate is None:
+        fhigh = None
+
+    # Generate templates, perform SVD, get orthogonal basis
+    # and store as Bank object
+    bank = Bank(
+        bank_xmldoc,
+        psd[bank_sngl_table[0].ifo],
+        time_freq_bounds,
+        tolerance=svd_tolerance,
+        clipleft=clipleft,
+        clipright=clipright,
+        flow=flow,
+        autocorrelation_length=autocorrelation_length,  # samples
+        identity_transform=identity_transform,
+        verbose=verbose,
+        snr_threshold=snr_threshold,
+        bank_id=bank_id,
+        fhigh=fhigh,
+    )
+
+    bank.set_template_bank_filename(ligolw_utils.local_path_from_url(template_bank_url))
+    return bank
+
+
+def write_bank(filename, banks, psd_input, process_param_dict=None, verbose=False):
+    xmldoc = ligolw.Document()
+    lw = xmldoc.appendChild(ligolw.LIGO_LW())
+    if process_param_dict:
+        ligolw_process.register_to_xmldoc(
+            xmldoc,
+            program="sgnl_inspiral_svd_bank",
+            paramdict=process_param_dict,
+            comment="Process parameter tables for further calculation",
+        )
+    for bank in banks:
+        root = lw.appendChild(
+            ligolw.LIGO_LW(Attributes({"Name": "sgnl_svd_bank_Bank"}))
+        )
+
+        for row in bank.sngl_inspiral_table:
+            row.template_duration = bank.bank_fragments[-1].end
+
+        if verbose:
+            print("computing lambda/eta parameters for templates...")
+        for row, auto_correlation in zip(
+            bank.sngl_inspiral_table, bank.autocorrelation_bank
+        ):
+            row.Gamma2, row.Gamma3, row.Gamma4, row.Gamma5 = calc_lambda_eta_sum(
+                auto_correlation
+            )
+        root.appendChild(bank.sngl_inspiral_table)
+        root.appendChild(
+            ligolw_param.Param.from_pyvalue("filter_length", bank.filter_length)
+        )
+        root.appendChild(ligolw_param.Param.from_pyvalue("logname", bank.logname or ""))
+        root.appendChild(
+            ligolw_param.Param.from_pyvalue("snr_threshold", bank.snr_threshold)
+        )
+        root.appendChild(
+            ligolw_param.Param.from_pyvalue(
+                "template_bank_filename", bank.template_bank_filename
+            )
+        )
+        root.appendChild(ligolw_param.Param.from_pyvalue("bank_id", bank.bank_id))
+        root.appendChild(ligolw_param.Param.from_pyvalue("new_deltaf", bank.newdeltaF))
+        root.appendChild(
+            ligolw_param.Param.from_pyvalue("working_f_low", bank.working_f_low)
+        )
+        root.appendChild(ligolw_param.Param.from_pyvalue("f_low", bank.f_low))
+        root.appendChild(
+            ligolw_param.Param.from_pyvalue(
+                "sample_rate_max", int(bank.sample_rate_max)
+            )
+        )
+        root.appendChild(
+            ligolw_array.Array.build(
+                "autocorrelation_bank_real", bank.autocorrelation_bank.real
+            )
+        )
+        root.appendChild(
+            ligolw_array.Array.build(
+                "autocorrelation_bank_imag", bank.autocorrelation_bank.imag
+            )
+        )
+        root.appendChild(
+            ligolw_array.Array.build("autocorrelation_mask", bank.autocorrelation_mask)
+        )
+        root.appendChild(ligolw_array.Array.build("sigmasq", numpy.array(bank.sigmasq)))
+        root.appendChild(
+            ligolw_array.Array.build(
+                "bank_correlation_matrix_real", bank.bank_correlation_matrix.real
+            )
+        )
+        root.appendChild(
+            ligolw_array.Array.build(
+                "bank_correlation_matrix_imag", bank.bank_correlation_matrix.imag
+            )
+        )
+
+        for frag in bank.bank_fragments:
+            el = root.appendChild(ligolw.LIGO_LW())
+
+            el.appendChild(ligolw_param.Param.from_pyvalue("rate", int(frag.rate)))
+            el.appendChild(ligolw_param.Param.from_pyvalue("start", frag.start))
+            el.appendChild(ligolw_param.Param.from_pyvalue("end", frag.end))
+            el.appendChild(ligolw_array.Array.build("chifacs", frag.chifacs))
+            if frag.mix_matrix is not None:
+                el.appendChild(ligolw_array.Array.build("mix_matrix", frag.mix_matrix))
+            el.appendChild(
+                ligolw_array.Array.build(
+                    "orthogonal_template_bank", frag.orthogonal_template_bank
+                )
+            )
+            if frag.singular_values is not None:
+                el.appendChild(
+                    ligolw_array.Array.build("singular_values", frag.singular_values)
+                )
+
+    psd = psd_input[bank.sngl_inspiral_table[0].ifo]
+    lal.series.make_psd_xmldoc({bank.sngl_inspiral_table[0].ifo: psd}, lw)
+
+    ligolw_utils.write_filename(xmldoc, filename, verbose=verbose)
 
 
 def read_banks(filename, contenthandler, verbose=False):
-    """Read SVD banks from a LIGO_LW xml file."""
-
     # Load document
     xmldoc = ligolw_utils.load_url(
         filename, contenthandler=contenthandler, verbose=verbose
@@ -130,9 +485,9 @@ def read_banks(filename, contenthandler, verbose=False):
     for root in (
         elem
         for elem in xmldoc.getElementsByTagName(ligolw.LIGO_LW.tagName)
-        if elem.hasAttribute("Name") and elem.Name == "gstlal_svd_bank_Bank"
+        if elem.hasAttribute("Name")
+        and elem.Name in ["sgnl_svd_bank_Bank", "gstlal_svd_bank_Bank"]
     ):
-
         # Create new SVD bank object
         bank = Bank.__new__(Bank)
 
@@ -142,14 +497,12 @@ def read_banks(filename, contenthandler, verbose=False):
 
         # Read root-level scalar parameters
         bank.filter_length = ligolw_param.get_pyvalue(root, "filter_length")
-        bank.gate_threshold = ligolw_param.get_pyvalue(root, "gate_threshold")
         bank.logname = ligolw_param.get_pyvalue(root, "logname") or None
         bank.snr_threshold = ligolw_param.get_pyvalue(root, "snr_threshold")
         bank.template_bank_filename = ligolw_param.get_pyvalue(
             root, "template_bank_filename"
         )
         bank.bank_id = ligolw_param.get_pyvalue(root, "bank_id")
-        bank.bank_type = ligolw_param.get_pyvalue(root, "bank_type")
 
         try:
             bank.newdeltaF = ligolw_param.get_pyvalue(root, "new_deltaf")
@@ -221,12 +574,7 @@ def read_banks(filename, contenthandler, verbose=False):
                 ).array
             except ValueError:
                 frag.singular_values = None
-            try:
-                frag.sum_of_squares_weights = ligolw_array.get_array(
-                    el, "sum_of_squares_weights"
-                ).array
-            except ValueError:
-                frag.sum_of_squares_weights = None
+
             bank.bank_fragments.append(frag)
 
         banks.append(bank)
@@ -236,16 +584,59 @@ def read_banks(filename, contenthandler, verbose=False):
     )  # make sure horizon_distance_func did not pick the noise model template
     horizon_norm = None
     for bank in banks:
-        if template_id in bank.horizon_factors and bank.bank_type == "signal_model":
+        if template_id in bank.horizon_factors:
             assert horizon_norm is None
             horizon_norm = bank.horizon_factors[template_id]
-    for bank in banks:
         bank.horizon_distance_func = func
         bank.horizon_factors = dict(
             (tid, f / horizon_norm) for (tid, f) in bank.horizon_factors.items()
         )
     xmldoc.unlink()
     return banks
+
+
+def preferred_horizon_distance_template(banks):
+    template_id, m1, m2, s1z, s2z = min(
+        (row.template_id, row.mass1, row.mass2, row.spin1z, row.spin2z)
+        for bank in banks
+        for row in bank.sngl_inspiral_table
+    )
+    return template_id, m1, m2, s1z, s2z
+
+
+def horizon_distance_func(banks):
+    """
+    Takes a dictionary of objects returned by read_banks keyed by instrument
+    """
+    # span is [15 Hz, 0.85 * Nyquist frequency]
+    # find the Nyquist frequency for the PSD to be used for each
+    # instrument.  require them to all match
+    nyquists = set((max(bank.get_rates()) / 2.0 for bank in banks))
+    if len(nyquists) != 1:
+        warnings.warn(
+            "all banks should have the same Nyquist frequency to define a consistent "
+            "horizon distance function (got {})".format(
+                ", ".join(f"{rate:g}" for rate in sorted(nyquists))
+            ),
+            stacklevel=2,
+        )
+    # assume default 4 s PSD.  this is not required to be correct, but
+    # for best accuracy it should not be larger than the true value and
+    # for best performance it should not be smaller than the true
+    # value.
+    deltaF = 1.0 / 4.0
+    # use the minimum template id as the cannonical horizon function
+    template_id, m1, m2, s1z, s2z = preferred_horizon_distance_template(banks)
+
+    return template_id, HorizonDistance(
+        15.0,
+        0.85 * max(nyquists),
+        deltaF,
+        m1,
+        m2,
+        spin1=(0.0, 0.0, s1z),
+        spin2=(0.0, 0.0, s2z),
+    )
 
 
 def parse_bank_files(svd_banks, verbose, snr_threshold=None):
@@ -309,3 +700,37 @@ def parse_svdbank_string(bank_string):
             raise ValueError("Only one svd bank per instrument should be given")
         out[ifo] = bank
     return out
+
+
+def calc_lambda_eta_sum(auto_correlation):
+    acl = len(auto_correlation)
+    norm_chisq = sum(2 - 2 * abs(auto_correlation) ** 2)
+    center_ind = int((acl - 1) / 2.0)
+    covmat_size = acl
+
+    # the following calculation of the covariance matrix is based on Eqs.(45,
+    # 46) in the technical notes of DCC-G2200635.
+    covmat_cplx = numpy.zeros((covmat_size, covmat_size), dtype=numpy.complex128)
+    for j, row in enumerate(covmat_cplx):
+        row_start = max(j - center_ind, 0)
+        row_end = min(j - center_ind + acl, covmat_size)
+        R_start = max(center_ind - j, 0)
+        R_end = min(center_ind - j + acl, covmat_size)
+        row[row_start:row_end] += auto_correlation[R_start:R_end]
+    covmat_cplx -= numpy.outer(auto_correlation.conj(), auto_correlation)
+    covmat_real = numpy.vstack(
+        [
+            numpy.hstack([covmat_cplx.real, covmat_cplx.imag]),
+            numpy.hstack([-covmat_cplx.imag, covmat_cplx.real]),
+        ]
+    )
+    auto_correlation_real = numpy.hstack([auto_correlation.real, auto_correlation.imag])
+    # the following calculation is based on Eqs.(69)- (72) in the technical
+    # notes of DCC-G2200635.
+    lambda_sum = norm_chisq
+    lambdasq_sum = numpy.trace(covmat_real.dot(covmat_real))
+    lambda_etasq_sum = sum(auto_correlation_real**2)
+    lambdasq_etasq_sum = auto_correlation_real.T.dot(
+        covmat_real.dot(auto_correlation_real)
+    )
+    return lambda_sum, lambdasq_sum, lambda_etasq_sum, lambdasq_etasq_sum
