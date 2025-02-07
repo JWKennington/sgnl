@@ -40,7 +40,6 @@ include:
     inputs:
       pull_image_tag: $CI_COMMIT_SHA
       push_image_tag: $CI_COMMIT_TAG
-      
 
 sdist:
   cache: []
@@ -80,6 +79,11 @@ mkdocs:
     - |
       pip install -r build_requirements.txt
 
+##
+## This is requred by git.ligo.org/computing/gitlab/components/docker/push
+## to add a docker tag corresponding to the gitlab tag and "latest"
+## when a tag is committed.
+##
 docker_push_gitlab:
   when: always
   rules:
