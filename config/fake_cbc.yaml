@@ -121,4 +121,5 @@ trigger_map:
     - {name: "__event_id", type: INTEGER}
     - {name: "__trigger_id", type: INTEGER}
   relationships: [{"event": "__event_id", "trigger": "__trigger_id"}]
+  indices: {"trigger_map_index1":["__event_id",], "trigger_map_index2":["__trigger_id",], "trigger_map_index3":["__trigger_id","__event_id"]}
   static: False
