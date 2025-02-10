@@ -587,6 +587,7 @@ def read_banks(filename, contenthandler, verbose=False):
         if template_id in bank.horizon_factors:
             assert horizon_norm is None
             horizon_norm = bank.horizon_factors[template_id]
+    for bank in banks:
         bank.horizon_distance_func = func
         bank.horizon_factors = dict(
             (tid, f / horizon_norm) for (tid, f) in bank.horizon_factors.items()
