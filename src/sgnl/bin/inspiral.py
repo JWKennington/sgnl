@@ -508,7 +508,7 @@ def inspiral(
         compress_likelihood_ratio=compress_likelihood_ratio,
         compress_likelihood_ratio_threshold=compress_likelihood_ratio_threshold,
         FAR_trialsfactor=far_trials_factor,
-        ifos=ifos,
+        ifos=data_source_info.all_analysis_ifos,
         injections=injections,
         input_likelihood_file=input_likelihood_file,
         is_online=IS_ONLINE,
