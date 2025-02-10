@@ -263,6 +263,8 @@ def main():
                 config.tag,
             )
             dag.attach(layer)
+    else:
+        raise ValueError(f"Unrecognized workflow: {args.workflow}")
 
     # Write dag and script to disk
     dag.write(pathlib.Path(args.dag_dir), write_script=True)

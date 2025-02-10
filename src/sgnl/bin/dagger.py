@@ -78,17 +78,17 @@ def main():
         # FIXME Delete this workflow
         dag.attach(layers.test(config.echo, config.condor))
 
-    if args.workflow == "psd":
+    elif args.workflow == "psd":
         # Reference PSD layer
         dag.attach(layers.reference_psd(config.psd, config.condor))
 
         # Median PSD layer
         dag.attach(layers.median_psd(config.psd, config.condor))
 
-    if args.workflow == "svd":
+    elif args.workflow == "svd":
         pass
 
-    if args.workflow == "filter":
+    elif args.workflow == "filter":
         if not config.paths.filter_dir:
             config.paths.filter_dir = config.paths.storage
 
@@ -162,7 +162,7 @@ def main():
 
         dag.attach(layer)
 
-    if args.workflow == "injection-filter":
+    elif args.workflow == "injection-filter":
         if not config.paths.injection_dir:
             config.paths.injection_dir = config.paths.storage
 
@@ -224,7 +224,7 @@ def main():
 
         dag.attach(layer)
 
-    if args.workflow == "rank":
+    elif args.workflow == "rank":
         # FIXME: add online chunks
 
         # initialize empty caches, to which we will
@@ -504,6 +504,8 @@ def main():
         # dag.plot_background(merged_triggers, pdfs)
         # dag.plot_bin_background(dist_stats)
         # dag.plot_sensitivity(merged_triggers)
+    else:
+        raise ValueError(f"Unrecognized workflow: {args.workflow}")
 
     # Write dag and script to disk
     dag.write(pathlib.Path(args.dag_dir), write_script=True)
