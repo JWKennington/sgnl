@@ -956,6 +956,7 @@ def summary_page(
     webdir,
     far_trigger_cache,
     seg_far_trigger_cache,
+    post_pdf_cache,
 ):
     executable = "sgnl-add-segments"
     resource_requests = {
@@ -1000,6 +1001,7 @@ def summary_page(
                 inputs=[
                     Option("config-schema", event_config_file),
                     Option("input-db", seg_triggers.files),
+                    Option("input-rank-stat-pdf", post_pdf_cache.files),
                 ],
                 outputs=Option("output-html", webdir + "/sgnl-results-page.html"),
             )
