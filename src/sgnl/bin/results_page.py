@@ -3,6 +3,8 @@ import os
 
 from sgnl import sgnlio, viz
 
+from strike.stats import far
+
 
 def parse_command_line():
     parser = argparse.ArgumentParser(
@@ -12,6 +14,7 @@ def parse_command_line():
     )
     parser.add_argument("-s", "--config-schema", help="config schema yaml file")
     parser.add_argument("--input-db", help="the input database.")
+    parser.add_argument("--input-rank-stat-pdf", help="the input rank stat pdf file.")
     parser.add_argument(
         "--output-html", help="The output html page", default="plot-sim.html"
     )
@@ -28,7 +31,7 @@ def process_events(events, n=200, cols=None, formats=None):
         cols = []
     if formats is None:
         formats = {}
-    events = sorted(events, key=lambda x: x["event"]["likelihood"], reverse=True)[:n]
+    events = sorted(events, key=lambda x: x["event"]["combined_far"])[:n]
     return [
         {
             k: (v if k not in formats else formats[k](v))
@@ -71,7 +74,32 @@ def main():
         }
     )
 
-    html_content = viz.page([tables_section])
+    ifar_section = viz.Section("Rate vs. Threshold", "rate vs. threshold")
+    zl_stats ={"lnlr": [], "ifar": []}
+    for event in indb.get_events(nanosec_to_sec=True):
+        zl_stats["lnlr"].append(event["event"]["likelihood"])
+        zl_stats["ifar"].append(1/event["event"]["combined_far"])
+
+    pdf = far.RankingStatPDF.load(args.input_rank_stat_pdf)
+    zl_plots = pdf.create_plots(zl_stats)
+    for name, plot in zl_plots.items():
+        if "IFAR" in name:
+            xlabel = "IFAR"
+        elif "LNLR" in name:
+            xlabel = "LNLR"
+        else:
+            raise ValueError("unknown plot")
+
+        ifar_section.append(
+            {
+                "img": viz.b64(plot),
+                "title": "%s vs %s" % ("RATE", xlabel),
+                "caption": name.split("-")[1],
+            }
+        )
+
+
+    html_content = viz.page([tables_section, ifar_section])
     # Save the HTML content to a file
     with open(args.output_html, "w") as f:
         f.write(html_content)

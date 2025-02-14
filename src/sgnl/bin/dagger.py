@@ -16,6 +16,7 @@
 
 
 import argparse
+import os
 import pathlib
 import sys
 
@@ -485,6 +486,9 @@ def main():
                 root=config.paths.rank_dir,
             )
 
+        if not os.path.exists(config.summary.webdir):
+            os.makedirs(config.summary.webdir)
+
         layer_list = layers.summary_page(
             config.condor,
             config.filter.event_config_file,
@@ -493,6 +497,7 @@ def main():
             config.summary.webdir,
             far_trigger_cache,
             seg_far_trigger_cache,
+            post_pdf_cache,
         )
         for layer in layer_list:
             dag.attach(layer)

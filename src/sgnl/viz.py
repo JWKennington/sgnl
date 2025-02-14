@@ -51,14 +51,17 @@ IFO_COMBO_COLOR.update(
 )
 
 
-def b64():
+def b64(plot=None):
     """
     Using pyplots global variable references to figures, save the current
     figure as a base64 encoded png and return that
     """
     # Save the plot to a BytesIO buffer
     buffer = io.BytesIO()
-    plt.savefig(buffer, format="png")
+    if plot is None:
+        plt.savefig(buffer, format="png")
+    else:
+        plot.savefig(buffer, format="png")
     buffer.seek(0)
 
     # Encode the image in base64
