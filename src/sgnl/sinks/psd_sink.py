@@ -31,9 +31,14 @@ class PSDSink(SinkElement):
         self.psd = {}
 
     def pull(self, pad: SinkPad, frame: Frame) -> None:
+        # FIXME: we actually just need the last non-gap psd
+        # FIXME: put psd in EventFrame
+        psd = frame.metadata["psd"]
+        if psd is not None:
+            self.psd[self.rsnks[pad]] = psd
+
         if frame.EOS:
             self.mark_eos(pad)
-            self.psd[pad.name.split(":")[-1]] = frame.metadata["psd"]
 
     def internal(self) -> None:
         if self.at_eos:
