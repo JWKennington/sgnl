@@ -1,9 +1,9 @@
 import argparse
 import os
 
-from sgnl import sgnlio, viz
-
 from strike.stats import far
+
+from sgnl import sgnlio, viz
 
 
 def parse_command_line():
@@ -75,10 +75,10 @@ def main():
     )
 
     ifar_section = viz.Section("Rate vs. Threshold", "rate vs. threshold")
-    zl_stats ={"lnlr": [], "ifar": []}
+    zl_stats = {"lnlr": [], "ifar": []}
     for event in indb.get_events(nanosec_to_sec=True):
         zl_stats["lnlr"].append(event["event"]["likelihood"])
-        zl_stats["ifar"].append(1/event["event"]["combined_far"])
+        zl_stats["ifar"].append(1 / event["event"]["combined_far"])
 
     pdf = far.RankingStatPDF.load(args.input_rank_stat_pdf)
     zl_plots = pdf.create_plots(zl_stats)
@@ -97,7 +97,6 @@ def main():
                 "caption": name.split("-")[1],
             }
         )
-
 
     html_content = viz.page([tables_section, ifar_section])
     # Save the HTML content to a file

@@ -81,10 +81,32 @@ def main():
 
     elif args.workflow == "psd":
         # Reference PSD layer
-        dag.attach(layers.reference_psd(config.psd, config.condor))
+        ref_psd_cache = DataCache.generate(
+            DataType.REFERENCE_PSD,
+            config.ifo_combos,
+            config.time_bins,
+            root=config.paths.input_data,
+        )
+
+        dag.attach(
+            layers.reference_psd(
+                config.psd, config.source, config.condor, ref_psd_cache
+            )
+        )
 
         # Median PSD layer
-        dag.attach(layers.median_psd(config.psd, config.condor))
+        median_psd_cache = DataCache.generate(
+            DataType.MEDIAN_PSD,
+            config.all_ifos,
+            config.span,
+            root=config.paths.input_data,
+        )
+
+        dag.attach(
+            layers.median_psd(
+                config.psd, config.condor, ref_psd_cache, median_psd_cache
+            )
+        )
 
     elif args.workflow == "svd":
         pass

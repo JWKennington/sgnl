@@ -106,12 +106,73 @@ def test(echo_config, condor_config):
     return layer
 
 
-def reference_psd(psd_config, condor_config, psd_cache):
-    pass
+def reference_psd(psd_config, source_config, condor_config, ref_psd_cache):
+    executable = "sgnl-reference-psd"
+    resource_requests = {
+        "request_cpus": 2,
+        "request_memory": "2GB",
+        "request_disk": "2GB",
+    }
+    layer = create_layer(executable, condor_config, resource_requests)
+
+    common_opts = [
+        Option("data-source", "frames"),
+        Option("psd-fft-length", psd_config.fft_length),
+        Option("frame-segments-name", source_config.frame_segments_name),
+    ]
+
+    for (ifo_combo, span), psds in ref_psd_cache.groupby("ifo", "time").items():
+        ifos = to_ifo_list(ifo_combo)
+        start, end = span
+
+        arguments = [
+            Option("gps-start-time", int(start)),
+            Option("gps-end-time", int(end)),
+            Option("channel-name", format_ifo_args(ifos, source_config.channel_name)),
+            *common_opts,
+        ]
+        inputs = [
+            Option(
+                "frame-segments-file", source_config.frame_segments_file, track=False
+            )
+        ]
+
+        if source_config.frame_cache:
+            inputs.append(Option("frame-cache", source_config.frame_cache, track=False))
+        else:
+            arguments.extend(
+                [
+                    Option(
+                        "frame-type", format_ifo_args(ifos, source_config.frame_type)
+                    ),
+                    Option("data-find-server", source_config.data_find_server),
+                ]
+            )
+
+        layer += Node(
+            arguments=arguments,
+            inputs=inputs,
+            outputs=Option("output-name", psds.files),
+        )
+
+    return layer
 
 
-def median_psd(psd_config, condor_config, psd_cache):
-    pass
+def median_psd(psd_config, condor_config, ref_psd_cache, median_psd_cache):
+    executable = "sgnl-median-of-psds"
+    resource_requests = {
+        "request_cpus": 2,
+        "request_memory": "2GB",
+        "request_disk": "2GB",
+    }
+    layer = create_layer(executable, condor_config, resource_requests)
+
+    layer += Node(
+        inputs=Option("input-files", ref_psd_cache.files),
+        outputs=Option("output-name", median_psd_cache.files),
+    )
+
+    return layer
 
 
 def filter(

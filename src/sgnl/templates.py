@@ -24,9 +24,9 @@ sgnl_IMR_approximants = set(
 )
 sgnl_approximants = sgnl_FD_approximants | sgnl_TD_approximants
 
-assert sgnl_IMR_approximants <= sgnl_approximants, (
-    "sgnl_IMR_approximants contains values not listed in sgnl_approximants"
-)
+assert (
+    sgnl_IMR_approximants <= sgnl_approximants
+), "sgnl_IMR_approximants contains values not listed in sgnl_approximants"
 
 
 def sgnl_valid_approximant(appx_str):
@@ -93,6 +93,7 @@ class QuadraturePhase:
         out_fseries.data.data = numpy.concatenate((zeros, 2 * positive_frequencies[1:]))
 
         return out_fseries
+
 
 def normalized_autocorrelation(fseries, revplan):
     data = fseries.data.data

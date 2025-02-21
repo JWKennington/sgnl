@@ -655,7 +655,7 @@ def polyfit(
 
 
 def harmonic_mean(
-    psddict: Dict[str, lal.REAL8FrequencySeries]
+    psddict: Dict[str, lal.REAL8FrequencySeries],
 ) -> lal.REAL8FrequencySeries:
     """Take the harmonic mean of a dictionary of PSDs."""
     refpsd = list(psddict.values())[0]

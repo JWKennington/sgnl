@@ -1,5 +1,4 @@
-"""Unit test for inspiral pipeline
-"""
+"""Unit test for inspiral pipeline"""
 
 import pathlib
 
