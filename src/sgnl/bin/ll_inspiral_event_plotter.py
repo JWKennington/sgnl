@@ -1,4 +1,4 @@
-"""an executable to upload auxiliary files and plots for GraceDB """
+"""an executable to upload auxiliary files and plots for GraceDB"""
 
 # Copyright (C) 2019 Alexander Pace, Kipp Cannon, Chad Hanna, Drew Keppel
 # Copyright (C) 2020 Patrick Godwin, Cody Messick

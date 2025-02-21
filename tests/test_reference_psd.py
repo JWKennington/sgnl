@@ -1,5 +1,4 @@
-"""Unit test for inspiral pipeline
-"""
+"""Unit test for inspiral pipeline"""
 
 from sgnligo.sources import DataSourceInfo
 from sgnligo.transforms import ConditionInfo
