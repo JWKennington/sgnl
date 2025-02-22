@@ -879,7 +879,7 @@ def inspiral(
 
     # Plot pipeline
     if graph_name:
-        pipeline.visualize(graph_name)
+        pipeline.visualize(graph_name, pads=False)
 
     # Run pipeline
     if IS_ONLINE:
