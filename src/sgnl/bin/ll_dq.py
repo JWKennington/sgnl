@@ -10,7 +10,7 @@ from sgn.apps import Pipeline
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, condition
-from sgnts.sinks import FakeSeriesSink
+from sgnts.sinks import NullSeriesSink
 
 from sgnl.psd import HorizonDistance
 from sgnl.transforms import HorizonDistanceTracker
@@ -94,7 +94,7 @@ def ll_dq(
     #   ------------
     #       |
     #   ------------  hoft ----------
-    #  |  Whiten    | --- | FakeSink |
+    #  |  Whiten    | --- | NullSink |
     #   ------------       ----------
     #          |psd
     #   ------------
@@ -142,7 +142,7 @@ def ll_dq(
             range=True,
             ifo=ifo,
         ),
-        FakeSeriesSink(
+        NullSeriesSink(
             name="HoftSnk",
             sink_pad_names=("hoft",),
             verbose=verbose,

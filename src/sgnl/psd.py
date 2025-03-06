@@ -21,7 +21,7 @@ from scipy import interpolate
 from sgn.apps import Pipeline
 from sgnligo.sources import DevShmSource
 from sgnligo.transforms import Whiten
-from sgnts.sinks import FakeSeriesSink
+from sgnts.sinks import NullSeriesSink
 from sgnts.transforms import Resampler
 
 from sgnl.sinks.psd_sink import PSDSink
@@ -85,7 +85,7 @@ def measure_psd(
     #   ------------
     #       |
     #   ------------  hoft ----------
-    #  |  Whiten    | --- | FakeSink |
+    #  |  Whiten    | --- | NullSink |
     #   ------------       ----------
     #          |psd
     #   ------------
@@ -121,7 +121,7 @@ def measure_psd(
             reference_psd=reference_psd,
             psd_pad_name="Whitener:src:spectrum",
         ),
-        FakeSeriesSink(
+        NullSeriesSink(
             name="HoftSnk",
             sink_pad_names=("hoft",),
             verbose=True,

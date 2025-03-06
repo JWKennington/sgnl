@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 from sgn.apps import Pipeline
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, condition
-from sgnts.sinks import FakeSeriesSink
+from sgnts.sinks import NullSeriesSink
 
 from sgnl.sinks import PSDSink
 
@@ -65,7 +65,7 @@ def reference_psd(
     #   ------------
     #       |
     #   ------------  hoft ----------
-    #  |  Whiten    | --- | FakeSink |
+    #  |  Whiten    | --- | NullSink |
     #   ------------       ----------
     #          |psd
     #   ------------
@@ -86,7 +86,7 @@ def reference_psd(
 
     for ifo in ifos:
         pipeline.insert(
-            FakeSeriesSink(
+            NullSeriesSink(
                 name=ifo + "HoftSink",
                 sink_pad_names=("hoft",),
                 verbose=verbose,
