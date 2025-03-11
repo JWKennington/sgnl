@@ -14,7 +14,7 @@ dependencies = [
     # External packages
     "pandas",
     # LIGO dependencies
-    "ligo-gracedb",
+    "ligo-gracedb==2.14.1",
     # SGN dependencies
     "sgn",
     "sgn-ts",
