@@ -37,6 +37,8 @@ class GraceDBSink(HTTPControlSinkElement):
     gracedb_pipeline: str = "SGNL"
     gracedb_search: str = "MOCK"
     gracedb_label: list[str] = None
+    gracedb_cred_reload: bool = True
+    gracedb_reload_buffer: int = 300
     template_sngls: list = None
     analysis_tag: str = "mockery"
     job_tag: str = None
@@ -76,7 +78,9 @@ class GraceDBSink(HTTPControlSinkElement):
                 }
             )
         elif self.gracedb_service_url is not None:
-            self.client = GraceDb(self.gracedb_service_url)
+            self.client = GraceDb(self.gracedb_service_url,
+                                  reload_cred=self.gracedb_cred_reload,
+                                  reload_buffer=self.gracedb_reload_buffer)
         else:
             self.client = None
 
