@@ -1,6 +1,6 @@
 """A sink element to write out triggers to likelihood ratio class in strike."""
 
-# Copyright (C) 2024-2025 Yun-Jing Huang, Chad Hanna, Prathamesh Joshi, Leo Tsukada
+# Copyright (C) 2024-2025 Yun-Jing Huang, Chad Hanna, Prathamesh Joshi, Leo Tsukada, Zach Yarbrough
 
 import io
 from dataclasses import dataclass
@@ -35,6 +35,7 @@ class StrikeSink(SnapShotControlSinkElement):
     bankids_map: dict[str, list] = None
     background_pad: str = None
     horizon_pads: list[str] = None
+    count_removal_times: list[int] = None
 
     def __post_init__(self):
         assert isinstance(self.ifos, list)
@@ -48,7 +49,13 @@ class StrikeSink(SnapShotControlSinkElement):
         if self.is_online and not self.injections:
             # setup bottle
 
-            self.state_dict = {"xml": {}, "zerolagxml": {}}
+            self.state_dict = {
+                "xml": {},
+                "zerolagxml": {},
+                "count_tracker": 0,
+                "count_removal_times": [],
+            }
+
             for bankid in self.bankids_map:
                 four_digit_id = "%04d" % int(bankid)
                 self.add_snapshot_filename(
@@ -60,6 +67,22 @@ class StrikeSink(SnapShotControlSinkElement):
                 self.state_dict["zerolagxml"][four_digit_id] = xml_string(
                     self.strike_object.zerolag_rank_stat_pdfs[bankid]
                 )
+
+                if self.count_removal_times is None:
+                    self.count_removal_times = (
+                        self.strike_object.likelihood_ratios[bankid]
+                        .terms["P_of_SNR_chisq"]
+                        .remove_counts_times.tolist()
+                    )
+                    self.state_dict["count_removal_times"] = self.count_removal_times
+                
+                else:
+                    assert (
+                        self.count_removal_times
+                        == self.strike_object.likelihood_ratios[bankid]
+                        .terms["P_of_SNR_chisq"]
+                        .remove_counts_times
+                    )
 
     def pull(self, pad, frame):
         if frame.EOS:
@@ -147,7 +170,12 @@ class StrikeSink(SnapShotControlSinkElement):
         if self.injections:
             return
         if self.is_online:
+
             SnapShotControlSinkElement.exchange_state(self.name, self.state_dict)
+
+            if self.state_dict["count_tracker"] != 0:
+                self.count_removal_callback()
+
         if self.at_eos:
             if self.is_online:
                 self.on_snapshot()
@@ -173,3 +201,29 @@ class StrikeSink(SnapShotControlSinkElement):
             )
 
         self.strike_object.save_snapshot(self.snapshot_filenames)
+
+    def count_removal_callback(self):
+        # FIXME : at the time of calling exchange_state() posted data is already
+        # added on top of existing remove counts list and converted into json
+        # format. where should I add the functionality?
+        # FIXME : how can I make this callback to be called upon posting remove
+        # count info?
+        # FIXME : how can an external program know the self.name of StrikeSink
+        # for each inspiral job, which is part of URL to post information to but
+        # not included in registry.txt?
+
+        if self.state_dict["count_tracker"] > 0:
+            self.count_removal_times.append(self.state_dict["count_tracker"])
+
+        elif self.state_dict["count_tracker"] < 0:
+            self.count_removal_times.remove(abs(self.state_dict["count_tracker"]))
+
+        self.state_dict["count_removal_times"] = self.count_removal_times
+
+        for bankid, likelihood_ratio in self.strike_object.likelihood_ratios.items():
+            #four_digit_id = "%04d" % int(bankid)
+
+            # update the internal array for the removed times
+            likelihood_ratio.terms["P_of_dt_dphi"].remove_counts_times = self.count_removal_times
+
+        self.state_dict["count_tracker"] = 0
