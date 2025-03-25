@@ -1,3 +1,5 @@
+"""An executable to SVD templates."""
+
 # Copyright (C) 2010  Kipp Cannon, Chad Hanna, Leo Singer
 # Copyright (C) 2009  Kipp Cannon, Chad Hanna
 # Copyright (C) 2015, 2025 Surabhi Sachdev
