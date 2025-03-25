@@ -51,6 +51,8 @@ sgnl-create-prior-diststats = "sgnl.bin.create_prior_diststats:main"
 sgnl-dagger = "sgnl.bin.dagger:main"
 sgnl-extinct-bin = "sgnl.bin.extinct_bin:main"
 sgnl-inspiral = "sgnl.bin.inspiral:main"
+sgnl-inspiral-bank-splitter = "sgnl.bin.inspiral_bank_splitter:main"
+sgnl-inspiral-svd-bank = "sgnl.bin.inspiral_svd_bank:main"
 sgnl-ll-dagger = "sgnl.bin.ll_dagger:main"
 sgnl-ll-dq = "sgnl.bin.ll_dq:main"
 sgnl-ll-inspiral-event-uploader = "sgnl.bin.ll_inspiral_event_uploader:main"
@@ -65,7 +67,6 @@ sgnl-plot-psd = "sgnl.bin.plot_psd:main"
 sgnl-reference-psd = "sgnl.bin.reference_psd:main"
 sgnl-results-page = "sgnl.bin.results_page:main"
 sgnl-sim-page = "sgnl.bin.sim_page:main"
-sgnl-inspiral-svd-bank = "sgnl.bin.inspiral_svd_bank:main"
 
 [project.optional-dependencies]
 test = [

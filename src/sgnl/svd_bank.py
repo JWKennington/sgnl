@@ -4,6 +4,7 @@
 # Copyright (C) 2010 Kipp Cannon, Chad Hanna, Leo Singer
 # Copyright (C) 2024 Yun-Jing Huang
 
+import copy
 import sys
 import tempfile
 import warnings
@@ -84,6 +85,31 @@ def max_stat_thresh(coeffs, fap, samp_tol=100.0):
 
 def sum_of_squares_threshold_from_fap(fap, coefficients):
     return max_stat_thresh(coefficients, fap)
+
+
+def group(inlist, parts):
+    """!
+    group a list roughly according to the distribution in parts, e.g.
+
+    >>> A = list(range(12))
+    >>> B = [2,3]
+    >>> for g in group(A,B):
+    ...     print(g)
+    ...
+    [0, 1]
+    [2, 3]
+    [4, 5]
+    [6, 7, 8]
+    [9, 10, 11]
+    """
+    mult_factor = len(inlist) // sum(parts) + 1
+    inlist_copy = copy.deepcopy(inlist)
+    for p in parts:
+        for _j in range(mult_factor):
+            if not inlist_copy:
+                break
+            yield inlist_copy[:p]
+            del inlist_copy[:p]
 
 
 @dataclass
