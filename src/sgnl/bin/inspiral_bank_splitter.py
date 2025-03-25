@@ -1,3 +1,10 @@
+"""An executable to split template banks for singular value decomposition."""
+
+# Copyright (C) 2010 Melissa Frei
+# Copyright (C) 2012 Stephen Privitera
+# Copyright (C) 2011-2014 Chad Hanna
+# Copyright (C) 2025 Cody Messick
+
 import itertools
 import json
 import math
