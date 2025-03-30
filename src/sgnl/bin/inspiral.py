@@ -469,6 +469,8 @@ def inspiral(
 
     SnapShotControl.snapshot_interval = snapshot_interval
     SnapShotControl.delay = snapshot_delay
+    if injections:
+        SnapShotControl.startup_delay = 600
 
     #
     # Build pipeline

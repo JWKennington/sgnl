@@ -12,6 +12,7 @@ class SnapShotControl(HTTPControl):
     last_snapshot = {}
     snapshots_enabled = False
     delay = 0
+    startup_delay = 0
 
     def __enter__(self):
         super().__enter__()
@@ -24,6 +25,7 @@ class SnapShotControl(HTTPControl):
     @classmethod
     def _register_snapshot(cls, elem, t, descs):
         cls.last_snapshot[elem] = {}
+        t += cls.startup_delay
         for desc in descs:
             cls.last_snapshot[elem][desc] = t
             t += cls.delay
