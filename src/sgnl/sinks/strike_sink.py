@@ -1,6 +1,7 @@
 """A sink element to write out triggers to likelihood ratio class in strike."""
 
-# Copyright (C) 2024-2025 Yun-Jing Huang, Chad Hanna, Prathamesh Joshi, Leo Tsukada, Zach Yarbrough
+# Copyright (C) 2024-2025 Yun-Jing Huang, Chad Hanna, Prathamesh Joshi, Leo Tsukada
+#                         Zach Yarbrough
 
 import io
 from dataclasses import dataclass
@@ -75,7 +76,7 @@ class StrikeSink(SnapShotControlSinkElement):
                         .remove_counts_times.tolist()
                     )
                     self.state_dict["count_removal_times"] = self.count_removal_times
-                
+
                 else:
                     assert (
                         self.count_removal_times
@@ -92,40 +93,17 @@ class StrikeSink(SnapShotControlSinkElement):
             background = frame["background"].data
             if background is None:
                 return
+
             #
             # Background triggers
             #
-            # form events
-            for ifo in self.ifos:
-                for bankid in self.bankids_map:
-                    if ifo in background[bankid]:
-                        trigs = background[bankid][ifo]
-                        bgtime = trigs["time"]
-                        snr = trigs["snrs"]
-                        chisq = trigs["chisqs"]
-                        template_id = trigs["template_ids"]
+            self.strike_object.train_noise(
+                frame["background"].ts / 1e9,
+                background["snrs"],
+                background["chisqs"],
+                background["single_masks"],
+            )
 
-                        bg_events = []
-                        # loop over subbanks
-                        for time0, snr0, chisq0, templateid0 in zip(
-                            bgtime, snr, chisq, template_id
-                        ):
-                            # loop over triggers in subbanks, and send them to
-                            # train_noise in a burst
-                            for t, s, c, tid in zip(time0, snr0, chisq0, templateid0):
-                                # FIXME: is end time in seconds??
-                                bg_event = event_dummy(
-                                    ifo=ifo,
-                                    end=t / 1_000_000_000,
-                                    snr=s,
-                                    chisq=c,
-                                    combochisq=c,
-                                    template_id=tid,
-                                )
-                                bg_events.append(bg_event)
-                        self.strike_object.likelihood_ratios[bankid].train_noise(
-                            bg_events
-                        )
             #
             # Trigger rates
             #
@@ -180,6 +158,8 @@ class StrikeSink(SnapShotControlSinkElement):
             if self.is_online:
                 self.on_snapshot()
             else:
+                self.strike_object.save_snr_chi_lnpdf()
+                self.strike_object.save_counts_by_template_id()
                 for bankid in self.bankids_map:
                     self.strike_object.likelihood_ratios[bankid].save(
                         self.strike_object.output_likelihood_file[bankid]
@@ -189,6 +169,8 @@ class StrikeSink(SnapShotControlSinkElement):
                 self.on_snapshot()
 
     def on_snapshot(self):
+        self.strike_object.save_snr_chi_lnpdf()
+        self.strike_object.save_counts_by_template_id()
         for bankid in self.bankids_map:
             four_digit_id = "%04d" % int(bankid)
 
@@ -220,10 +202,12 @@ class StrikeSink(SnapShotControlSinkElement):
 
         self.state_dict["count_removal_times"] = self.count_removal_times
 
-        for bankid, likelihood_ratio in self.strike_object.likelihood_ratios.items():
-            #four_digit_id = "%04d" % int(bankid)
+        for likelihood_ratio in self.strike_object.likelihood_ratios.items():
+            # four_digit_id = "%04d" % int(bankid)
 
             # update the internal array for the removed times
-            likelihood_ratio.terms["P_of_dt_dphi"].remove_counts_times = self.count_removal_times
+            likelihood_ratio.terms["P_of_dt_dphi"].remove_counts_times = (
+                self.count_removal_times
+            )
 
         self.state_dict["count_tracker"] = 0

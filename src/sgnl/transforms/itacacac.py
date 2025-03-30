@@ -534,7 +534,8 @@ class Itacacac(TSTransform):
     ):
         clustered_snr, max_locations = torch.max(all_network_snr, dim=-1)
 
-        mask = ~subthresh_mask.to("cpu").numpy()[range(self.nsubbank), max_locations]
+        mask = ~subthresh_mask[range(self.nsubbank), max_locations]
+        mask = mask.to("cpu").numpy()
         clustered_ifo_combs = ifo_combs.gather(1, max_locations.unsqueeze(1)).squeeze(
             -1
         )
@@ -556,7 +557,7 @@ class Itacacac(TSTransform):
             sngls[ifo] = {}
             max_peak_locations = trig_peak_locations[ifo][
                 range(self.nsubbank), max_locations
-            ]
+            ].to("cpu").numpy()
             sngl_snr = trig_snrs[ifo][range(self.nsubbank), max_locations]
             sngl_chisq = trig_chisqs[ifo][range(self.nsubbank), max_locations]
 
@@ -654,10 +655,10 @@ class Itacacac(TSTransform):
                     self.max_snr_histories[ifo] = {"time": time, "snr": max_snr}
 
         # FIXME: this part and clustered_coinc is lowering the GPU utilization
-        for trig_type in triggers.keys():
-            if trig_type != "snr_ts_snippet":
-                for k, v in triggers[trig_type].items():
-                    triggers[trig_type][k] = v.to("cpu").numpy()
+        #for trig_type in triggers.keys():
+        #    if trig_type != "snr_ts_snippet":
+        #        for k, v in triggers[trig_type].items():
+        #            triggers[trig_type][k] = v.to("cpu").numpy()
 
         if False not in subthresh_mask:
             clustered_coinc = {}
@@ -688,51 +689,6 @@ class Itacacac(TSTransform):
         trig_chisqs = triggers["chisqs"]
         ifos = trig_snrs.keys()
 
-        background = {
-            bankid: {ifo: None}
-            for bankid, ids in self.bankids_map.items()
-            for ifo in ifos
-        }
-        # loop over banks
-        for bankid, ids in self.bankids_map.items():
-            # loop over ifos
-            for ifo in ifos:
-                bg_times = []
-                bg_snrs = []
-                bg_chisqs = []
-                bg_template_ids = []
-
-                if ifo in single_background_masks:
-                    if True in single_background_masks[ifo]:
-                        smask0 = single_background_masks[ifo].to("cpu").numpy()
-                        # loop over subbank ids in this bank
-                        for i in ids:
-                            smask = smask0[i]
-                            bg_time = trig_peak_locations[ifo][i][smask]
-                            bg_time = (
-                                np.round(
-                                    (
-                                        Offset.fromsamples(bg_time, self.rate)
-                                        + self.offset
-                                    )
-                                    / Offset.MAX_RATE
-                                    * 1_000_000_000
-                                ).astype(int)
-                                + Offset.offset_ref_t0
-                                + self.end_time_delta[i]
-                            )
-                            bg_times.append(bg_time)
-                            bg_snrs.append(trig_snrs[ifo][i][smask])
-                            bg_chisqs.append(trig_chisqs[ifo][i][smask])
-                            bg_template_ids.append(self.template_ids_np[i][smask])
-
-                background[bankid][ifo] = {
-                    "time": bg_times,
-                    "snrs": bg_snrs,
-                    "chisqs": bg_chisqs,
-                    "template_ids": bg_template_ids,
-                }
-
         # FIXME: check buf seg definition
         trigger_rates = {ifo: {} for ifo in ifos}
         for ifo, snr in trig_snrs.items():
@@ -742,12 +698,30 @@ class Itacacac(TSTransform):
                         (ts + min(self.end_time_delta[ids])) / 1_000_000_000,
                         te / 1_000_000_000 + 0.000000001,
                     ),
-                    np.sum(snr[ids] >= self.snr_min).item(),
+                    #np.sum(snr[ids] >= self.snr_min).item(),
+                    torch.sum(snr[ids] >= self.snr_min).to("cpu").numpy().item(),
                 )
 
+        #
+        # tensor background
+        #
+        snrs_above_thresh = {}
+        chisqs_above_thresh = {}
+        for ifo, snr in trig_snrs.items():
+            if ifo in single_background_masks:
+                mask = single_background_masks[ifo]
+                snrs_above_thresh[ifo] = snr[mask]
+                chisqs_above_thresh[ifo] = trig_chisqs[ifo][mask]
+
+        background = {
+            "snrs": snrs_above_thresh,
+            "chisqs": chisqs_above_thresh,
+            "single_masks": single_background_masks,
+        }
+
         return {
-            "background": EventBuffer(ts, te, data=background),
             "trigger_rates": EventBuffer(ts, te, data=trigger_rates),
+            "background": EventBuffer(ts, te, data=background),
         }
 
     def output_events(self, clustered_coinc, ts, te):

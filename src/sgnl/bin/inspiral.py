@@ -516,6 +516,9 @@ def inspiral(
         rank_stat_pdf_file=rank_stat_pdf_file,
         verbose=verbose,
         zerolag_rank_stat_pdf_file=zerolag_rank_stat_pdf_file,
+        nsubbank_pretend=nsubbank_pretend,
+        dtype=dtype,
+        device=torch_device,
     )
 
     # Condition the data source if not doing an impulse test
