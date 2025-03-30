@@ -69,6 +69,9 @@ class Itacacac(TSTransform):
             float, the minimum snr for identifying triggers
         autocorrelation_banks:
             Array, the autocorrelations of the template bank
+        autocorrelation_length_mask:
+            Array, the mask for different lengths of autocorrelations of the template
+            bank
         template_ids:
             Array, the template ids as an array
         bankids_map:
@@ -91,9 +94,12 @@ class Itacacac(TSTransform):
     trigger_finding_duration: float = None
     snr_min: float = 4
     autocorrelation_banks: Array = None
+    autocorrelation_length_mask: Array = None
+    autocorrelation_lengths: Array = None
     template_ids: Array = None
     bankids_map: Dict[int, list[int]] = None
     end_time_delta: Sequence[Any] = None
+    template_durations: Array = None
     device: str = "cpu"
     coincidence_threshold: float = 0
     strike_pad: str = None
@@ -117,7 +123,7 @@ class Itacacac(TSTransform):
         (
             self.nsubbank,
             self.ntempmax,
-            self.autocorrelation_length,
+            self.autocorrelation_max_length,
         ) = self.autocorrelation_banks[self.ifos[0]].shape
         self.autocorrelation_banks_real = {}
         self.autocorrelation_banks_imag = {}
@@ -135,7 +141,7 @@ class Itacacac(TSTransform):
             int((max_light_travel_time + self.coincidence_threshold) * self.sample_rate)
             // 2
         )
-        self.padding = self.autocorrelation_length // 2
+        self.padding = self.autocorrelation_max_length // 2
         self.adapter_config = AdapterConfig(
             # stride=Offset.fromsec(self.trigger_finding_duration),
             overlap=(
@@ -163,12 +169,13 @@ class Itacacac(TSTransform):
 
         self.autocorrelation_norms = {}
         for ifo in self.ifos:
-            self.autocorrelation_norms[ifo] = torch.sum(
-                2 - abs(self.autocorrelation_banks[ifo]) ** 2, dim=-1
-            )
+            temp = 2 - abs(self.autocorrelation_banks[ifo]) ** 2
+            if self.autocorrelation_length_mask is not None:
+                temp = temp * self.autocorrelation_length_mask[ifo]
+            self.autocorrelation_norms[ifo] = torch.sum(temp, dim=-1)
 
         self.snr_time_series_indices = torch.arange(
-            self.autocorrelation_length, device=self.device
+            self.autocorrelation_max_length, device=self.device
         ).expand(self.nsubbank, self.ntempmax, -1)
 
         super().__post_init__()
@@ -224,7 +231,7 @@ class Itacacac(TSTransform):
             real_imag_time_series = snr.gather(
                 3,
                 time_series_indices.unsqueeze(2).expand(
-                    shape[0], shape[1] // 2, 2, self.autocorrelation_length
+                    shape[0], shape[1] // 2, 2, self.autocorrelation_max_length
                 ),
             )
             real_time_series = real_imag_time_series[..., 0, :]
@@ -235,22 +242,27 @@ class Itacacac(TSTransform):
             imag_peak = imag_time_series[..., padding].unsqueeze(2).expand(snr_ts_shape)
 
             # complex operations are slow with torch compile, make them real
+            autocorr_series = (
+                real_time_series
+                - real_peak * self.autocorrelation_banks_real[ifo]
+                + imag_peak * self.autocorrelation_banks_imag[ifo]
+            ) ** 2 + (
+                imag_time_series
+                - real_peak * self.autocorrelation_banks_imag[ifo]
+                - imag_peak * self.autocorrelation_banks_real[ifo]
+            ) ** 2
+            if self.autocorrelation_length_mask is not None:
+                # zero out the shorter autocorrelation lengths
+                autocorr_series = (
+                    autocorr_series * self.autocorrelation_length_mask[ifo]
+                )
+
             autocorrelation_chisq = torch.sum(
-                (
-                    real_time_series
-                    - real_peak * self.autocorrelation_banks_real[ifo]
-                    + imag_peak * self.autocorrelation_banks_imag[ifo]
-                )
-                ** 2
-                + (
-                    imag_time_series
-                    - real_peak * self.autocorrelation_banks_imag[ifo]
-                    - imag_peak * self.autocorrelation_banks_real[ifo]
-                )
-                ** 2,
+                autocorr_series,
                 dim=-1,
             )
             autocorrelation_chisq /= self.autocorrelation_norms[ifo]
+
             triggers["peak_locations"][ifo] = peak_locations
             triggers["snrs"][ifo] = peaks
             triggers["chisqs"][ifo] = autocorrelation_chisq
@@ -533,6 +545,7 @@ class Itacacac(TSTransform):
         self, ifo_combs, all_network_snr, template_ids, triggers, snr_ts, subthresh_mask
     ):
         clustered_snr, max_locations = torch.max(all_network_snr, dim=-1)
+        max_locations_cpu = max_locations.to("cpu")
 
         mask = ~subthresh_mask[range(self.nsubbank), max_locations]
         mask = mask.to("cpu").numpy()
@@ -540,8 +553,11 @@ class Itacacac(TSTransform):
             -1
         )
         max_locations = max_locations.to("cpu").numpy()
-        clustered_template_ids = template_ids[range(self.nsubbank), max_locations]
+        clustered_template_ids = template_ids[range(self.nsubbank), max_locations_cpu]
         clustered_bankids = []
+        clustered_template_durations = self.template_durations[
+            range(self.nsubbank), max_locations_cpu
+        ]
         sngls = {}
         for i, m in enumerate(mask):
             m = m.item()
@@ -555,9 +571,11 @@ class Itacacac(TSTransform):
         snr_ts_clustered = {}
         for ifo in trig_snrs.keys():
             sngls[ifo] = {}
-            max_peak_locations = trig_peak_locations[ifo][
-                range(self.nsubbank), max_locations
-            ].to("cpu").numpy()
+            max_peak_locations = (
+                trig_peak_locations[ifo][range(self.nsubbank), max_locations]
+                .to("cpu")
+                .numpy()
+            )
             sngl_snr = trig_snrs[ifo][range(self.nsubbank), max_locations]
             sngl_chisq = trig_chisqs[ifo][range(self.nsubbank), max_locations]
 
@@ -586,7 +604,7 @@ class Itacacac(TSTransform):
             # FIXME: find the snr snippet
             snrs0 = snr_ts[ifo]
             snrs1 = snrs0.view(snrs0.shape[0], snrs0.shape[1] // 2, 2, snrs0.shape[2])
-            snr_pairs = snrs1[range(snrs1.shape[0]), max_locations]
+            snr_pairs = snrs1[range(snrs1.shape[0]), max_locations_cpu]
             sngl_peaks = snr_pairs[range(snr_pairs.shape[0]), :, max_peak_locations]
             real = sngl_peaks[:, 0]
             imag = sngl_peaks[:, 1]
@@ -596,20 +614,13 @@ class Itacacac(TSTransform):
             if self.is_online:
                 # get snr snippet around the peak for the clustered coincs
                 # only for online case
-                snr_ts_snippet_clustered[ifo] = (
-                    trig_snr_ts_snippet[ifo][range(snrs1.shape[0]), max_locations]
-                    .to("cpu")
-                    .numpy()[mask]
-                )
+                snr_ts_snippet_clustered[ifo] = trig_snr_ts_snippet[ifo][
+                    range(snrs1.shape[0]), max_locations_cpu
+                ][mask]
 
-                snr_ts_clustered[ifo] = (
-                    snr_ts[ifo]
-                    .view(snrs0.shape[0], snrs0.shape[1] // 2, 2, snrs0.shape[2])[
-                        range(snrs1.shape[0]), max_locations
-                    ]
-                    .to("cpu")
-                    .numpy()[mask]
-                )
+                snr_ts_clustered[ifo] = snr_ts[ifo].view(
+                    snrs0.shape[0], snrs0.shape[1] // 2, 2, snrs0.shape[2]
+                )[range(snrs1.shape[0]), max_locations_cpu][mask]
             else:
                 snr_ts_snippet_clustered[ifo] = None
                 snr_ts_clustered[ifo] = None
@@ -619,6 +630,7 @@ class Itacacac(TSTransform):
         return {
             "clustered_bankids": clustered_bankids,
             "clustered_template_ids": clustered_template_ids[mask],
+            "clustered_template_durations": clustered_template_durations[mask],
             "clustered_ifo_combs": clustered_ifo_combs[mask].to("cpu").numpy(),
             "clustered_snr": clustered_snr[mask].to("cpu").numpy(),
             "sngls": sngls,
@@ -652,10 +664,10 @@ class Itacacac(TSTransform):
                         + Offset.offset_ref_t0
                         + self.end_time_delta[maxsnr_id[0]]
                     ) / 1_000_000_000
-                    self.max_snr_histories[ifo] = {"time": time, "snr": max_snr}
+                    self.max_snr_histories[ifo] = {"time": float(time), "snr": max_snr}
 
         # FIXME: this part and clustered_coinc is lowering the GPU utilization
-        #for trig_type in triggers.keys():
+        # for trig_type in triggers.keys():
         #    if trig_type != "snr_ts_snippet":
         #        for k, v in triggers[trig_type].items():
         #            triggers[trig_type][k] = v.to("cpu").numpy()
@@ -684,7 +696,6 @@ class Itacacac(TSTransform):
         # Populate background snr, chisq, time for each bank, ifo
         # FIXME: is stacking then copying to cpu faster?
         # FIXME: do we only need snr chisq for singles?
-        trig_peak_locations = triggers["peak_locations"]
         trig_snrs = triggers["snrs"]
         trig_chisqs = triggers["chisqs"]
         ifos = trig_snrs.keys()
@@ -698,7 +709,7 @@ class Itacacac(TSTransform):
                         (ts + min(self.end_time_delta[ids])) / 1_000_000_000,
                         te / 1_000_000_000 + 0.000000001,
                     ),
-                    #np.sum(snr[ids] >= self.snr_min).item(),
+                    # np.sum(snr[ids] >= self.snr_min).item(),
                     torch.sum(snr[ids] >= self.snr_min).to("cpu").numpy().item(),
                 )
 
@@ -743,7 +754,12 @@ class Itacacac(TSTransform):
                         col: sngl[col][j].item()
                         for col in ["time", "snr", "chisq", "phase"]
                     }
-                    trig["_filter_id"] = clustered_coinc["clustered_template_ids"][j]
+                    trig["_filter_id"] = clustered_coinc["clustered_template_ids"][
+                        j
+                    ].item()
+                    trig["template_duration"] = clustered_coinc[
+                        "clustered_template_durations"
+                    ][j].item()
                     trig["ifo"] = ifo
                     trig["epoch_start"] = ts
                     trig["epoch_end"] = te
@@ -753,10 +769,20 @@ class Itacacac(TSTransform):
                         # Prepare the snr time series snippet
                         # snr time series for subthreshold ifos have length of the
                         # autocorrelation length
-                        snr_ts_snippet = clustered_coinc["snr_ts_snippet_clustered"][
-                            ifo
-                        ][j]
-                        half_autocorr_length = (snr_ts_snippet.shape[-1] - 1) // 2
+                        snr_ts_snippet = (
+                            clustered_coinc["snr_ts_snippet_clustered"][ifo][j]
+                            .to("cpu")
+                            .numpy()
+                        )
+                        bankid = clustered_coinc["clustered_bankids"][j]
+                        autocorr_length = self.autocorrelation_lengths[bankid]
+                        ts_length = snr_ts_snippet.shape[-1]
+                        if ts_length != autocorr_length:
+                            pad = (ts_length - autocorr_length) // 2
+                            snr_ts_snippet = snr_ts_snippet[..., pad:-pad]
+                        assert snr_ts_snippet.shape[-1] == autocorr_length
+                        # half_autocorr_length = (snr_ts_snippet.shape[-1] - 1) // 2
+                        half_autocorr_length = (autocorr_length - 1) // 2
                         snr_ts_snippet_out = lal.CreateCOMPLEX8TimeSeries(
                             name="snr",
                             epoch=trig["time"] / 1_000_000_000
@@ -780,7 +806,11 @@ class Itacacac(TSTransform):
                         # snr time series for subthreshold ifos have length of trigger
                         # finding window. This will be used for subthreshold trigger
                         # finding in the GraceDBSink
-                        snr_ts_snippet = clustered_coinc["snr_ts_clustered"][ifo][j]
+                        snr_ts_snippet = (
+                            clustered_coinc["snr_ts_clustered"][ifo][j]
+                            .to("cpu")
+                            .numpy()
+                        )
                         assert snr_ts_snippet.shape[-1] > 0, f"{ifo}"
                         snr_ts_snippet_out = lal.CreateCOMPLEX8TimeSeries(
                             name="snr",

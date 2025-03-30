@@ -56,7 +56,7 @@ def main():
     if args.dag_name:
         dag_name = args.dag_name
     else:
-        dag_name = f"sgnl_online_{args.workflow}"
+        dag_name = f"{config.tag}_online_{args.workflow}"
 
     # Start building the dag
     dag = DAG(dag_name)
@@ -166,10 +166,12 @@ def main():
 
         layer = layers.marginalize_online(
             config.condor,
+            config.filter,
             config.services,
-            svd_bins,
+            lrs,
             config.tag,
             marg_pdf,
+            config.rank.extinct_percent,
             config.rank.fast_burnin,
         )
         dag.attach(layer)

@@ -16,10 +16,7 @@ import lal
 import numpy
 import scipy
 from ligo.lw import array as ligolw_array
-from ligo.lw import (
-    ligolw,
-    lsctables,
-)
+from ligo.lw import ligolw, lsctables
 from ligo.lw import param as ligolw_param
 from ligo.lw import utils as ligolw_utils
 from ligo.lw.utils import process as ligolw_process
@@ -490,7 +487,7 @@ def write_bank(filename, banks, psd_input, process_param_dict=None, verbose=Fals
     ligolw_utils.write_filename(xmldoc, filename, verbose=verbose)
 
 
-def read_banks(filename, contenthandler, verbose=False):
+def read_banks(filename, contenthandler, verbose=False, fast=False):
     # Load document
     xmldoc = ligolw_utils.load_url(
         filename, contenthandler=contenthandler, verbose=verbose
@@ -522,57 +519,63 @@ def read_banks(filename, contenthandler, verbose=False):
         bank.sngl_inspiral_table.parentNode.removeChild(bank.sngl_inspiral_table)
 
         # Read root-level scalar parameters
-        bank.filter_length = ligolw_param.get_pyvalue(root, "filter_length")
-        bank.logname = ligolw_param.get_pyvalue(root, "logname") or None
-        bank.snr_threshold = ligolw_param.get_pyvalue(root, "snr_threshold")
-        bank.template_bank_filename = ligolw_param.get_pyvalue(
-            root, "template_bank_filename"
-        )
         bank.bank_id = ligolw_param.get_pyvalue(root, "bank_id")
-
-        try:
-            bank.newdeltaF = ligolw_param.get_pyvalue(root, "new_deltaf")
-            bank.working_f_low = ligolw_param.get_pyvalue(root, "working_f_low")
-            bank.f_low = ligolw_param.get_pyvalue(root, "f_low")
-            bank.sample_rate_max = ligolw_param.get_pyvalue(root, "sample_rate_max")
-        except ValueError:
-            pass
+        bank.sample_rate_max = ligolw_param.get_pyvalue(root, "sample_rate_max")
+        if not fast:
+            bank.filter_length = ligolw_param.get_pyvalue(root, "filter_length")
+            bank.logname = ligolw_param.get_pyvalue(root, "logname") or None
+            bank.snr_threshold = ligolw_param.get_pyvalue(root, "snr_threshold")
+            bank.template_bank_filename = ligolw_param.get_pyvalue(
+                root, "template_bank_filename"
+            )
+            try:
+                bank.newdeltaF = ligolw_param.get_pyvalue(root, "new_deltaf")
+                bank.working_f_low = ligolw_param.get_pyvalue(root, "working_f_low")
+                bank.f_low = ligolw_param.get_pyvalue(root, "f_low")
+                bank.sample_rate_max = ligolw_param.get_pyvalue(root, "sample_rate_max")
+            except ValueError:
+                pass
 
         # Read root-level arrays
         bank.autocorrelation_bank = (
             ligolw_array.get_array(root, "autocorrelation_bank_real").array
             + 1j * ligolw_array.get_array(root, "autocorrelation_bank_imag").array
         )
-        bank.autocorrelation_mask = ligolw_array.get_array(
-            root, "autocorrelation_mask"
-        ).array
         bank.sigmasq = ligolw_array.get_array(root, "sigmasq").array
-        bank_correlation_real = ligolw_array.get_array(
-            root, "bank_correlation_matrix_real"
-        ).array
-        bank_correlation_imag = ligolw_array.get_array(
-            root, "bank_correlation_matrix_imag"
-        ).array
-        bank.bank_correlation_matrix = (
-            bank_correlation_real + 1j * bank_correlation_imag
-        )
+
+        if not fast:
+            bank.autocorrelation_mask = ligolw_array.get_array(
+                root, "autocorrelation_mask"
+            ).array
+            bank_correlation_real = ligolw_array.get_array(
+                root, "bank_correlation_matrix_real"
+            ).array
+            bank_correlation_imag = ligolw_array.get_array(
+                root, "bank_correlation_matrix_imag"
+            ).array
+            bank.bank_correlation_matrix = (
+                bank_correlation_real + 1j * bank_correlation_imag
+            )
+
+            if raw_psd is not None:
+                # reproduce the whitening psd and attach a reference to the psd
+                bank.processed_psd = condition_psd(
+                    raw_psd,
+                    bank.newdeltaF,
+                    minfs=(bank.working_f_low, bank.f_low),
+                    maxfs=(
+                        bank.sample_rate_max / 2.0 * 0.90,
+                        bank.sample_rate_max / 2.0,
+                    ),
+                )
+            else:
+                bank.processed_psd = None
 
         # prepare the horizon distance factors
         bank.horizon_factors = dict(
             (row.template_id, sigmasq**0.5)
             for row, sigmasq in zip(bank.sngl_inspiral_table, bank.sigmasq)
         )
-
-        if raw_psd is not None:
-            # reproduce the whitening psd and attach a reference to the psd
-            bank.processed_psd = condition_psd(
-                raw_psd,
-                bank.newdeltaF,
-                minfs=(bank.working_f_low, bank.f_low),
-                maxfs=(bank.sample_rate_max / 2.0 * 0.90, bank.sample_rate_max / 2.0),
-            )
-        else:
-            bank.processed_psd = None
 
         # Read bank fragments
         bank.bank_fragments = []
@@ -585,8 +588,16 @@ def read_banks(filename, contenthandler, verbose=False):
                 end=ligolw_param.get_pyvalue(el, "end"),
             )
 
-            # Read arrays
-            frag.chifacs = ligolw_array.get_array(el, "chifacs").array
+            if not fast:
+                # Read arrays
+                frag.chifacs = ligolw_array.get_array(el, "chifacs").array
+                try:
+                    frag.singular_values = ligolw_array.get_array(
+                        el, "singular_values"
+                    ).array
+                except ValueError:
+                    frag.singular_values = None
+
             try:
                 frag.mix_matrix = ligolw_array.get_array(el, "mix_matrix").array
             except ValueError:
@@ -594,12 +605,6 @@ def read_banks(filename, contenthandler, verbose=False):
             frag.orthogonal_template_bank = ligolw_array.get_array(
                 el, "orthogonal_template_bank"
             ).array
-            try:
-                frag.singular_values = ligolw_array.get_array(
-                    el, "singular_values"
-                ).array
-            except ValueError:
-                frag.singular_values = None
 
             bank.bank_fragments.append(frag)
 
@@ -666,7 +671,7 @@ def horizon_distance_func(banks):
     )
 
 
-def parse_bank_files(svd_banks, verbose, snr_threshold=None):
+def parse_bank_files(svd_banks, verbose, snr_threshold=None, fast=False):
     """
     given a dictionary of lists of svd template bank file names parse them
     into a dictionary of bank classes
@@ -676,7 +681,12 @@ def parse_bank_files(svd_banks, verbose, snr_threshold=None):
 
     for instrument, filename in svd_banks.items():
         for n, bank in enumerate(
-            read_banks(filename, contenthandler=DefaultContentHandler, verbose=verbose)
+            read_banks(
+                filename,
+                contenthandler=DefaultContentHandler,
+                verbose=verbose,
+                fast=fast,
+            )
         ):
             # Write out sngl inspiral table to temp file for
             # trigger generator

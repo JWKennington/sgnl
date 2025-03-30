@@ -5,6 +5,7 @@
 
 import io
 from dataclasses import dataclass
+from time import asctime
 
 from sgnl.control import SnapShotControlSinkElement
 from sgnl.strike_object import StrikeObject
@@ -73,7 +74,7 @@ class StrikeSink(SnapShotControlSinkElement):
                     self.count_removal_times = (
                         self.strike_object.likelihood_ratios[bankid]
                         .terms["P_of_SNR_chisq"]
-                        .remove_counts_times.tolist()
+                        .remove_counts_times
                     )
                     self.state_dict["count_removal_times"] = self.count_removal_times
 
@@ -84,6 +85,7 @@ class StrikeSink(SnapShotControlSinkElement):
                         .terms["P_of_SNR_chisq"]
                         .remove_counts_times
                     )
+            self.register_snapshot()
 
     def pull(self, pad, frame):
         if frame.EOS:
@@ -156,33 +158,43 @@ class StrikeSink(SnapShotControlSinkElement):
 
         if self.at_eos:
             if self.is_online:
-                self.on_snapshot()
-            else:
-                self.strike_object.save_snr_chi_lnpdf()
-                self.strike_object.save_counts_by_template_id()
                 for bankid in self.bankids_map:
+                    desc = "%s_SGNL_LIKELIHOOD_RATIO" % bankid
+                    fn = self.snapshot_filenames(desc)
+                    self.on_snapshot(bankid, fn)
+            else:
+                for bankid in self.bankids_map:
+                    self.strike_object.save_snr_chi_lnpdf(bankid)
+                    self.strike_object.save_counts_by_template_id(bankid)
                     self.strike_object.likelihood_ratios[bankid].save(
                         self.strike_object.output_likelihood_file[bankid]
                     )
         else:
-            if self.is_online and self.snapshot_ready():
-                self.on_snapshot()
+            if self.is_online:
+                for i, bankid in enumerate(self.bankids_map):
+                    desc = "%s_SGNL_LIKELIHOOD_RATIO" % bankid
+                    if self.snapshot_ready(desc):
+                        fn = self.snapshot_filenames(desc)
+                        self.on_snapshot(bankid, fn)
+                        print(f"{asctime()} SrikeSink: update assign lr {bankid}...")
+                        self.strike_object.update_assign_lr(bankid)
+                        if i == 0:
+                            self.strike_object.load_rank_stat_pdf()
 
-    def on_snapshot(self):
-        self.strike_object.save_snr_chi_lnpdf()
-        self.strike_object.save_counts_by_template_id()
-        for bankid in self.bankids_map:
-            four_digit_id = "%04d" % int(bankid)
+    def on_snapshot(self, bankid, fn):
+        self.strike_object.save_snr_chi_lnpdf(bankid)
+        self.strike_object.save_counts_by_template_id(bankid)
+        four_digit_id = "%04d" % int(bankid)
 
-            # update bottle
-            self.state_dict["xml"][four_digit_id] = xml_string(
-                self.strike_object.likelihood_ratios[bankid]
-            )
-            self.state_dict["zerolagxml"][four_digit_id] = xml_string(
-                self.strike_object.zerolag_rank_stat_pdfs[bankid]
-            )
-
-        self.strike_object.save_snapshot(self.snapshot_filenames)
+        # update bottle
+        self.state_dict["xml"][four_digit_id] = xml_string(
+            self.strike_object.likelihood_ratios[bankid]
+        )
+        self.state_dict["zerolagxml"][four_digit_id] = xml_string(
+            self.strike_object.zerolag_rank_stat_pdfs[bankid]
+        )
+        print(f"{asctime()} Writing out likelihood ratio and zerolag file {fn}...")
+        self.strike_object.save_snapshot(bankid, fn)
 
     def count_removal_callback(self):
         # FIXME : at the time of calling exchange_state() posted data is already
@@ -198,15 +210,20 @@ class StrikeSink(SnapShotControlSinkElement):
             self.count_removal_times.append(self.state_dict["count_tracker"])
 
         elif self.state_dict["count_tracker"] < 0:
-            self.count_removal_times.remove(abs(self.state_dict["count_tracker"]))
+            gps_time = abs(self.state_dict["count_tracker"])
+            if gps_time in self.count_removal_times:
+                self.count_removal_times.remove(gps_time)
+            else:
+                print(f"{gps_time} not in self.count_removal_times, not removing")
 
         self.state_dict["count_removal_times"] = self.count_removal_times
 
-        for likelihood_ratio in self.strike_object.likelihood_ratios.items():
+        for bankid, likelihood_ratio in self.strike_object.likelihood_ratios.items():
             # four_digit_id = "%04d" % int(bankid)
 
             # update the internal array for the removed times
-            likelihood_ratio.terms["P_of_dt_dphi"].remove_counts_times = (
+            print(f"bankid: {bankid} count remove times: {self.count_removal_times}")
+            likelihood_ratio.terms["P_of_SNR_chisq"].remove_counts_times = (
                 self.count_removal_times
             )
 

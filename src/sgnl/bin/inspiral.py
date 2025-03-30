@@ -10,10 +10,13 @@ import os
 import re
 import sys
 from argparse import ArgumentParser
+from collections import OrderedDict
 from typing import List
 
 import torch
+from ligo.lw import array as ligolw_array
 from ligo.lw import ligolw, lsctables
+from ligo.lw import param as ligolw_param
 from ligo.lw import utils as ligolw_utils
 from sgn.apps import Pipeline
 from sgn.base import get_sgn_logger
@@ -36,9 +39,11 @@ from sgnl.transforms import (
     lloid,
 )
 
-LOGGER = get_sgn_logger("sgn-ts")
+LOGGER = get_sgn_logger("sgnl")
 
 
+@ligolw_array.use_in
+@ligolw_param.use_in
 @lsctables.use_in
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass
@@ -101,7 +106,7 @@ def parse_command_line():
     group.add_argument(
         "--trigger-output",
         metavar="filename",
-        action="store",
+        action="append",
         help="Set the name of the sqlite output file *.sqlite",
     )
     group.add_argument(
@@ -141,6 +146,21 @@ def parse_command_line():
 
     group = parser.add_argument_group(
         "Ranking Statistic Options", "Adjust ranking statistic behaviour"
+    )
+    group.add_argument(
+        "--snapshot-interval",
+        metavar="seconds",
+        type=float,
+        default=14400,
+        help="The interval at which to procude snapshots of trigger, likelihood, and "
+        "zerolag files",
+    )
+    group.add_argument(
+        "--snapshot-delay",
+        metavar="seconds",
+        type=float,
+        default=0,
+        help="The delay between different banks at which to procude snapshots.",
     )
     group.add_argument(
         "--far-trials-factor",
@@ -341,10 +361,12 @@ def inspiral(
     process_params: dict = None,
     rank_stat_pdf_file: List[str] = None,
     reconstruct_inj_segments: bool = False,
+    snapshot_delay: float = 0,
+    snapshot_interval: float = 14400,
     snr_min: float = 4,
     torch_device: str = "cpu",
     torch_dtype: str = "float32",
-    trigger_output: str = None,
+    trigger_output: List[str] = None,
     trigger_finding_duration: float = 1,
     verbose: bool = False,
     zerolag_rank_stat_pdf_file: List[str] = None,
@@ -363,8 +385,10 @@ def inspiral(
             LOGGER.warning(
                 "warning: trigger_output will not be produced in online mode"
             )
-        elif os.path.exists(trigger_output):
-            raise ValueError(f"output db exists: {trigger_output}")
+        else:
+            for fn in trigger_output:
+                if os.path.exists(fn):
+                    raise ValueError(f"output db exists: {fn}")
 
     if output_likelihood_file is not None and input_likelihood_file is None:
         for r in output_likelihood_file:
@@ -391,11 +415,12 @@ def inspiral(
         raise ValueError("Unknown data type")
 
     if (
-        fake_sink is False and data_source_info.data_source not in ["devshm", "impulse"]
+        fake_sink is False
+        and data_source_info.data_source not in ["devshm", "impulse", "white-realtime"]
     ) and trigger_output is None:
         raise ValueError(
             "Must supply trigger_output when fake_sink is False and "
-            "data_source != 'devshm' or 'impulse'"
+            "data_source != 'devshm' or 'impulse', 'white-realtime'"
         )
     elif trigger_output is not None and event_config is None:
         raise ValueError("Must supply event_config when trigger_output is specified")
@@ -417,13 +442,7 @@ def inspiral(
         )
     if injection_file and not injections:
         raise ValueError("Must supply --injections when --injection-file is set")
-    # if (
-    #     likelihood_snapshot_interval and not output_likelihood_file
-    # ) and not injections:
-    #     raise ValueError(
-    #         "must set --output-likelihood-file when --likelihood-snapshot-interval is"
-    #         " set"
-    #     )
+
     if output_likelihood_file and injections:
         raise ValueError(
             "Must not set --output-likelihood-file when --injections is set"
@@ -431,6 +450,9 @@ def inspiral(
 
     if output_kafka_server is not None and not IS_ONLINE:
         raise ValueError("output_kafka_server can only be set if in online mode")
+
+    SnapShotControl.snapshot_interval = snapshot_interval
+    SnapShotControl.delay = snapshot_delay
 
     #
     # Build pipeline
@@ -605,9 +627,12 @@ def inspiral(
                 trigger_finding_duration=trigger_finding_duration,
                 snr_min=snr_min,
                 autocorrelation_banks=sorted_bank.autocorrelation_banks,
+                autocorrelation_length_mask=sorted_bank.autocorrelation_length_mask,
+                autocorrelation_lengths=sorted_bank.autocorrelation_lengths,
                 template_ids=sorted_bank.template_ids,
                 bankids_map=sorted_bank.bankids_map,
                 end_time_delta=sorted_bank.end_time_delta,
+                template_durations=sorted_bank.template_durations,
                 device=torch_device,
                 coincidence_threshold=coincidence_threshold,
                 stillsuit_pad="stillsuit",
@@ -661,10 +686,11 @@ def inspiral(
                         gracedb_label=gracedb_label,
                         gracedb_service_url=gracedb_service_url,
                         analysis_tag=analysis_tag,
-                        job_tag=job_tag,
+                        job_type=job_tag.split("_")[-1],
                         delta_t=coincidence_threshold,
                         strike_object=strike_object,
                         channel_dict=data_source_info.channel_dict,
+                        autocorrelation_lengths=sorted_bank.autocorrelation_lengths,
                     ),
                     EyeCandy(
                         name="EyeCandy",
@@ -730,7 +756,15 @@ def inspiral(
                     + tuple(["segments_" + ifo for ifo in ifos]),
                     ifos=ifos,
                     config_name=event_config,
-                    trigger_output=trigger_output,
+                    bankids_map=sorted_bank.bankids_map,
+                    trigger_output=(
+                        OrderedDict(
+                            (k, trigger_output[i])
+                            for i, k in enumerate(sorted_bank.bankids_map.keys())
+                        )
+                        if trigger_output
+                        else None
+                    ),
                     template_ids=sorted_bank.template_ids.numpy(),
                     template_sngls=sorted_bank.sngls,
                     subbankids=sorted_bank.subbankids,
@@ -742,6 +776,7 @@ def inspiral(
                     is_online=IS_ONLINE,
                     nsubbank_pretend=bool(nsubbank_pretend),
                     injections=injections,
+                    strike_object=strike_object,
                 ),
             )
 
@@ -833,6 +868,7 @@ def inspiral(
                         output_kafka_server=output_kafka_server,
                         time_series_topics=[
                             "latency_history",
+                            "snr_history",
                             "all_itacacac_latency",
                             "likelihood_history",
                             "far_history",
@@ -963,6 +999,8 @@ def main():
         process_params=process_params,
         rank_stat_pdf_file=options.rank_stat_pdf_file,
         reconstruct_inj_segments=options.reconstruct_inj_segments,
+        snapshot_delay=options.snapshot_delay,
+        snapshot_interval=options.snapshot_interval,
         snr_min=options.snr_min,
         torch_device=options.torch_device,
         torch_dtype=options.torch_dtype,

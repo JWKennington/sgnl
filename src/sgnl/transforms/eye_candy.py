@@ -89,8 +89,8 @@ class EyeCandy(TransformElement):
         # uptime
         #
         kafka_data["uptime"] = {
-            "time": [float(now())],
-            "data": [float(now()) - self.startup_time],
+            "time": [time_now],
+            "data": [time_now - self.startup_time],
         }
 
         #
@@ -125,8 +125,10 @@ class EyeCandy(TransformElement):
         #
         max_snr, max_snr_t = max((e["network_snr"], e["time"]) for e in events)
         max_snr_t /= 1e9
-        kafka_data["time"] = float(max_snr_t)
-        kafka_data["snr_history"] = float(max_snr)
+        kafka_data["snr_history"] = {
+            "time": [float(max_snr_t)],
+            "data": [float(max_snr)],
+        }
 
         #
         # latency history
@@ -143,7 +145,7 @@ class EyeCandy(TransformElement):
         lr_events = [e for e in events if e["likelihood"] is not None]
         if len(lr_events) > 0:
             max_likelihood, max_likelihood_t, max_likelihood_far = max(
-                (e["likelihood"], e["time"], e["combined_far"]) for e in events
+                (e["likelihood"], e["time"], e["combined_far"]) for e in lr_events
             )
             max_likelihood_t /= 1e9
 

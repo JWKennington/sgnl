@@ -26,7 +26,9 @@ from collections import deque
 from io import BytesIO
 
 from ligo.gracedb.rest import GraceDb, HTTPError
+from ligo.lw import array as ligolw_array
 from ligo.lw import ligolw, lsctables
+from ligo.lw import param as ligolw_param
 from ligo.lw import utils as ligolw_utils
 from ligo.scald import utils
 from pastro import pastro  # FIXME move pastro to sgn?
@@ -35,6 +37,9 @@ from sgnl import events
 from sgnl.gracedb import FakeGracedbClient
 
 
+@lsctables.use_in
+@ligolw_array.use_in
+@ligolw_param.use_in
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass
 
