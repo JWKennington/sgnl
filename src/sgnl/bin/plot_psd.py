@@ -10,10 +10,10 @@ from argparse import ArgumentParser
 from sgnl.plots.util import set_matplotlib_cache_directory
 
 set_matplotlib_cache_directory()
-import matplotlib
+import matplotlib  # noqa: E402
 
-from sgnl.plots.psd import plot_psds
-from sgnl.psd import read_psd
+from sgnl.plots.psd import plot_psds  # noqa: E402
+from sgnl.psd import read_psd  # noqa: E402
 
 matplotlib.rcParams.update(
     {

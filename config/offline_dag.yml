@@ -1,0 +1,123 @@
+##--------------------------------
+# general options
+
+start: # FIXME
+stop: # FIXME
+
+instruments: H1L1V1
+min-instruments: 1
+
+##--------------------------------
+# data product options
+
+paths:
+  input-data: # FIXME
+  filter-dir: # FIXME
+  injection-dir: # FIXME
+  rank-dir: # FIXME
+  template-bank: # FIXME
+
+##-----------------------------
+# data source options
+
+source:
+  frame-cache: # FIXME
+  channel-name:
+    H1: # FIXME
+    L1: # FIXME
+    V1: # FIXME
+  inj-frame-cache: # FIXME
+  inj-channel-name:
+    H1: # FIXME
+    L1: # FIXME
+    V1: # FIXME
+  sample-rate: 16384
+  frame-segments-file: # FIXME
+  frame-segments-name: datasegments
+
+##--------------------------------
+# psd options
+
+psd:
+  fft-length: 8
+  sample-rate: 4096
+
+##--------------------------------
+## svd bank options
+
+svd:
+    #  f-low: 15.0
+    #  num-chi-bins: 1
+    #  approximant:
+    #    - 0:1.73:TaylorF2
+    #    - 1.73:1000:SEOBNRv4_ROM
+    #  tolerance: 0.99999
+    #  max-f-final: 1024.0
+    #  num-split-templates: 500
+    #  overlap: 50
+    #  num-banks: 2
+    #  samples-min: 2048
+    #  samples-max-64: 2048
+    #  samples-max-256: 2048
+    #  samples-max: 4096
+    #  autocorrelation-length: 351
+    #  sort-by: mchirp
+  option-file: # FIXME
+
+##--------------------------------
+## filtering options
+
+filter:
+  # group-svd-num: 5
+  # all_triggers_to_background: False
+  # min_instruments_candidates: 1
+  coincidence-threshold: 0.01
+  ht-gate-threshold: 50.0
+  snr-min: 4
+  torch-dtype: float32
+  torch-device: cpu
+  event-config-file: # FIXME
+
+##--------------------------------
+## injection options
+injections:
+  filter:
+    BBH: 
+      file: # FIXME
+      # pregenerated: True
+      noiseless_inj_frames: True
+      range: 6.00:200.0 ## mchirp range of injections (should be adapted to best-fit injection range)
+
+##--------------------------------
+## prior options
+
+prior:
+  mass-model: # FIXME
+
+##--------------------------------
+## ranking options
+
+rank:
+  ranking-stat-samples: 1048576
+  calc-pdf-jobs: 4
+  calc-pdf-cores: 1
+  marg-pdf-files: 64
+  merge-level-one-max-files: 50
+  merge-level-two-max-files: 10
+  add-level-one-max-files: 500
+  add-level-two-max-files: 100
+
+##--------------------------------
+## summary options
+
+summary:
+  ## public_html directory to make a summary page. eg. /home/divya.singh/public_html/observing/4/dev/offline/inj-frames-4sec
+  webdir: # FIXME
+
+##--------------------------------
+## condor options
+
+condor:
+  accounting-group: # FIXME
+  accounting-group-user: # FIXME
+  getenv: True

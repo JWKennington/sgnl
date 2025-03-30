@@ -48,7 +48,9 @@ def parse_command_line():
         default=[],
         action="append",
         nargs="+",
-        help="Provide the name of an input trigger database. This can be given multiple times, being separated by a space, e.g., --input-database-file filename1 filename2 filename3.",
+        help="Provide the name of an input trigger database. This can be given "
+        "multiple times, being separated by a space, e.g., --input-database-file "
+        "filename1 filename2 filename3.",
     )
     parser.add_argument(
         "-o",
@@ -57,7 +59,9 @@ def parse_command_line():
         default=[],
         action="append",
         nargs="+",
-        help="Provide the name of an output trigger database. This can be given multiple times, being separated by a space, e.g., --output-database-file filename1 filename2 filename3.",
+        help="Provide the name of an output trigger database. This can be given "
+        "multiple times, being separated by a space, e.g., --output-database-file "
+        "filename1 filename2 filename3.",
     )
     parser.add_argument(
         "--input-database-cache",
@@ -115,7 +119,8 @@ def parse_command_line():
 
     if not len(options.input_database_file) == len(options.output_database_file):
         raise ValueError(
-            "The number of each given database are different. There must be one-to-one mapping between input and output dabases."
+            "The number of each given database are different. There must be one-to-one "
+            "mapping between input and output dabases."
         )
 
     return options, process_params
@@ -146,7 +151,8 @@ def main():
     )
     if (rankingstatpdf.zero_lag_lr_lnpdf.array == 0).all():
         raise ValueError(
-            "A zerolag histogram is not stored in %s. Make sure to run extinct-bin program in advance and point to post-extinction dist-stat-pdf file."
+            "A zerolag histogram is not stored in %s. Make sure to run extinct-bin "
+            "program in advance and point to post-extinction dist-stat-pdf file."
             % options.input_rankingstatpdf_file
         )
 
@@ -204,7 +210,7 @@ def main():
             """UPDATE process SET program = ?;""",
             (process_name,),
         )
-        for i, (name, val) in enumerate(process_params.items()):
+        for name, val in process_params.items():
             indb.default_cursor.execute(
                 """
             INSERT INTO process_params (param, program, value)
@@ -217,7 +223,8 @@ def main():
         # assign FARs
         #
 
-        # FIXME : assign_fapfars is no longer used. this might harm the computation efficiency (?), in which case we might want to revisit this.
+        # FIXME : assign_fapfars is no longer used. this might harm the computation
+        #         efficiency (?), in which case we might want to revisit this.
         for event in indb.get_events(nanosec_to_sec=True):
             indb.default_cursor.execute(
                 """
@@ -232,17 +239,18 @@ def main():
         #
         # done, file is restored to original location
         #
-        # FIXME : figure out how to check in these information for the new CBC db schema using stillsuit package
+        # FIXME : figure out how to check in these information for the new CBC db
+        #         schema using stillsuit package
         # process.set_end_time_now()
         # connection.cursor().execute(
         #     "UPDATE process SET end_time = ? WHERE process_id == ?",
         #     (process.end_time, process.process_id),
         # )
 
-    if options.verbose:
-        print("FAR assignment complete for %s" % input_database, file=sys.stderr)
-        print("Writing to %s" % output_database, file=sys.stderr)
-    indb.to_file(output_database)
+        if options.verbose:
+            print("FAR assignment complete for %s" % input_database, file=sys.stderr)
+            print("Writing to %s" % output_database, file=sys.stderr)
+        indb.to_file(output_database)
 
     if options.verbose:
         print("Done", file=sys.stderr)

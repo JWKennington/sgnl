@@ -78,10 +78,6 @@ pip install -e .
 cd ../sgn
 pip install -e .[dev]
 
-# Install sgn-event
-cd ../sgn-event
-pip install -e .
-
 # Install sgn-ts
 cd ../sgn-ts
 pip install -e .[dev]
@@ -102,7 +98,6 @@ package dependencies. The order is:
 - `strike`
 - `sgn`
 - `sgn-ts`
-- `sgn-event`
 - `sgn-ligo`
 - `sgnl`
 
