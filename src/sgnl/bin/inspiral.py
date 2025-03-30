@@ -187,13 +187,13 @@ def parse_command_line():
         help="Only keep horizon distance values that differ by this much, "
         "fractionally, from their neighbours (default = 0.03).",
     )
-    group.add_option(
+    group.add_argument(
         "--all-triggers-to-background",
         action="store_true",
         help="Save all triggers that pass the snr_min to background. If not set, only "
         "singles during coinc time will be saved to background.",
     )
-    group.add_option(
+    group.add_argument(
         "--min-instruments-candidates",
         metavar="num_ifos",
         type=int,
