@@ -44,12 +44,15 @@ def parse_command_line():
         action="append",
         nargs="+",
         default=[],
-        help="Set the name of the input RANK_STAT_PDF file. This can be given multiple times, being separated by a space, e.g., --input-rankingstatpdf-file filename1 filename2 filename3.",
+        help="Set the name of the input RANK_STAT_PDF file. This can be given "
+        "multiple times, being separated by a space, e.g., --input-rankingstatpdf-file "
+        "filename1 filename2 filename3.",
     )
     parser.add_argument(
         "--output-rankingstatpdf-file",
         metavar="filename",
-        help="Set the name of the output RANK_STAT_PDF file. If none is provided, the input file will be overwritten",
+        help="Set the name of the output RANK_STAT_PDF file. If none is provided, the "
+        "input file will be overwritten",
     )
     parser.add_argument(
         "--reset-zerolag",
@@ -101,7 +104,8 @@ def main():
     bg = rankingstatpdf.noise_lr_lnpdf.array
     fg = rankingstatpdf.zero_lag_lr_lnpdf.array
 
-    # zero out the beginning bins of each because they are notoriously bad and should just be ignored
+    # zero out the beginning bins of each because they are notoriously bad and should
+    # just be ignored
     bg[:10] = 0.0
     fg[:10] = 0.0
 

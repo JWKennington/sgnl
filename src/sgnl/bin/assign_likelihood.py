@@ -49,7 +49,9 @@ def parse_command_line():
         default=[],
         action="append",
         nargs="+",
-        help="Provide the name of an input trigger database. This can be given multiple times, being separated by a space, e.g., --input-database-file filename1 filename2 filename3.",
+        help="Provide the name of an input trigger database. This can be given "
+        "multiple times, being separated by a space, e.g., --input-database-file "
+        "filename1 filename2 filename3.",
     )
     parser.add_argument(
         "-o",
@@ -58,19 +60,21 @@ def parse_command_line():
         default=[],
         action="append",
         nargs="+",
-        help="Provide the name of an output trigger database. This can be given multiple times, being separated by a space, e.g., --output-database-file filename1 filename2 filename3.",
+        help="Provide the name of an output trigger database. This can be given "
+        "multiple times, being separated by a space, e.g., --output-database-file "
+        "filename1 filename2 filename3.",
     )
     parser.add_argument(
         "--input-database-cache",
         metavar="filename",
-        help="Also process the files named in this LAL cache.  See \
-            lalapps_path2cache for information on how to produce a LAL cache file.",
+        help="Also process the files named in this LAL cache.  See "
+        "lalapps_path2cache for information on how to produce a LAL cache file.",
     )
     parser.add_argument(
         "--output-database-cache",
         metavar="filename",
-        help="Also write into the files named in this LAL cache.  See \
-            lalapps_path2cache for information on how to produce a LAL cache file.",
+        help="Also write into the files named in this LAL cache.  See "
+        "lalapps_path2cache for information on how to produce a LAL cache file.",
     )
     parser.add_argument(
         "-l",
@@ -78,15 +82,16 @@ def parse_command_line():
         metavar="URL",
         action="append",
         nargs="+",
-        help="Set the name of the likelihood ratio data file to use. \
-            This can be given multiple times, being separated by a space, e.g., --input-likelihood-file filename1 filename2 filename3.",
+        help="Set the name of the likelihood ratio data file to use. "
+        "This can be given multiple times, being separated by a space, e.g., "
+        "--input-likelihood-file filename1 filename2 filename3.",
     )
     parser.add_argument(
         "--input-likelihood-cache",
         metavar="filename",
-        help="Also load the likelihood ratio data files listsed in this LAL \
-            cache.  See lalapps_path2cache for information on how to produce a \
-            LAL cache file.",
+        help="Also load the likelihood ratio data files listsed in this LAL "
+        "cache.  See lalapps_path2cache for information on how to produce a "
+        "LAL cache file.",
     )
     parser.add_argument(
         "--gstlal",
@@ -97,25 +102,25 @@ def parse_command_line():
         "-t",
         "--tmp-space",
         metavar="path",
-        help="Path to a directory suitable for use as a work area while \
-        manipulating the database file.  The database file will be worked on in \
-        this directory, and then moved to the final location when complete. \
-        This option is intended to improve performance when running in a \
-        networked environment, where there might be a local disk with higher \
-        bandwidth than is available to the filesystem on which the final output \
-        will reside.",
+        help="Path to a directory suitable for use as a work area while "
+        "manipulating the database file.  The database file will be worked on in "
+        "this directory, and then moved to the final location when complete. "
+        "This option is intended to improve performance when running in a "
+        "networked environment, where there might be a local disk with higher "
+        "bandwidth than is available to the filesystem on which the final output "
+        "will reside.",
     )
     parser.add_argument(
         "--vetoes-name",
         metavar="name",
-        help="Set the name of the segment lists to use as vetoes (default = do \
-            not apply vetoes).",
+        help="Set the name of the segment lists to use as vetoes (default = do "
+        "not apply vetoes).",
     )
     parser.add_argument(
         "--add-zerolag-to-background",
         action="store_true",
-        help="Add zerolag events to background before populating coincident \
-            parameter PDF histograms",
+        help="Add zerolag events to background before populating coincident "
+        "parameter PDF histograms",
     )
     parser.add_argument(
         "-f",
@@ -168,7 +173,8 @@ def parse_command_line():
 
     if not len(options.input_database_file) == len(options.output_database_file):
         raise ValueError(
-            "The number of each given databases are different. There must be one-to-one mapping between input and output dabases."
+            "The number of each given databases are different. There must be "
+            "one-to-one mapping between input and output dabases."
         )
 
     return options, paramdict
@@ -274,7 +280,8 @@ def main():
             continue
 
         #
-        # Check if the likelihood ratio have already been populated in the input database
+        # Check if the likelihood ratio have already been populated in the input
+        # database
         #
 
         if (
@@ -314,7 +321,7 @@ def main():
         indb.default_cursor.execute(
             """UPDATE process SET program = ?;""", (process_name,)
         )
-        for i, (name, val) in enumerate(process_params.items()):
+        for name, val in process_params.items():
             indb.default_cursor.execute(
                 """
             INSERT INTO process_params (param, program, value)
@@ -379,7 +386,8 @@ def main():
         # close out process metadata.
         #
 
-        # FIXME : figure out how to check in these information for the new CBC db schema using stillsuit package
+        # FIXME : figure out how to check in these information for the new CBC db
+        #         schema using stillsuit package
         # process.set_end_time_now()
         # connection.cursor().execute(
         #     "UPDATE process SET end_time = ? WHERE process_id == ?",

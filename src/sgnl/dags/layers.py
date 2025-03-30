@@ -215,6 +215,16 @@ def filter(
         Option("snr-min", filter_config.snr_min),
     ]
 
+    if filter_config.min_instruments_candidates:
+        common_opts.append(
+            Option(
+                "min-instruments-candidates", filter_config.min_instruments_candidates
+            )
+        )
+
+    if filter_config.all_triggers_to_background:
+        common_opts.append(Option("all-triggers-to-background"))
+
     common_inputs = [
         Option("event-config", filter_config.event_config_file),
     ]
@@ -371,6 +381,13 @@ def injection_filter(
         Option("snr-min", filter_config.snr_min),
         Option("injections"),
     ]
+
+    if filter_config.min_instruments_candidates:
+        common_opts.append(
+            Option(
+                "min-instruments-candidates", filter_config.min_instruments_candidates
+            )
+        )
 
     common_inputs = [
         Option("event-config", filter_config.event_config_file),
@@ -1150,6 +1167,16 @@ def filter_online(
         # Option("snr-min", filter_config.snr_min),
     ]
 
+    if filter_config.min_instruments_candidates:
+        common_opts.append(
+            Option(
+                "min-instruments-candidates", filter_config.min_instruments_candidates
+            )
+        )
+
+    if filter_config.all_triggers_to_background:
+        common_opts.append(Option("all-triggers-to-background"))
+
     # Set torch-dtype
     if filter_config.torch_dtype:
         torch_dtype = filter_config.torch_dtype
@@ -1189,6 +1216,7 @@ def filter_online(
 
     zerolag_pdfs = zerolag_pdf_cache.groupby("bin")
 
+    group_svd_num = None
     if filter_config.group_svd_num:
         group_svd_num = filter_config.group_svd_num
         lr_groups = [lr_group for lr_group in lr_cache.chunked(group_svd_num)]
@@ -1206,7 +1234,10 @@ def filter_online(
     svd_banks = svd_bank_cache.groupby("ifo", "bin")
     for lr_group in lr_groups:
         svd_bins = list(lr_group.groupby("bin").keys())
-        job_tag = f"{int(svd_bins[0]):04d}_{int(svd_bins[-1]):04d}_noninj"
+        if group_svd_num == 1:
+            job_tag = f"{int(svd_bins[0]):04d}_noninj"
+        else:
+            job_tag = f"{int(svd_bins[0]):04d}_{int(svd_bins[-1]):04d}_noninj"
 
         thresholds = [filter_config.ht_gate_threshold for _ in svd_bins]
         filter_opts = [
@@ -1319,6 +1350,13 @@ def injection_filter_online(
         # Option("snr-min", filter_config.snr_min),
     ]
 
+    if filter_config.min_instruments_candidates:
+        common_opts.append(
+            Option(
+                "min-instruments-candidates", filter_config.min_instruments_candidates
+            )
+        )
+
     # Set torch-dtype
     if filter_config.torch_dtype:
         torch_dtype = filter_config.torch_dtype
@@ -1356,6 +1394,7 @@ def injection_filter_online(
             ]
         )
 
+    group_svd_num = None
     if filter_config.group_svd_num:
         group_svd_num = filter_config.group_svd_num
         lr_groups = [lr_group for lr_group in lr_cache.chunked(group_svd_num)]
@@ -1373,7 +1412,10 @@ def injection_filter_online(
     svd_banks = svd_bank_cache.groupby("ifo", "bin")
     for lr_group in lr_groups:
         svd_bins = list(lr_group.groupby("bin").keys())
-        job_tag = f"{int(svd_bins[0]):04d}_{int(svd_bins[-1]):04d}_inj"
+        if group_svd_num == 1:
+            job_tag = f"{int(svd_bins[0]):04d}_inj"
+        else:
+            job_tag = f"{int(svd_bins[0]):04d}_{int(svd_bins[-1]):04d}_inj"
 
         thresholds = [filter_config.ht_gate_threshold for _ in svd_bins]
         filter_opts = [
@@ -1422,6 +1464,7 @@ def marginalize_online(
     }
     layer = create_layer(executable, condor_config, resource_requests, retries=1000)
 
+    group_svd_num = None
     if filter_config.group_svd_num:
         group_svd_num = filter_config.group_svd_num
         lr_groups = [lr_group for lr_group in lr_cache.chunked(group_svd_num)]
@@ -1438,10 +1481,15 @@ def marginalize_online(
 
     svd_bin_groups = [list(lr_group.groupby("bin").keys()) for lr_group in lr_groups]
 
-    registries = list(
-        f"{int(svd_bins[0]):04d}_{int(svd_bins[-1]):04d}_noninj_registry.txt"
-        for svd_bins in svd_bin_groups
-    )
+    if group_svd_num == 1:
+        registries = list(
+            f"{int(svd_bins[0]):04d}_noninj_registry.txt" for svd_bins in svd_bin_groups
+        )
+    else:
+        registries = list(
+            f"{int(svd_bins[0]):04d}_{int(svd_bins[-1]):04d}_noninj_registry.txt"
+            for svd_bins in svd_bin_groups
+        )
     arguments = [
         Option("registry", registries),
         Option("output", list(marg_pdf_cache.files)),
