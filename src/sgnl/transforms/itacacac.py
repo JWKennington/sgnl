@@ -102,6 +102,8 @@ class Itacacac(TSTransform):
     template_durations: Array = None
     device: str = "cpu"
     coincidence_threshold: float = 0
+    min_instruments_candidates: int = 1
+    all_triggers_to_background: bool = False
     strike_pad: str = None
     stillsuit_pad: str = None
     is_online: bool = False
@@ -286,6 +288,8 @@ class Itacacac(TSTransform):
                 * snr_above_min_mask
                 * self.ifos_number_map[on_ifos[0]]
             )
+            if self.all_triggers_to_background:
+                single_background_masks[on_ifos[0]] = snr_above_min_mask
 
         elif nifo == 2:
             times = list(triggers["peak_locations"].values())
@@ -308,8 +312,12 @@ class Itacacac(TSTransform):
                 + single_mask2 * ifo_numbers[1]
             )
 
-            single_background_mask1 = ~coinc2_mask & snr1_above_min_mask
-            single_background_mask2 = ~coinc2_mask & snr2_above_min_mask
+            if self.all_triggers_to_background:
+                single_background_mask1 = snr1_above_min_mask
+                single_background_mask2 = snr2_above_min_mask
+            else:
+                single_background_mask1 = ~coinc2_mask & snr1_above_min_mask
+                single_background_mask2 = ~coinc2_mask & snr2_above_min_mask
 
             smasks = [single_background_mask1, single_background_mask2]
             for i, ifo in enumerate(on_ifos):
@@ -481,15 +489,20 @@ class Itacacac(TSTransform):
             (snr1 < self.snr_min) & (snr2 < self.snr_min) & (snr3 < self.snr_min)
         )
 
-        single_background_mask1 = (
-            ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask31 & (snr1 >= self.snr_min)
-        )
-        single_background_mask2 = (
-            ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask23 & (snr2 >= self.snr_min)
-        )
-        single_background_mask3 = (
-            ~coinc3_mask & ~coinc2_mask23 & ~coinc2_mask31 & (snr3 >= self.snr_min)
-        )
+        if self.all_triggers_to_background:
+            single_background_mask1 = snr1 >= self.snr_min
+            single_background_mask2 = snr2 >= self.snr_min
+            single_background_mask3 = snr3 >= self.snr_min
+        else:
+            single_background_mask1 = (
+                ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask31 & (snr1 >= self.snr_min)
+            )
+            single_background_mask2 = (
+                ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask23 & (snr2 >= self.snr_min)
+            )
+            single_background_mask3 = (
+                ~coinc3_mask & ~coinc2_mask23 & ~coinc2_mask31 & (snr3 >= self.snr_min)
+            )
 
         return (
             coinc3_mask,
@@ -855,6 +868,19 @@ class Itacacac(TSTransform):
 
         if len(out_triggers) == 0:
             print("out events", out_events)
+
+        if self.min_instruments_candidates > 1:
+            real_out_events = []
+            real_out_triggers = []
+            real_out_snr_ts = []
+            for event, triggers, snr_ts in zip(out_events, out_triggers, out_snr_ts):
+                if len(trigger) >= self.min_instruments_candidates:
+                    real_out_events.append(event)
+                    real_out_triggers.append(triggers)
+                    real_out_snr_ts.append(snr_ts)
+            out_events = real_out_events
+            out_triggers = real_out_triggers
+            out_snr_ts = real_out_snr_ts
 
         return {
             "event": EventBuffer(ts, te, data=out_events),
