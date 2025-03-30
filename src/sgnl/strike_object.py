@@ -118,17 +118,6 @@ class StrikeObject:
                         delta_t=self.coincidence_threshold,
                     )
         else:
-            # load dtdphi file only once, and share among the banks
-            # assumes the dtdphi file is the same across banks
-            dtdphi_file = set(
-                [
-                    f.terms["P_of_dt_dphi"].dtdphi_file
-                    for f in self.input_likelihood_file.values()
-                ]
-            )
-            assert len(dtdphi_file) == 1
-            self.load_dtdphi(next(iter(dtdphi_file)))
-
             # load input files
             for i, (bankid, lr_file) in enumerate(self.input_likelihood_file.items()):
                 if not self.nsubbank_pretend or (self.nsubbank_pretend and i == 0):
@@ -143,6 +132,17 @@ class StrikeObject:
                         threshold=self.compress_likelihood_ratio_threshold,
                         verbose=self.verbose,
                     )
+
+            # load dtdphi file only once, and share among the banks
+            # assumes the dtdphi file is the same across banks
+            dtdphi_file = set(
+                [
+                    f.terms["P_of_dt_dphi"].dtdphi_file
+                    for f in self.likelihood_ratios.values()
+                ]
+            )
+            assert len(dtdphi_file) == 1
+            self.load_dtdphi(next(iter(dtdphi_file)))
 
             self.ln_lr_from_triggers = {}
             self.likelihood_ratio_uploads = {}
