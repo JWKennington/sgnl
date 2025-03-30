@@ -685,7 +685,7 @@ class EventPlotter(events.EventProcessor):
             bank_files = [
                 row.value
                 for row in lsctables.ProcessParamsTable.get_table(event["coinc"])
-                if row.param == "--svd-bank"
+                if row.param == "--svd-bank" and "%04d" % int(event["bin"]) in row.value
             ]
             self.logger.info("Got process params table...")
             svd_bank_string = ",".join(
@@ -851,8 +851,7 @@ class EventPlotter(events.EventProcessor):
                         "chisq": row.chisq,
                         "phase": row.coa_phase,
                         "Gamma2": row.Gamma2,
-                        "epoch_start": row.end - row.template_duration,
-                        "epoch_end": row.end,
+                        "template_duration": row.template_duration,
                     }
                 )
         # FIXME: the "time" and "epoch" needs to be fixed in strike to be in nanoseconds

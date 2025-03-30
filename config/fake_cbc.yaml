@@ -48,7 +48,7 @@ filter:
     - {name: "spin2x", type: REAL}
     - {name: "spin2y", type: REAL}
     - {name: "spin2z", type: REAL}
-      #- {name: "approximant", type: TEXT, size: 32}
+    - {name: "template_duration", type: INTEGER}
   relationships: []
   static: True
 

@@ -5,6 +5,7 @@
 import os
 import socket
 from dataclasses import dataclass
+from time import asctime
 from typing import Any, Sequence
 
 import stillsuit
@@ -20,7 +21,8 @@ from sgnl.control import SnapShotControlSinkElement
 class StillSuitSink(SnapShotControlSinkElement):
     ifos: list = None
     config_name: str = None
-    trigger_output: str = None
+    bankids_map: dict[str, list] = None
+    trigger_output: dict[str, str] = None
     template_ids: Sequence[Any] = None
     template_sngls: list = None
     subbankids: Sequence[Any] = None
@@ -34,6 +36,7 @@ class StillSuitSink(SnapShotControlSinkElement):
     nsubbank_pretend: bool = False
     verbose: bool = False
     injections: bool = False
+    strike_object: int = None
 
     def __post_init__(self):
         super().__post_init__()
@@ -44,13 +47,13 @@ class StillSuitSink(SnapShotControlSinkElement):
 
         self.tables = ["trigger", "event"]
         self.event_dict = {t: [] for t in self.tables}
+        self.bankids = self.bankids_map.keys()
 
         with open(self.config_name) as f:
             self.config = yaml.safe_load(f)
 
         if self.is_online:
-            bankids = sorted(set([sid.split("_")[0] for sid in self.subbankids]))
-            for bankid in bankids:
+            for bankid in self.bankids:
                 four_digit_id = "%04d" % int(bankid)
 
                 # FIXME: use job_tag?? but what to use with multi-bank mode?
@@ -62,6 +65,7 @@ class StillSuitSink(SnapShotControlSinkElement):
                 self.add_snapshot_filename(
                     "%s_SGNL_TRIGGERS" % four_digit_id, "sqlite.gz"
                 )
+            self.register_snapshot()
 
         #
         # Process
@@ -101,7 +105,7 @@ class StillSuitSink(SnapShotControlSinkElement):
         #
         # Filter
         #
-        self.filters = []
+        self.filters = {k: [] for k in self.bankids}
         if self.nsubbank_pretend:
             subbank = self.template_sngls[0]
             for template_id, sngl in subbank.items():
@@ -119,14 +123,19 @@ class StillSuitSink(SnapShotControlSinkElement):
                 filter_row["spin1z"] = sngl.spin1z
                 filter_row["spin2x"] = sngl.spin2x
                 filter_row["spin2y"] = sngl.spin2y
-                filter_row["spin2z"] = sngl.spin2z
-                self.filters.append(filter_row)
+                # FIXME should we keep this as seconds?
+                # convert to nanoseconds to be consistent with all times in the database
+                filter_row["template_duration"] = int(
+                    sngl.template_duration * 1_000_000_000
+                )
+                self.filters["%04d" % int(bankid) + "_0"].append(filter_row)
         else:
             for i, subbank in enumerate(self.template_sngls):
                 for template_id, sngl in subbank.items():
+                    bankid = self.subbankids[i].split("_")[0]
                     filter_row = self.init_config_row(self.config["filter"])
                     filter_row["_filter_id"] = template_id
-                    filter_row["bank_id"] = int(self.subbankids[i].split("_")[0])
+                    filter_row["bank_id"] = int(bankid)
                     filter_row["subbank_id"] = int(self.subbankids[i].split("_")[1])
                     filter_row["end_time_delta"] = (
                         sngl.end_time * 1_000_000_000 + sngl.end_time_ns
@@ -139,15 +148,16 @@ class StillSuitSink(SnapShotControlSinkElement):
                     filter_row["spin2x"] = sngl.spin2x
                     filter_row["spin2y"] = sngl.spin2y
                     filter_row["spin2z"] = sngl.spin2z
-                    self.filters.append(filter_row)
-
-        self.init_static()
+                    filter_row["template_duration"] = int(
+                        sngl.template_duration * 1_000_000_000
+                    )
+                    self.filters["%04d" % int(bankid)].append(filter_row)
 
         #
         # Simulation
         #
         if self.injection_list is not None:
-            sims = []
+            self.sims = []
             for inj in self.injection_list:
                 sim_row = self.init_config_row(self.config["simulation"])
                 sim_row["_simulation_id"] = inj.simulation_id
@@ -172,8 +182,11 @@ class StillSuitSink(SnapShotControlSinkElement):
                 sim_row["spin2y"] = inj.spin2y
                 sim_row["spin2z"] = inj.spin2z
                 sim_row["waveform"] = inj.waveform
-                sims.append(sim_row)
-            self.out.insert_static({"simulation": sims})
+                self.sims.append(sim_row)
+
+        self.out = {}
+        for bankid in self.bankids:
+            self.init_static(bankid)
 
     def get_username(self):
         try:
@@ -221,29 +234,54 @@ class StillSuitSink(SnapShotControlSinkElement):
                 self.event_dict["event"], self.event_dict["trigger"]
             ):
                 # FIXME: make insert event skip bankid
+                bankid = event["bankid"]
                 event.pop("bankid")
-                self.out.insert_event({"event": event, "trigger": trigger})
+                for trig in trigger:
+                    if trig is not None:
+                        trig.pop("template_duration")
+                self.out[bankid].insert_event({"event": event, "trigger": trigger})
         self.event_dict = {t: [] for t in self.tables}
 
         if self.at_eos:
             if self.is_online:
-                for fn in self.snapshot_filenames():
-                    self.on_snapshot(fn)
+                for bankid in self.bankids:
+                    if self.injections:
+                        fn_bankid = bankid + "_inj"
+                    else:
+                        fn_bankid = bankid + "_noninj"
+                    desc = "%s_SGNL_TRIGGERS" % fn_bankid
+                    fn = self.snapshot_filenames(desc)
+                    self.on_snapshot(fn, bankid)
             else:
-                self.on_snapshot(self.trigger_output)
+                for bankid, fn in self.trigger_output.items():
+                    self.on_snapshot(fn, bankid)
 
-        if self.is_online and self.snapshot_ready():
-            for fn in self.snapshot_filenames():
-                self.on_snapshot(fn)
-            self.init_static()
+        if self.is_online:
+            for i, bankid in enumerate(self.bankids):
+                if self.injections:
+                    fn_bankid = bankid + "_inj"
+                else:
+                    fn_bankid = bankid + "_noninj"
+                desc = "%s_SGNL_TRIGGERS" % fn_bankid
+                if self.snapshot_ready(desc):
+                    fn = self.snapshot_filenames(desc)
+                    self.on_snapshot(fn, bankid)
+                    self.init_static(bankid)
+                    if self.injections:
+                        print(f"{asctime()} StillSuitSink update assign lr: {bankid}")
+                        self.strike_object.update_assign_lr(bankid)
+                        if i == 0:
+                            self.strike_object.load_rank_stat_pdf()
 
-    def init_static(self):
-        print("Initialize a new db...")
+    def init_static(self, bankid):
+        print(f"{asctime()} Initialize a new db for bankid: {bankid}")
         self.process_row["start_time"] = int(now())
 
-        self.out = stillsuit.StillSuit(config=self.config_name, dbname=":memory:")
-        self.out.insert_static({"process_params": self.params})
-        self.out.insert_static({"filter": self.filters})
+        self.out[bankid] = stillsuit.StillSuit(
+            config=self.config_name, dbname=":memory:"
+        )
+        self.out[bankid].insert_static({"process_params": self.params})
+        self.out[bankid].insert_static({"filter": self.filters[bankid]})
         #
         # Segments
         #
@@ -251,8 +289,10 @@ class StillSuitSink(SnapShotControlSinkElement):
         self.segments = segments.segmentlistdict(
             {ifo: segments.segmentlist() for ifo in ifos}
         )
+        if self.injection_list is not None:
+            self.out[bankid].insert_static({"simulation": self.sims})
 
-    def on_snapshot(self, fn):
+    def on_snapshot(self, fn, bankid):
         # Write out segments
         self.segments.coalesce()
         out_segments = []
@@ -264,13 +304,13 @@ class StillSuitSink(SnapShotControlSinkElement):
                 segment_row["ifo"] = ifo
                 segment_row["name"] = "afterhtgate"
                 out_segments.append(segment_row)
-        self.out.insert_static({"segment": out_segments})
+        self.out[bankid].insert_static({"segment": out_segments})
 
         # Add end time in process table
         self.process_row["end_time"] = int(now())
-        self.out.insert_static({"process": [self.process_row]})
+        self.out[bankid].insert_static({"process": [self.process_row]})
 
         # Write in-memory database to file
-        print(f"Writing out db {fn}...")
-        self.out.to_file(fn)
-        self.out.db.close()
+        print(f"{asctime()} Writing out db {fn}...")
+        self.out[bankid].to_file(fn)
+        self.out[bankid].db.close()

@@ -41,7 +41,7 @@ class GraceDBSink(HTTPControlSinkElement):
     gracedb_reload_buffer: int = 300
     template_sngls: list = None
     analysis_tag: str = "mockery"
-    job_tag: str = None
+    job_type: str = None
     analysis_ifos: list = None
     process_params: dict = None
     event_pad: str = None
@@ -49,6 +49,7 @@ class GraceDBSink(HTTPControlSinkElement):
     delta_t: float = 0.005
     strike_object: StrikeObject = None
     channel_dict: dict[str, str] = None
+    autocorrelation_lengths: dict[str, int] = None
 
     def __post_init__(self):
         self.sink_pad_names = (self.event_pad,) + self.spectrum_pads
@@ -78,9 +79,11 @@ class GraceDBSink(HTTPControlSinkElement):
                 }
             )
         elif self.gracedb_service_url is not None:
-            self.client = GraceDb(self.gracedb_service_url,
-                                  reload_cred=self.gracedb_cred_reload,
-                                  reload_buffer=self.gracedb_reload_buffer)
+            self.client = GraceDb(
+                self.gracedb_service_url,
+                reload_cred=self.gracedb_cred_reload,
+                reload_buffer=self.gracedb_reload_buffer,
+            )
         else:
             self.client = None
 
@@ -116,6 +119,7 @@ class GraceDBSink(HTTPControlSinkElement):
                     self.process_params,
                     self.delta_t,
                     self.channel_dict,
+                    self.autocorrelation_lengths,
                 )
 
                 # add psd frequeny series
@@ -125,7 +129,7 @@ class GraceDBSink(HTTPControlSinkElement):
                     publish_kafka(
                         self.client,
                         xmldoc,
-                        self.job_tag,
+                        self.job_type,
                         self.analysis_tag,
                         "".join(sorted(self.analysis_ifos)),
                         self.gracedb_group,
@@ -156,7 +160,7 @@ class GraceDBSink(HTTPControlSinkElement):
 def publish_kafka(
     client,
     xmldoc,
-    job_tag,
+    job_type,
     analysis_tag,
     instruments,
     group,
@@ -171,6 +175,9 @@ def publish_kafka(
 
     message = io.BytesIO()
     ligolw_utils.write_fileobj(xmldoc, message)
+
+    background_bin = "%04d" % int(sngl_inspiral_table[0].Gamma1)
+    job_tag = background_bin + "_" + job_type
 
     topic_prefix = "" if "noninj" in job_tag else "inj_"
     client.produce(
@@ -189,7 +196,6 @@ def publish_kafka(
     )
     client.poll(0)
 
-    background_bin = int(sngl_inspiral_table[0].Gamma1)
     description = "%s_%s_%s_%s_%s" % (
         "SGNL",
         job_tag,
@@ -216,7 +222,7 @@ def publish_kafka(
         "%s-%s_RankingData-%d-%d.xml.gz" % (instruments, description, end_time, 1),
     )
     write_rankingstat_xmldoc_gracedb(
-        strike_object.likelihood_ratio_uploads[str(background_bin)],
+        strike_object.likelihood_ratio_uploads[background_bin],
         rankingstat_filename,
     )
 
@@ -352,6 +358,7 @@ def event_trigs_to_coinc_xmldoc(
     process_params,
     delta_t,
     channel_dict,
+    autocorrelation_lengths,
 ):
     """Given an event dict and a trigs list of dicts corresponding to single
     event as well as the parameters in the sngls_dict corresponding, construct an
@@ -381,135 +388,117 @@ def event_trigs_to_coinc_xmldoc(
     # Add subthreshold trigger
     triggerless_ifos = set(snr_ts.keys()) - set([t["ifo"] for t in trigs])
     if triggerless_ifos:
-        subthresh_trigs = []
-        # FIXME: handle the case of multiple trigs, pick the highest network snr one
-        for ifo in sorted(triggerless_ifos):
-            coinc_segment = ligolw_segments.segments.segment(
-                ligolw_segments.segments.NegInfinity,
-                ligolw_segments.segments.PosInfinity,
-            )
-            for trig in trigs:
-                trigger_time = trig["time"] / 1_000_000_000
-                trigger_ifo = trig["ifo"]
-                filter_id = trig["_filter_id"]
-                coincidence_window = light_travel_time(ifo, trigger_ifo) + delta_t
-                coinc_segment &= ligolw_segments.segments.segment(
-                    trigger_time - coincidence_window, trigger_time + coincidence_window
+        try:
+            subthresh_trigs = []
+            # FIXME: handle the case of multiple trigs, pick the highest network snr one
+            for ifo in sorted(triggerless_ifos):
+                coinc_segment = ligolw_segments.segments.segment(
+                    ligolw_segments.segments.NegInfinity,
+                    ligolw_segments.segments.PosInfinity,
                 )
-                half_autocorr_length = (snr_ts[trigger_ifo].data.length - 1) // 2
+                for trig in trigs:
+                    trigger_time = trig["time"] / 1_000_000_000
+                    trigger_ifo = trig["ifo"]
+                    filter_id = trig["_filter_id"]
+                    coincidence_window = light_travel_time(ifo, trigger_ifo) + delta_t
+                    coinc_segment &= ligolw_segments.segments.segment(
+                        trigger_time - coincidence_window,
+                        trigger_time + coincidence_window,
+                    )
+                    # half_autocorr_length = (snr_ts[trigger_ifo].data.length - 1) // 2
+                    half_autocorr_length = (
+                        autocorrelation_lengths[
+                            "%04d" % int(sngls_dict[filter_id].Gamma1)
+                        ]
+                        - 1
+                    ) // 2
 
-            for trig in subthresh_trigs:
-                trigger_time = trig["time"] / 1_000_000_000
-                trigger_ifo = trig["ifo"]
-                coincidence_window = light_travel_time(ifo, trigger_ifo) + delta_t
-                coinc_segment &= ligolw_segments.segments.segment(
-                    trigger_time - coincidence_window, trigger_time + coincidence_window
+                for trig in subthresh_trigs:
+                    trigger_time = trig["time"] / 1_000_000_000
+                    trigger_ifo = trig["ifo"]
+                    coincidence_window = light_travel_time(ifo, trigger_ifo) + delta_t
+                    coinc_segment &= ligolw_segments.segments.segment(
+                        trigger_time - coincidence_window,
+                        trigger_time + coincidence_window,
+                    )
+
+                snr_ts_this_ifo = snr_ts[ifo]
+                snr_ts_this_ifo_array = snr_ts_this_ifo.data.data
+                t0 = snr_ts_this_ifo.epoch
+                dt = snr_ts_this_ifo.deltaT
+                idx0 = int((coinc_segment[0] - t0) / dt)
+                idxf = int(math.ceil((coinc_segment[1] - t0) / dt))
+                length = snr_ts_this_ifo_array.shape[-1]
+
+                if idx0 < 0 or idxf > length:
+                    # FIXME: should we actually skip if we don't have enough samples?
+                    print("warning: not enougth samples to find coincidence")
+                    idx0 = max(0, idx0)
+                    idxf = min(idxf, length)
+
+                seq = abs(snr_ts_this_ifo_array[idx0:idxf])
+
+                maxid = numpy.argmax(seq)
+
+                maxsnr = abs(snr_ts_this_ifo_array[idx0 + maxid])
+                phase = math.atan2(
+                    snr_ts_this_ifo_array[idx0 + maxid].imag,
+                    snr_ts_this_ifo_array[idx0 + maxid].real,
+                )
+                peakt = float(t0) + (idx0 + maxid) * dt
+
+                deltaT = snr_ts_this_ifo.deltaT
+
+                snip0 = idx0 + maxid - half_autocorr_length
+                snipf = idx0 + maxid + half_autocorr_length + 1
+                sniplength = snr_ts_this_ifo_array.shape[-1]
+
+                if snip0 < 0 or snipf > sniplength:
+                    # FIXME: in gstlal it says Bayestar needs at least 26.3ms
+                    print(
+                        ifo,
+                        "not enough samples to produce snr snippet",
+                        f"{snip0=} {snipf=} {sniplength=}",
+                    )
+                    continue
+
+                snr_ts_snippet = snr_ts_this_ifo_array[snip0:snipf]
+                if snr_ts_snippet.shape[-1] == 0:
+                    print(
+                        f"{ifo=} {idx0=} {idxf=} {maxid=} {half_autocorr_length=}",
+                        f"{coinc_segment=} {trigger_time=} {coincidence_window=} {t0=}",
+                        f"{dt=} {snr_ts_this_ifo_array.shape=}",
+                        file=sys.stderr,
+                    )
+                    raise ValueError("no snr ts snippet")
+
+                snr_ts_snippet_out = lal.CreateCOMPLEX8TimeSeries(
+                    name="snr",
+                    epoch=peakt - half_autocorr_length * deltaT,
+                    f0=0.0,
+                    deltaT=deltaT,
+                    sampleUnits=lal.DimensionlessUnit,
+                    length=snr_ts_snippet.shape[-1],
+                )
+                snr_ts_snippet_out.data.data = snr_ts_snippet
+                snr_ts[ifo] = snr_ts_snippet_out
+
+                subthresh_trigs.append(
+                    {
+                        "_filter_id": filter_id,
+                        "ifo": ifo,
+                        "time": int(peakt * 1e9),
+                        "phase": phase,
+                        "chisq": None,
+                        "snr": float(maxsnr),
+                    }
                 )
 
-            snr_ts_this_ifo = snr_ts[ifo]
-            snr_ts_this_ifo_array = snr_ts_this_ifo.data.data
-            t0 = snr_ts_this_ifo.epoch
-            dt = snr_ts_this_ifo.deltaT
-            idx0 = int((coinc_segment[0] - t0) / dt)
-            idxf = int(math.ceil((coinc_segment[1] - t0) / dt))
-            length = snr_ts_this_ifo_array.shape[-1]
-            # if idx0 < 0:
-            #    # FIXME: there are cases where the trigger is at the edge of the
-            #    # trigger finding window, so there is not half_autocorr_length
-            #    # of samples, so pad zeros in front
-            #    snr_ts_this_ifo_array = numpy.concatenate(numpy.zeros(-idx0),
-            #       snr_ts_this_ifo_array[:idxf])
-            #    seq = abs(snr_ts_this_ifo_array)
-            #    t0 = coinc_segment[0]
-            #    idx0 = 0
-            #    idxf = seq.shape[-1]
-            #    print('idx0 < 0', idx0, file=sys.stderr)
-            # elif idxf > length:
-            #    snr_ts_this_ifo_array = numpy.concatenate(snr_ts_this_ifo_array[idx0:],
-            #       numpy.zeros(idxf-length))
-            #    seq = abs(snr_ts_this_ifo_array)
-            #    t0 = coinc_segment[0]
-            #    idx0 = 0
-            #    idxf = seq.shape[-1]
-            #    print('idxf > length', idxf, file=sys.stderr)
-            # else:
-
-            if idx0 < 0 or idxf > length:
-                # FIXME: should we actually skip if we don't have enough samples?
-                print("warning: not enougth samples to find coincidence")
-                idx0 = max(0, idx0)
-                idxf = min(idxf, length)
-
-            seq = abs(snr_ts_this_ifo_array[idx0:idxf])
-
-            maxid = numpy.argmax(seq)
-
-            maxsnr = abs(snr_ts_this_ifo_array[idx0 + maxid])
-            phase = math.atan2(
-                snr_ts_this_ifo_array[idx0 + maxid].imag,
-                snr_ts_this_ifo_array[idx0 + maxid].real,
-            )
-            peakt = float(t0) + (idx0 + maxid) * dt
-
-            deltaT = snr_ts_this_ifo.deltaT
-
-            snip0 = idx0 + maxid - half_autocorr_length
-            snipf = idx0 + maxid + half_autocorr_length + 1
-            sniplength = snr_ts_this_ifo_array.shape[-1]
-
-            # if snip0 < 0:
-            #    print('pad zeros', )
-            #    snr_ts_snippet = numpy.concatenate(numpy.zeros(-snip),
-            #       snr_ts_this_ifo_array[:snipf])
-            # elif snipf > sniplength:
-            #    snr_ts_snippet = numpy.concatenate(snr_ts_this_ifo_array[snip0:],
-            #       numpy.zeros(snipf-sniplength))
-            # else:
-
-            if snip0 < 0 or snipf > sniplength:
-                # FIXME: in gstlal it says Bayestar needs at least 26.3ms
-                print(
-                    ifo,
-                    "not enough samples to produce snr snippet",
-                    f"{snip0=} {snipf=} {sniplength=}",
-                )
-                continue
-
-            snr_ts_snippet = snr_ts_this_ifo_array[snip0:snipf]
-            if snr_ts_snippet.shape[-1] == 0:
-                print(
-                    f"{ifo=} {idx0=} {idxf=} {maxid=} {half_autocorr_length=}",
-                    f"{coinc_segment=} {trigger_time=} {coincidence_window=} {t0=}",
-                    f"{dt=} {snr_ts_this_ifo_array.shape=}",
-                    file=sys.stderr,
-                )
-                raise ValueError("no snr ts snippet")
-
-            snr_ts_snippet_out = lal.CreateCOMPLEX8TimeSeries(
-                name="snr",
-                epoch=peakt - half_autocorr_length * deltaT,
-                f0=0.0,
-                deltaT=deltaT,
-                sampleUnits=lal.DimensionlessUnit,
-                length=snr_ts_snippet.shape[-1],
-            )
-            snr_ts_snippet_out.data.data = snr_ts_snippet
-            snr_ts[ifo] = snr_ts_snippet_out
-
-            subthresh_trigs.append(
-                {
-                    "_filter_id": filter_id,
-                    "ifo": ifo,
-                    "time": int(peakt * 1e9),
-                    "phase": phase,
-                    "chisq": None,
-                    "snr": float(maxsnr),
-                }
-            )
-
-        trigs.extend(subthresh_trigs)
-        event["network_snr"] = sum(trig["snr"] ** 2 for trig in trigs) ** 0.5
-        event["time"] = min(trig["time"] for trig in trigs)
+            trigs.extend(subthresh_trigs)
+            event["network_snr"] = sum(trig["snr"] ** 2 for trig in trigs) ** 0.5
+            event["time"] = min(trig["time"] for trig in trigs)
+        except Exception as e:
+            print(f"Subthreshold search failed with error:\n{e}")
 
     for n, ifo in enumerate(analysis_ifos):
         time_slide_table[n].instrument = ifo

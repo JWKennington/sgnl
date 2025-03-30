@@ -4,7 +4,7 @@
 
 import itertools
 import sys
-from collections import Counter, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 
 import numpy as np
 import torch
@@ -12,15 +12,32 @@ from lal.utils import CacheEntry
 from sgnts.base import Offset
 from sgnts.transforms.resampler import DOWN_HALF_LENGTH, UP_HALF_LENGTH
 
-from .svd_bank import parse_bank_files
+from sgnl.svd_bank import Bank, parse_bank_files
 
 
 def group_and_read_banks(
-    svd_bank, source_ifos=None, nsubbank_pretend=0, nslice=-1, verbose=False
+    svd_bank: list[str],
+    source_ifos: list[str] = None,
+    nsubbank_pretend: int = 0,
+    nslice=-1,
+    verbose=False,
 ):
-    """
-    Read a list of svd banks file names into bank objects,
-    group by ifo and bankid
+    """Read a list of svd banks file names into bank objects, and group by ifo and
+    bankid
+
+    Args:
+        svd_bank:
+            list[str], a list of svd bank file paths
+        source_ifos:
+            list[str], a list of ifo the source is processing. Used for checking
+            consistency of ifos between the svd banks and data sources
+        nsubbank_pretend:
+            int, default 0. If not 0, pretend there are this many subbanks by copying
+            the first subbank read in this many times. Used for benchmarking.
+        nslice:
+            int, default -1. If nslice > 0, only read in this number of time slices
+        verbose:
+            bool, be verbose
     """
     # Read SVD banks
     svd_bank_cache = [CacheEntry.from_T050017(path) for path in svd_bank]
@@ -40,7 +57,7 @@ def group_and_read_banks(
         raise ValueError("The ifos have different sets of svd bank files provided.")
 
     ifos = sorted(list(ifoset)[0])
-    if source_ifos and ifos != source_ifos:
+    if source_ifos and ifos != sorted(source_ifos):
         raise ValueError(
             f"Data source ifos: {source_ifos} must be the same as svd bank ifos: {ifos}"
         )
@@ -50,15 +67,15 @@ def group_and_read_banks(
         # Pretend we are filtering multiple banks by copying the first bank
         #   many times
         svd_bank_url_dict = svd_banks[0]
-        banks_per_svd = parse_bank_files(svd_bank_url_dict, verbose=verbose)
+        banks_per_svd = parse_bank_files(svd_bank_url_dict, verbose=verbose, fast=True)
         for _ in range(nsubbank_pretend):
             for ifo in ifos:
                 banks[ifo].extend([banks_per_svd[ifo][0]])
     else:
         for svd_bank_url_dict in svd_banks:
-            if verbose:
-                print(svd_bank_url_dict, flush=True, file=sys.stderr)
-            banks_per_svd = parse_bank_files(svd_bank_url_dict, verbose=verbose)
+            banks_per_svd = parse_bank_files(
+                svd_bank_url_dict, verbose=verbose, fast=True
+            )
             for ifo in ifos:
                 banks[ifo].extend(banks_per_svd[ifo])
 
@@ -67,28 +84,50 @@ def group_and_read_banks(
         for ifo in ifos:
             bifo = banks[ifo]
             for sub in bifo:
+                if len(sub.bank_fragments) < nslice:
+                    raise ValueError(
+                        f"nslice: {nslice} greater than number of bank \
+                            fragments: {len(sub.bank_fragments)}"
+                    )
                 sub.bank_fragments = sub.bank_fragments[:nslice]
 
     if verbose:
         print("Using nsubbanks", len(banks[ifo]), flush=True, file=sys.stderr)
 
-    return banks
+    return OrderedDict(sorted(banks.items()))
 
 
 class SortedBank:
-    """
-    Sort and group svd banks and time slices by sample rate
+    """Sort and group svd banks and time slices by sample rate
+
+    Args:
+        banks:
+            dict[str, list[Bank]], a dictionary keyed by ifos, with values of lists
+            of subbanks as gstlal bank objects
+        device:
+            str, the torch device
+        dtype:
+            torch.dtype, the torch data type
+        memory_format:
+            torch.memory_format, the memory format for the svd tensors
+        nsubbank_pretend:
+            int, default 0. If not 0, pretend there are this many subbanks by copying
+            the first subbank read in this many times. Used for benchmarking.
+        nslice:
+            int, default -1. If nslice > 0, only read in this number of time slices
+        verbose:
+            bool, be verbose
     """
 
     def __init__(
         self,
-        banks,
-        device="cpu",
-        dtype=torch.float16,
-        memory_format=torch.contiguous_format,
-        nsubbank_pretend=0,
-        nslice=-1,
-        verbose=False,
+        banks: dict[str, list[Bank]],
+        device: str = "cpu",
+        dtype: torch.dtype = torch.float32,
+        memory_format: torch.memory_format = torch.contiguous_format,
+        nsubbank_pretend: int = 0,
+        nslice: int = -1,
+        verbose: bool = False,
     ):
         self.device = device
         self.dtype = dtype
@@ -110,16 +149,17 @@ class SortedBank:
             self.bankids_map,
             self.sngls,
             self.autocorrelation_banks,
-            self.processed_psd,
+            self.autocorrelation_length_mask,
+            self.autocorrelation_lengths,
             self.horizon_distance_funcs,
+            self.template_durations,
         ) = self.prepare_tensors(self.bank_metadata, self.reordered_bank)
 
         del self.reordered_bank
         del banks
 
     def prepare_metadata(self, bank):
-        """
-        Determine rates and template properties across subbanks
+        """Determine rates and template properties across subbanks
 
         bank_metadata.keys() = ['ifos', 'nifo', 'nsubbank', 'maxrate', 'unique_rates',
         'nrates', 'nfilter_samples', 'ntempmax', 'delay_per_rate', 'sorted_rates']
@@ -604,8 +644,11 @@ class SortedBank:
         subbankids = []
         sngls = []
         end_time_delta = torch.zeros(size=(nsubbank,), dtype=torch.long)
+        # in seconds
+        template_durations = np.zeros((nsubbank, ntempmax // 2))
         bankids_map = defaultdict(list)
         horizon_distance_funcs = {}
+        autocorrelation_lengths = {}
         for j in range(nsubbank):
             sngl = reordered_bank[ifos[0]][j].sngl_inspiral_table
             template_ids0 = torch.tensor([row.template_id for row in sngl])
@@ -617,9 +660,9 @@ class SortedBank:
 
             subbank_id = reordered_bank[ifos[0]][j].bank_id
             if self.nsubbank_pretend:
-                bank_id = subbank_id.split("_")[0] + "_" + str(j)
+                bank_id = "%04d" % int(subbank_id.split("_")[0]) + "_" + str(j // 2)
             else:
-                bank_id = subbank_id.split("_")[0]
+                bank_id = "%04d" % int(subbank_id.split("_")[0])
             horizon_distance_funcs[bank_id] = reordered_bank[ifos[0]][
                 j
             ].horizon_distance_func
@@ -627,6 +670,13 @@ class SortedBank:
             bankids_map[bank_id].append(j)
             sngl0 = {row.template_id: row for row in sngl}
             sngls.append(sngl0)
+            for k, row in enumerate(sngl):
+                template_durations[j, k] = row.template_duration
+            autocorrelation_lengths[bank_id] = reordered_bank[ifos[0]][
+                j
+            ].autocorrelation_bank.shape[1]
+
+        bankids_map = OrderedDict(sorted(bankids_map.items()))
 
         # Write out single inspiral table
         # sngl0 = reordered_bank[ifos[0]][0].sngl_inspiral_table
@@ -648,11 +698,18 @@ class SortedBank:
 
         # Trigger generator
         # Get the autocorrelation_bank
-        max_acl = max(
+        acl = [
             reordered_bank[ifo][j].autocorrelation_bank.shape[1]
             for i, ifo in enumerate(ifos)
             for j in range(nsubbank)
-        )
+        ]
+        max_acl = max(acl)
+        if len(set(acl)) > 1:
+            print("Warning: different autocorrelation lengths among banks")
+            autocorrelation_length_mask = {}
+        else:
+            autocorrelation_length_mask = None
+
         autocorrelation_banks = {}
         for ifo in ifos:
             autocorrelation_banks[ifo] = torch.zeros(
@@ -660,21 +717,34 @@ class SortedBank:
                 device=device,
                 dtype=self.cdtype,
             )
+            if autocorrelation_length_mask is not None:
+                autocorrelation_length_mask[ifo] = torch.ones(
+                    size=(nsubbank, ntempmax // 2, max_acl),
+                    device=device,
+                    dtype=bool,
+                )
+
         for ifo in ifos:
             for j in range(nsubbank):
                 acorr = reordered_bank[ifo][j].autocorrelation_bank
-
                 # this is for adjusting to the bank used for impulse test
-                if acorr.shape[0] > ntempmax // 2:
-                    acorr = acorr[: ntempmax // 2]
-                autocorrelation_banks[ifo][j, : acorr.shape[0], : acorr.shape[1]] = (
-                    torch.tensor(acorr)
-                )
-
-        processed_psd = dict(
-            [(ifo, b[0].processed_psd) for ifo, b in reordered_bank.items()]
-        )
-
+                # if acorr.shape[0] > ntempmax // 2:
+                #    acorr = acorr[: ntempmax // 2]
+                acorr_len = acorr.shape[1]
+                if acorr_len < max_acl:
+                    pad = (max_acl - acorr_len) // 2
+                    autocorrelation_banks[ifo][j, : acorr.shape[0], pad:-pad] = (
+                        torch.tensor(acorr)
+                    )
+                    autocorrelation_length_mask[ifo][j, :, :pad] = False
+                    autocorrelation_length_mask[ifo][j, :, -pad:] = False
+                else:
+                    autocorrelation_banks[ifo][j, : acorr.shape[0], :] = torch.tensor(
+                        acorr
+                    )
+                # autocorrelation_banks[ifo][j, : acorr.shape[0], : acorr.shape[1]] = (
+                #     torch.tensor(acorr)
+                # )
         print(" Done.", flush=True, file=sys.stderr)
 
         return (
@@ -686,6 +756,8 @@ class SortedBank:
             bankids_map,
             sngls,
             autocorrelation_banks,
-            processed_psd,
+            autocorrelation_length_mask,
+            autocorrelation_lengths,
             horizon_distance_funcs,
+            template_durations,
         )

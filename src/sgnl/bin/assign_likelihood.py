@@ -345,7 +345,7 @@ def main():
         #
 
         events = []
-        for event in indb.get_events(nanosec_to_sec=True):
+        for event in indb.get_events(nanosec_to_sec=True, template_duration=True):
             events += [(event["event"]["__event_id"], event["trigger"])]
 
         if options.verbose_level == "DEBUG":

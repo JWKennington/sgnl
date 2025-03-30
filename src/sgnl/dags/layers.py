@@ -193,6 +193,17 @@ def filter(
         "request_memory": "4GB",
         "request_disk": "5GB",
     }
+
+    # Set torch-device
+    if filter_config.torch_device:
+        torch_device = filter_config.torch_device
+    else:
+        torch_device = "cpu"
+
+    if "cuda" in torch_device:
+        resource_requests["request_gpus"] = 1
+        resource_requests["request_cpus"] = 1
+
     layer = create_layer(executable, condor_config, resource_requests)
 
     common_opts = [
@@ -215,11 +226,6 @@ def filter(
         torch_dtype = "float32"
     common_opts.append(Option("torch-dtype", torch_dtype))
 
-    # Set torch-device
-    if filter_config.torch_device:
-        torch_device = filter_config.torch_device
-    else:
-        torch_device = "cpu"
     common_opts.append(Option("torch-device", torch_device))
 
     # Set trigger-finding-duration
@@ -230,13 +236,10 @@ def filter(
     common_opts.append(Option("trigger-finding-duration", trigger_finding_duration))
 
     # Checkpoint by grouping SVD bins together
-    if filter_config.group_svd:
-        max_concurrency = 10
-        num_per_group = min(1 + len(svd_config.bins) // 20, max_concurrency)
-        if num_per_group > 1:
-            common_opts.append(Option("local-frame-caching"))
+    if filter_config.group_svd_num:
+        group_svd_num = filter_config.group_svd_num
     else:
-        num_per_group = 1
+        group_svd_num = 1
 
     ref_psds = ref_psd_cache.groupby("ifo", "time")
     svd_banks = svd_bank_cache.groupby("ifo", "bin")
@@ -292,7 +295,7 @@ def filter(
                 )
             )
 
-        for trigger_group in triggers.chunked(num_per_group):
+        for trigger_group in triggers.chunked(group_svd_num):
             svd_bins = trigger_group.groupby("bin").keys()
 
             thresholds = [
@@ -345,6 +348,16 @@ def injection_filter(
         "request_memory": "5GB",
         "request_disk": "5GB",
     }
+    # Set torch-device
+    if filter_config.torch_device:
+        torch_device = filter_config.torch_device
+    else:
+        torch_device = "cpu"
+
+    if "cuda" in torch_device:
+        resource_requests["request_gpus"] = 1
+        resource_requests["request_cpus"] = 1
+
     layer = create_layer(
         executable, condor_config, resource_requests, name="sgnl-inspiral-inj"
     )
@@ -370,11 +383,6 @@ def injection_filter(
         torch_dtype = "float32"
     common_opts.append(Option("torch-dtype", torch_dtype))
 
-    # Set torch-device
-    if filter_config.torch_device:
-        torch_device = filter_config.torch_device
-    else:
-        torch_device = "cpu"
     common_opts.append(Option("torch-device", torch_device))
 
     # Set trigger-finding-duration
@@ -385,13 +393,10 @@ def injection_filter(
     common_opts.append(Option("trigger-finding-duration", trigger_finding_duration))
 
     # Checkpoint by grouping SVD bins together
-    if filter_config.group_svd:
-        max_concurrency = 10
-        num_per_group = min(1 + len(svd_config.bins) // 20, max_concurrency)
-        if num_per_group > 1:
-            common_opts.append(Option("local-frame-caching"))
+    if filter_config.group_svd_num:
+        group_svd_num = filter_config.group_svd_num
     else:
-        num_per_group = 1
+        group_svd_num = 1
 
     ref_psds = ref_psd_cache.groupby("ifo", "time")
     svd_banks = svd_bank_cache.groupby("ifo", "bin")
@@ -493,7 +498,7 @@ def injection_filter(
                 )
             )
 
-        for trigger_group in triggers.chunked(num_per_group):
+        for trigger_group in triggers.chunked(group_svd_num):
             svd_bins = trigger_group.groupby("bin").keys()
 
             thresholds = [
@@ -1102,6 +1107,15 @@ def filter_online(
         "request_memory": "5GB",
         "request_disk": "2GB",
     }
+    # Set torch-device
+    if filter_config.torch_device:
+        torch_device = filter_config.torch_device
+    else:
+        torch_device = "cpu"
+
+    if "cuda" in torch_device:
+        resource_requests["request_gpus"] = 1
+
     layer = create_layer(executable, condor_config, resource_requests, retries=1000)
 
     assert source_config.data_source == "devshm"
@@ -1131,8 +1145,8 @@ def filter_online(
         Option("gracedb-far-threshold", upload_config.gracedb_far_threshold),
         Option("gracedb-group", upload_config.gracedb_group),
         Option("gracedb-search", upload_config.gracedb_search),
-        # Option("likelihood-snapshot-interval",
-        # config.filter.likelihood_snapshot_interval),
+        Option("snapshot-interval", filter_config.snapshot_interval),
+        Option("snapshot-delay", filter_config.snapshot_delay),
         # Option("snr-min", filter_config.snr_min),
     ]
 
@@ -1143,11 +1157,6 @@ def filter_online(
         torch_dtype = "float32"
     common_opts.append(Option("torch-dtype", torch_dtype))
 
-    # Set torch-device
-    if filter_config.torch_device:
-        torch_device = filter_config.torch_device
-    else:
-        torch_device = "cpu"
     common_opts.append(Option("torch-device", torch_device))
 
     # Set trigger-finding-duration
@@ -1178,35 +1187,61 @@ def filter_online(
             ]
         )
 
-    lrs = lr_cache.groupby("bin")
     zerolag_pdfs = zerolag_pdf_cache.groupby("bin")
 
-    for svd_bin, svd_banks in svd_bank_cache.groupby("bin").items():
-        job_tag = f"{int(svd_bin):04d}_noninj"
+    if filter_config.group_svd_num:
+        group_svd_num = filter_config.group_svd_num
+        lr_groups = [lr_group for lr_group in lr_cache.chunked(group_svd_num)]
+    elif filter_config.dynamic_group:
+        lr_groups = []
+        i = 0
+        for num in filter_config.dynamic_group.split(","):
+            num = int(num)
+            lr_groups.append(util.DataCache(lr_cache.name, lr_cache.cache[i : i + num]))
+            i = i + num
+    else:
+        group_svd_num = 1
+        lr_groups = [lr_group for lr_group in lr_cache.chunked(group_svd_num)]
 
+    svd_banks = svd_bank_cache.groupby("ifo", "bin")
+    for lr_group in lr_groups:
+        svd_bins = list(lr_group.groupby("bin").keys())
+        job_tag = f"{int(svd_bins[0]):04d}_{int(svd_bins[-1]):04d}_noninj"
+
+        thresholds = [filter_config.ht_gate_threshold for _ in svd_bins]
         filter_opts = [
             Option("job-tag", job_tag),
             # FIXME: fix gate threshold
             # Option("ht-gate-threshold", calc_gate_threshold(config, svd_bin)),
             # Option("ht-gate-threshold", svd_stats.bins[svd_bin]["ht_gate_threshold"]),
-            Option("ht-gate-threshold", filter_config.ht_gate_threshold),
+            Option("ht-gate-threshold", thresholds),
+        ]
+        filter_opts.extend(common_opts)
+
+        svd_bank_files = util.flatten(
+            [svd_banks[(ifo, svd_bin)].files for ifo in ifos for svd_bin in svd_bins]
+        )
+
+        zerolag_pdf_files = [
+            f for svd_bin in svd_bins for f in zerolag_pdfs[(svd_bin)].files
         ]
 
-        filter_opts.extend(common_opts)
+        inputs = [
+            Option("svd-bank", svd_bank_files),
+            Option("reference-psd", ref_psd_cache),
+            Option("event-config", filter_config.event_config_file),
+            Option("input-likelihood-file", lr_group.files),
+            Option("rank-stat-pdf", marg_pdf_cache.files),
+        ]
+        outputs = [
+            Option("output-likelihood-file", lr_group.files),
+            Option("zerolag-rank-stat-pdf", zerolag_pdf_files),
+        ]
 
         layer += Node(
             arguments=filter_opts,
-            inputs=[
-                Option("svd-bank", svd_banks.files),
-                Option("reference-psd", ref_psd_cache),
-                Option("event-config", filter_config.event_config_file),
-                Option("input-likelihood-file", lrs[svd_bin].files),
-                Option("rank-stat-pdf", marg_pdf_cache.files),
-            ],
-            outputs=[
-                Option("output-likelihood-file", lrs[svd_bin].files),
-                Option("zerolag-rank-stat-pdf", zerolag_pdfs[(svd_bin)].files),
-            ],
+            inputs=inputs,
+            outputs=outputs,
         )
 
     return layer
@@ -1233,6 +1268,15 @@ def injection_filter_online(
         "request_memory": "5GB",
         "request_disk": "2GB",
     }
+    # Set torch-device
+    if filter_config.torch_device:
+        torch_device = filter_config.torch_device
+    else:
+        torch_device = "cpu"
+
+    if "cuda" in torch_device:
+        resource_requests["request_gpus"] = 1
+
     layer = create_layer(
         executable,
         condor_config,
@@ -1270,8 +1314,8 @@ def injection_filter_online(
         Option("gracedb-group", upload_config.gracedb_group),
         Option("gracedb-search", upload_config.inj_gracedb_search),
         Option("injections"),
-        # Option("likelihood-snapshot-interval",
-        # config.filter.likelihood_snapshot_interval),
+        Option("snapshot-interval", filter_config.snapshot_interval),
+        Option("snapshot-delay", filter_config.snapshot_delay),
         # Option("snr-min", filter_config.snr_min),
     ]
 
@@ -1282,11 +1326,6 @@ def injection_filter_online(
         torch_dtype = "float32"
     common_opts.append(Option("torch-dtype", torch_dtype))
 
-    # Set torch-device
-    if filter_config.torch_device:
-        torch_device = filter_config.torch_device
-    else:
-        torch_device = "cpu"
     common_opts.append(Option("torch-device", torch_device))
 
     # Set trigger-finding-duration
@@ -1317,37 +1356,63 @@ def injection_filter_online(
             ]
         )
 
-    lrs = lr_cache.groupby("bin")
+    if filter_config.group_svd_num:
+        group_svd_num = filter_config.group_svd_num
+        lr_groups = [lr_group for lr_group in lr_cache.chunked(group_svd_num)]
+    elif filter_config.dynamic_group:
+        lr_groups = []
+        i = 0
+        for num in filter_config.dynamic_group.split(","):
+            num = int(num)
+            lr_groups.append(util.DataCache(lr_cache.name, lr_cache.cache[i : i + num]))
+            i = i + num
+    else:
+        group_svd_num = 1
+        lr_groups = [lr_group for lr_group in lr_cache.chunked(group_svd_num)]
 
-    for svd_bin, svd_banks in svd_bank_cache.groupby("bin").items():
-        job_tag = f"{int(svd_bin):04d}_inj"
+    svd_banks = svd_bank_cache.groupby("ifo", "bin")
+    for lr_group in lr_groups:
+        svd_bins = list(lr_group.groupby("bin").keys())
+        job_tag = f"{int(svd_bins[0]):04d}_{int(svd_bins[-1]):04d}_inj"
 
+        thresholds = [filter_config.ht_gate_threshold for _ in svd_bins]
         filter_opts = [
             Option("job-tag", job_tag),
             # FIXME: fix gate threshold
             # Option("ht-gate-threshold", calc_gate_threshold(config, svd_bin)),
             # Option("ht-gate-threshold", svd_stats.bins[svd_bin]["ht_gate_threshold"]),
-            Option("ht-gate-threshold", filter_config.ht_gate_threshold),
+            Option("ht-gate-threshold", thresholds),
         ]
-
         filter_opts.extend(common_opts)
 
+        svd_bank_files = util.flatten(
+            [svd_banks[(ifo, svd_bin)].files for ifo in ifos for svd_bin in svd_bins]
+        )
+
+        inputs = [
+            Option("svd-bank", svd_bank_files),
+            Option("reference-psd", ref_psd_cache),
+            Option("event-config", filter_config.event_config_file),
+            Option("input-likelihood-file", lr_group.files),
+            Option("rank-stat-pdf", marg_pdf_cache.files),
+        ]
         layer += Node(
             arguments=filter_opts,
-            inputs=[
-                Option("svd-bank", svd_banks.files),
-                Option("reference-psd", ref_psd_cache),
-                Option("event-config", filter_config.event_config_file),
-                Option("input-likelihood-file", lrs[svd_bin].files),
-                Option("rank-stat-pdf", marg_pdf_cache.files),
-            ],
+            inputs=inputs,
         )
 
     return layer
 
 
 def marginalize_online(
-    condor_config, services_config, svd_bins, tag, marg_pdf_cache, fast_burnin=False
+    condor_config,
+    filter_config,
+    services_config,
+    lr_cache,
+    tag,
+    marg_pdf_cache,
+    extinct_percent=None,
+    fast_burnin=False,
 ):
     executable = "sgnl-ll-marginalize-likelihoods-online"
     resource_requests = {
@@ -1357,7 +1422,26 @@ def marginalize_online(
     }
     layer = create_layer(executable, condor_config, resource_requests, retries=1000)
 
-    registries = list(f"{int(svd_bin):04d}_noninj_registry.txt" for svd_bin in svd_bins)
+    if filter_config.group_svd_num:
+        group_svd_num = filter_config.group_svd_num
+        lr_groups = [lr_group for lr_group in lr_cache.chunked(group_svd_num)]
+    elif filter_config.dynamic_group:
+        lr_groups = []
+        i = 0
+        for num in filter_config.dynamic_group.split(","):
+            num = int(num)
+            lr_groups.append(util.DataCache(lr_cache.name, lr_cache.cache[i : i + num]))
+            i = i + num
+    else:
+        group_svd_num = 1
+        lr_groups = [lr_group for lr_group in lr_cache.chunked(group_svd_num)]
+
+    svd_bin_groups = [list(lr_group.groupby("bin").keys()) for lr_group in lr_groups]
+
+    registries = list(
+        f"{int(svd_bins[0]):04d}_{int(svd_bins[-1]):04d}_noninj_registry.txt"
+        for svd_bins in svd_bin_groups
+    )
     arguments = [
         Option("registry", registries),
         Option("output", list(marg_pdf_cache.files)),
@@ -1368,6 +1452,9 @@ def marginalize_online(
 
     if fast_burnin:
         arguments.append(Option("fast-burnin"))
+
+    if extinct_percent:
+        arguments.append(Option("extinct-percent", extinct_percent))
 
     layer += Node(arguments=arguments)
 

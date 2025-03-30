@@ -70,18 +70,32 @@ class SgnlDB(stillsuit.StillSuit):
 
         return missed, found
 
-    def get_events(self, nanosec_to_sec=False, **kwargs):
+    def get_events(self, nanosec_to_sec=False, template_duration=False, **kwargs):
         """
         A wrapper function of StillSuit.get_events() with additional
         functionalities
         """
 
         for event in super(SgnlDB, self).get_events(**kwargs):
+            if template_duration:
+                # Assume _filter_id is the same for all triggers in an event
+                template_duration = dict(
+                    self.db.cursor()
+                    .execute(
+                        "SELECT template_duration FROM filter WHERE _filter_id = ?",
+                        (event["trigger"][0]["_filter_id"],),
+                    )
+                    .fetchone()
+                )["template_duration"]
+                for trigger in event["trigger"]:
+                    trigger["template_duration"] = template_duration
             if nanosec_to_sec:
                 for trigger in event["trigger"]:
                     trigger["time"] *= 1e-9
                     trigger["epoch_start"] *= 1e-9
                     trigger["epoch_end"] *= 1e-9
+                    if "template_duration" in trigger:
+                        trigger["template_duration"] *= 1e-9
                 event["event"]["time"] *= 1e-9
             yield event
 

@@ -5,7 +5,6 @@
 from dataclasses import dataclass
 
 from sgn.base import TransformElement
-from sgnligo.base import now
 from sgnts.base import EventFrame
 
 from sgnl.strike_object import StrikeObject
@@ -18,7 +17,6 @@ class StrikeTransform(TransformElement):
     """
 
     strike_object: StrikeObject = None
-    update_interval: float = 14400
 
     def __post_init__(self):
         assert len(self.sink_pad_names) == 1
@@ -26,7 +24,6 @@ class StrikeTransform(TransformElement):
         super().__post_init__()
         self.frame = None
         self.output_frame = None
-        self.last_update = now()
 
     def pull(self, pad, frame):
         self.frame = frame
@@ -41,16 +38,6 @@ class StrikeTransform(TransformElement):
         trigger_data = events["trigger"].data
 
         if event_data is not None:
-            if now() - self.last_update >= self.update_interval:
-                print("Updating lr and FAP/FAR assignment")
-                # Update lr assignment
-                self.strike_object.update_assign_lr()
-
-                # Update FAP/FAR assignment
-                self.strike_object.load_rank_stat_pdf()
-
-                self.last_update = now()
-
             for e, t in zip(event_data, trigger_data):
                 #
                 # Assign likelihoods and FARs!

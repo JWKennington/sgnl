@@ -88,6 +88,13 @@ def parse_command_line():
         help="Set whether to enable fast burn-in or not. If enabled, only 67 percent "
         "of bins are required to contribute to the marginalized PDF",
     )
+    parser.add_argument(
+        "--extinct-percent",
+        action="store",
+        type=float,
+        default=0.99,
+        help="Set percentage of bins required to contribute to the marginalized PDF",
+    )
     parser.add_argument("--verbose", action="store_true", help="Be verbose.")
     options = parser.parse_args()
 
@@ -142,6 +149,7 @@ def calc_rank_pdfs(url, samples, num_cores, verbose=False):
 
 def process_svd_bin(
     reg,
+    svd_bin,
     likelihood_path,
     zerolag_counts_path,
     pdfs,
@@ -166,7 +174,6 @@ def process_svd_bin(
 
     logger = logging.getLogger("ll-marginalize-likelihoods-online")
     logger.info("Querying registry %s...", reg)
-    svd_bin = reg[:4]
     pdf_path = pdfs[svd_bin].files[0]
     url = url_from_registry(reg, likelihood_path + "/" + svd_bin)
 
@@ -268,16 +275,30 @@ def main():
     logger.setLevel(log_level)
 
     registries = options.registry
+    svd_bins = []
+    reg_dict = {}
+    for r in registries:
+        name = r.split("_")
+        if len(name) == 4:
+            new_svd_bins = ["%04d" % i for i in range(int(name[0]), int(name[1]) + 1)]
+            svd_bins.extend(new_svd_bins)
+        elif len(name) == 3:
+            new_svd_bins = [int(name[0])]
+            svd_bins.extend(new_svd_bins)
+        else:
+            raise ValueError("Wrong name for registry file.")
+
+        for svd_bin in new_svd_bins:
+            reg_dict[svd_bin] = r
 
     # options for generating ranking stat pdfs
     # get 10 million samples
-    ranking_stat_samples = int(10000000 / len(registries))
+    ranking_stat_samples = int(10000000 / len(svd_bins))
 
     #
     # set up the output paths
     #
 
-    svd_bins = [reg[:4] for reg in registries]
     pdfs = DataCache.generate(
         DataType.RANK_STAT_PDFS,
         CacheEntry.from_T050017(options.output).observatory,
@@ -329,16 +350,17 @@ def main():
         # NOTE:  the zero-lag ranking statistic histograms in the files
         # generated here are all 0.
         data = None
-        failed = deque(maxlen=len(registries))
+        failed = deque(maxlen=len(svd_bins))
         num_extincted = (
             0  # number of bins for whom we were able to perform first-round extinction
         )
 
-        for reg in registries:
+        for svd_bin, reg in reg_dict.items():
             # process every svd bin, retry twice if it failed
             for _ in range(3):
                 status, extinction_status, pdf = process_svd_bin(
                     reg,
+                    svd_bin,
                     likelihood_path,
                     zerolag_counts_path,
                     pdfs,
@@ -357,8 +379,12 @@ def main():
                     break
 
             if not status:
-                logger.info("failed to complete %s during regular running", reg)
-                failed.append(reg)
+                logger.info(
+                    "failed to complete bin %s registry %s during regular running",
+                    svd_bin,
+                    reg,
+                )
+                failed.append(svd_bin)
 
             # while looping through registries
             # send heartbeat messages
@@ -367,9 +393,10 @@ def main():
 
         # retry registries that we failed to process the first time
         # and remove from the deque upon success
-        for reg in list(failed):
+        for svd_bin in list(failed):
             status, extinction_status, pdf = process_svd_bin(
-                reg,
+                reg_dict[svd_bin],
+                svd_bin,
                 likelihood_path,
                 zerolag_counts_path,
                 pdfs,
@@ -379,15 +406,23 @@ def main():
                 process_params=process_params,
             )
             if status:
-                logger.info("completed %s on final retry", reg)
-                failed.remove(reg)
+                logger.info(
+                    "completed bin %s registry %s on final retry",
+                    svd_bin,
+                    reg_dict[svd_bin],
+                )
+                failed.remove(svd_bin)
                 # add pdf to data
                 if data:
                     data += pdf
                 else:
                     data = pdf
             else:
-                logger.info("failed to complete %s on final retry", reg)
+                logger.info(
+                    "failed to complete bin %s registry %s on final retry",
+                    svd_bin,
+                    reg_dict[svd_bin],
+                )
                 # add pdf to data anyway, as this will contain the extincted
                 # old pdf for this bin. Adding the old pdf for this bin is
                 # better than adding no pdf for this bin. Don't remove the
@@ -410,16 +445,16 @@ def main():
         # if we fail to complete more than 1% of the bins,
         # this is a serious problem and we should just quit
         # and restart from scratch
-        if len(failed) >= 0.01 * len(registries):
+        if len(failed) >= 0.01 * len(svd_bins):
             logger.critical(
-                "Failed to complete %d registries out of %d, exiting.",
+                "Failed to complete %d svd_bins out of %d, exiting.",
                 len(failed),
-                len(registries),
+                len(svd_bins),
             )
             sys.exit(1)
 
         # otherwise, lets cut our losses and continue
-        logger.info("Done with calc rank pdfs. Failed registries: %s", str(failed))
+        logger.info("Done with calc rank pdfs. Failed svd_bins: %s", str(failed))
 
         # sum the noise and signal model ranking statistic histograms
         # across jobs, and collect and sum the current observed zero-lag
@@ -466,8 +501,8 @@ def main():
         # NOTE: This option is not meant to be used for analyses other than
         # the one mentioned above.
         # if num_extincted >= 0.99 * len(registries) or (
-        if num_extincted >= 0.9 * len(registries) or (
-            options.fast_burnin and num_extincted >= 0.666667 * len(registries)
+        if num_extincted >= options.extinct_percent * len(svd_bins) or (
+            options.fast_burnin and num_extincted >= 0.666667 * len(svd_bins)
         ):
             data.save(
                 options.output,

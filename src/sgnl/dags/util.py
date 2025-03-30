@@ -365,6 +365,8 @@ class DataCache:
                 )
 
         cache = [CacheEntry.from_T050017(entry) for entry in cache]
+        cache.sort(key=lambda cache_entry: cache_entry.observatory)
+        cache.sort(key=lambda cache_entry: cache_entry.description)
         if segments:
             cache = [
                 entry for entry in cache if segments.intersects_segment(entry.segment)

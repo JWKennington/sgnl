@@ -146,7 +146,9 @@ class StrikeObject:
 
             self.ln_lr_from_triggers = {}
             self.likelihood_ratio_uploads = {}
-            self.update_assign_lr(reload_file=False)
+
+            for bankid in self.bankids_map:
+                self.update_assign_lr(bankid, reload_file=False)
 
             self.rank_stat_pdf = None
             self.fapfar = None
@@ -304,79 +306,79 @@ class StrikeObject:
                         for i, k in enumerate(self.bankids_map)
                     }
 
-    def update_assign_lr(self, reload_file=True):
+    def update_assign_lr(self, bankid, reload_file=True):
 
-        for bankid, in_lr_file in self.input_likelihood_file.items():
-            lr = self.likelihood_ratios[bankid]
+        in_lr_file = self.input_likelihood_file[bankid]
+        lr = self.likelihood_ratios[bankid]
 
-            # re-load likelihood ratio file for injection jobs
-            if (
-                reload_file
-                and in_lr_file is not None
-                and (
-                    self.output_likelihood_file is None
-                    or in_lr_file != self.output_likelihood_file[bankid]
-                )
-            ):
-                params_before = (
-                    lr.template_ids,
-                    lr.instruments,
-                    lr.min_instruments,
-                    lr.delta_t,
-                )
+        # re-load likelihood ratio file for injection jobs
+        if (
+            reload_file
+            and in_lr_file is not None
+            and (
+                self.output_likelihood_file is None
+                or in_lr_file != self.output_likelihood_file[bankid]
+            )
+        ):
+            params_before = (
+                lr.template_ids,
+                lr.instruments,
+                lr.min_instruments,
+                lr.delta_t,
+            )
 
-                # FIXME combine this hack with frankenstein class
-                trigger_rates_before = lr.terms["P_of_tref_Dh"].triggerrates
-                horizon_history_before = lr.terms["P_of_tref_Dh"].horizon_history
+            # FIXME combine this hack with frankenstein class
+            trigger_rates_before = lr.terms["P_of_tref_Dh"].triggerrates
+            horizon_history_before = lr.terms["P_of_tref_Dh"].horizon_history
 
-                for tries in range(10):
-                    try:
-                        lr = LnLikelihoodRatio.load(in_lr_file)
-                    except (OSError, EOFError, zlib.error) as e:
-                        print(
-                            f"Error in reading rank stat on try {tries}: {e}",
-                            file=sys.stderr,
-                        )
-                        time.sleep(1)
-                    else:
-                        break
-                else:
-                    raise RuntimeError("Exceeded retries, exiting.")
-
-                if params_before != (
-                    lr.template_ids,
-                    lr.instruments,
-                    lr.min_instruments,
-                    lr.delta_t,
-                ):
-                    raise ValueError(
-                        "'%s' contains incompatible ranking statistic configuration"
-                        % self.input_likelihood_file
+            for tries in range(10):
+                try:
+                    lr = LnLikelihoodRatio.load(in_lr_file)
+                except (OSError, EOFError, zlib.error) as e:
+                    print(
+                        f"Error in reading rank stat on try {tries}: {e}",
+                        file=sys.stderr,
                     )
+                    time.sleep(1)
                 else:
-                    lr.terms["P_of_tref_Dh"].triggerrates = trigger_rates_before
-                    lr.terms["P_of_tref_Dh"].horizon_history = horizon_history_before
-                    self.likelihood_ratios[bankid] = lr
-
-            if lr.is_healthy(self.verbose):
-                # FIXME FIXME is this correct? this is following gstlal
-                # self.ln_lr_from_triggers[bankid] = lr.copy(frankenstein=True).finish()
-
-                _frank = lr.copy(frankenstein=True)
-                # FIXME: finish does not return self
-                _frank.terms["P_of_dt_dphi"].time_phase_snr = self.time_phase_snr
-                _frank.finish()
-                self.ln_lr_from_triggers[bankid] = _frank.ln_lr_from_triggers
-
-                # FIXME gstlal calls another frankenstein, do we need another copy?
-                self.likelihood_ratio_uploads[bankid] = lr.copy(frankenstein=True)
-                if self.verbose:
-                    print("likelihood ratio assignment ENABLED", file=sys.stderr)
+                    break
             else:
-                self.ln_lr_from_triggers[bankid] = None
-                self.likelihood_ratio_uploads[bankid] = None
-                if self.verbose:
-                    print("likelihood ratio assignment DISABLED", file=sys.stderr)
+                raise RuntimeError("Exceeded retries, exiting.")
+
+            if params_before != (
+                lr.template_ids,
+                lr.instruments,
+                lr.min_instruments,
+                lr.delta_t,
+            ):
+                raise ValueError(
+                    "'%s' contains incompatible ranking statistic configuration"
+                    % self.input_likelihood_file
+                )
+            else:
+                lr.terms["P_of_tref_Dh"].triggerrates = trigger_rates_before
+                lr.terms["P_of_tref_Dh"].horizon_history = horizon_history_before
+                self.likelihood_ratios[bankid] = lr
+
+        if lr.is_healthy(self.verbose):
+            # FIXME FIXME is this correct? this is following gstlal
+            # self.ln_lr_from_triggers[bankid] = lr.copy(frankenstein=True).finish()
+
+            _frank = lr.copy(frankenstein=True)
+            # FIXME: finish does not return self
+            _frank.terms["P_of_dt_dphi"].time_phase_snr = self.time_phase_snr
+            _frank.finish()
+            self.ln_lr_from_triggers[bankid] = _frank.ln_lr_from_triggers
+
+            # FIXME gstlal calls another frankenstein, do we need another copy?
+            self.likelihood_ratio_uploads[bankid] = lr.copy(frankenstein=True)
+            if self.verbose:
+                print("likelihood ratio assignment ENABLED", file=sys.stderr)
+        else:
+            self.ln_lr_from_triggers[bankid] = None
+            self.likelihood_ratio_uploads[bankid] = None
+            if self.verbose:
+                print("likelihood ratio assignment DISABLED", file=sys.stderr)
 
     def load_rank_stat_pdf(self):
         if os.access(
@@ -418,24 +420,21 @@ class StrikeObject:
                     file=sys.stderr,
                 )
 
-    def save_snapshot(self, snapshot_filenames):
-        for bankid, fn in zip(self.bankids_map, snapshot_filenames()):
-            # write snapshot files to disk
-            self.likelihood_ratios[bankid].save(fn)
-            zfn = fn.replace("LIKELIHOOD_RATIO", "ZEROLAG_RANK_STAT_PDFS")
-            self.zerolag_rank_stat_pdfs[bankid].save(zfn)
+    def save_snapshot(self, bankid, fn):
+        # write snapshot files to disk
+        self.likelihood_ratios[bankid].save(fn)
+        zfn = fn.replace("LIKELIHOOD_RATIO", "ZEROLAG_RANK_STAT_PDFS")
+        self.zerolag_rank_stat_pdfs[bankid].save(zfn)
 
-            # copy snapshot to output path
-            shutil.copy(
-                fn,
-                ligolw_utils.local_path_from_url(self.output_likelihood_file[bankid]),
-            )
-            shutil.copy(
-                zfn,
-                ligolw_utils.local_path_from_url(
-                    self.zerolag_rank_stat_pdf_file[bankid]
-                ),
-            )
+        # copy snapshot to output path
+        shutil.copy(
+            fn,
+            ligolw_utils.local_path_from_url(self.output_likelihood_file[bankid]),
+        )
+        shutil.copy(
+            zfn,
+            ligolw_utils.local_path_from_url(self.zerolag_rank_stat_pdf_file[bankid]),
+        )
 
     def load_dtdphi(self, dtdphi_file=None):
         if dtdphi_file is not None:
@@ -452,31 +451,30 @@ class StrikeObject:
                 % filename
             )
 
-    def save_snr_chi_lnpdf(self):
+    def save_snr_chi_lnpdf(self, bankid):
         for ifo in self.ifos:
-            for i, bankid in enumerate(self.bankids_map.keys()):
-                self.likelihood_ratios[bankid].terms[
-                    "P_of_SNR_chisq"
-                ].snr_chisq_lnpdf_noise[f"{ifo}_snr_chi"].array = (
-                    self.snr_chisq_lnpdf_noise[ifo][i].to("cpu").numpy()
-                )
-
-    def save_counts_by_template_id(self):
-        counts = self.counts_by_template_id_counter.to("cpu").numpy()
-        for bankid, ids in self.bankids_map.items():
-            counts_by_template_id = (
-                self.likelihood_ratios[bankid]
-                .terms["P_of_Template"]
-                .counts_by_template_id
+            i = list(self.bankids_map.keys()).index(bankid)
+            # FIXME the casting to float is to resolve strike errors
+            self.likelihood_ratios[bankid].terms[
+                "P_of_SNR_chisq"
+            ].snr_chisq_lnpdf_noise[f"{ifo}_snr_chi"].array = (
+                self.snr_chisq_lnpdf_noise[ifo][i].to("cpu").numpy().astype(float)
             )
-            counts_this_bank = counts[ids].ravel()
-            count_mask = counts_this_bank > 0
-            counts_this_bank = counts_this_bank[count_mask]
-            template_ids_this_bank = self.all_template_ids[ids].ravel()[count_mask]
-            assert len(counts_this_bank) == len(template_ids_this_bank)
-            for tid, count in zip(template_ids_this_bank, counts_this_bank):
-                assert tid in counts_by_template_id
-                counts_by_template_id[tid] += count
+
+    def save_counts_by_template_id(self, bankid):
+        ids = self.bankids_map[bankid]
+        counts = self.counts_by_template_id_counter
+        counts_by_template_id = (
+            self.likelihood_ratios[bankid].terms["P_of_Template"].counts_by_template_id
+        )
+        counts_this_bank = counts[ids].to("cpu").numpy().ravel()
+        count_mask = counts_this_bank > 0
+        counts_this_bank = counts_this_bank[count_mask]
+        template_ids_this_bank = self.all_template_ids[ids].ravel()[count_mask]
+        assert len(counts_this_bank) == len(template_ids_this_bank)
+        for tid, count in zip(template_ids_this_bank, counts_this_bank):
+            assert tid in counts_by_template_id
+            counts_by_template_id[tid] += count
 
         # reset the counter
         self.counts_by_template_id_counter[:] = 0
@@ -498,7 +496,7 @@ class StrikeObject:
                 #
                 # single mask is of the shape (nsubbank, ntemp_in_subbank)
                 # True values in single mask identify the template that has a count
-                self.counts_by_template_id_counter += single_masks
+                self.counts_by_template_id_counter += single_mask
 
                 #
                 # SNR-chisq histogram
