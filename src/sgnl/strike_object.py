@@ -13,10 +13,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+import numpy
+import torch
 from ligo.lw import utils as ligolw_utils
-from strike.stats import far
+from strike.stats import far, inspiral_extrinsics
 from strike.stats.far import RankingStatPDF
 from strike.stats.likelihood_ratio import LnLikelihoodRatio
+from strike.utilities import data
 
 
 @dataclass
@@ -86,6 +89,9 @@ class StrikeObject:
     rank_stat_pdf_file: str = None
     verbose: bool = False
     zerolag_rank_stat_pdf_file: list[str] = None
+    nsubbank_pretend: bool = False
+    dtype: torch.dtype = torch.float32
+    device: str = "cpu"
 
     def __post_init__(self):
         self._validate()
@@ -112,9 +118,24 @@ class StrikeObject:
                         delta_t=self.coincidence_threshold,
                     )
         else:
+            # load dtdphi file only once, and share among the banks
+            # assumes the dtdphi file is the same across banks
+            dtdphi_file = set(
+                [
+                    f.terms["P_of_dt_dphi"].dtdphi_file
+                    for f in self.input_likelihood_file.values()
+                ]
+            )
+            assert len(dtdphi_file) == 1
+            self.load_dtdphi(next(iter(dtdphi_file)))
+
             # load input files
-            for bankid, lr_file in self.input_likelihood_file.items():
-                self.likelihood_ratios[bankid] = LnLikelihoodRatio.load(lr_file)
+            for i, (bankid, lr_file) in enumerate(self.input_likelihood_file.items()):
+                if not self.nsubbank_pretend or (self.nsubbank_pretend and i == 0):
+                    # if we are in nsubbbank_pretend mode, only load the first lr
+                    # file and copy the rest
+                    lr_class = LnLikelihoodRatio.load(lr_file)
+                self.likelihood_ratios[bankid] = lr_class
                 if self.compress_likelihood_ratio:
                     self.likelihood_ratios[bankid].terms[
                         "P_of_tref_Dh"
@@ -140,6 +161,55 @@ class StrikeObject:
                 }
             else:
                 self.zerolag_rank_stat_pdfs = None
+
+        #
+        # SNR chisq histogram
+        #
+        if len(self.likelihood_ratios) > 0:
+            self.template_ids_tensor = torch.tensor(
+                self.all_template_ids, device=self.device
+            )
+
+            # assume binning is the same for all banks
+            self.binning = (
+                list(self.likelihood_ratios.values())[0]
+                .terms["P_of_SNR_chisq"]
+                .snr_chi_binning
+            )
+            self.bins = tuple(
+                torch.tensor(_bin.boundaries, dtype=self.dtype, device=self.device)
+                for _bin in self.binning
+            )
+            self.bankids_index_expand = torch.zeros_like(
+                self.template_ids_tensor, device=self.device
+            )
+            for i, ids in enumerate(self.bankids_map.values()):
+                self.bankids_index_expand[ids] = i
+
+            self.snr_chisq_lnpdf_noise = {}
+            for ifo in self.ifos:
+                lnpdf = []
+                for bankid in self.bankids_map:
+                    lnpdf.append(
+                        self.likelihood_ratios[bankid]
+                        .terms["P_of_SNR_chisq"]
+                        .snr_chisq_lnpdf_noise[f"{ifo}_snr_chi"]
+                        .array
+                    )
+                lnpdf = numpy.stack(lnpdf)
+                self.snr_chisq_lnpdf_noise[ifo] = (
+                    torch.from_numpy(lnpdf).to(self.device).to(torch.float32)
+                )
+
+            #
+            # counts_by_template_id
+            #
+            # Create an empty tensor as the counter. It has the same shape as the
+            # template ids tensor. Each location in the counter corresponds to the
+            # count for the template id at the same location in the template_ids_tensor
+            self.counts_by_template_id_counter = torch.zeros_like(
+                self.template_ids_tensor, device=self.device
+            )
 
     def _validate(self):
         if self.is_online is False:
@@ -294,6 +364,7 @@ class StrikeObject:
 
                 _frank = lr.copy(frankenstein=True)
                 # FIXME: finish does not return self
+                _frank.terms["P_of_dt_dphi"].time_phase_snr = self.time_phase_snr
                 _frank.finish()
                 self.ln_lr_from_triggers[bankid] = _frank.ln_lr_from_triggers
 
@@ -365,3 +436,141 @@ class StrikeObject:
                     self.zerolag_rank_stat_pdf_file[bankid]
                 ),
             )
+
+    def load_dtdphi(self, dtdphi_file=None):
+        if dtdphi_file is not None:
+            self.time_phase_snr = inspiral_extrinsics.TimePhaseSNR.from_hdf5(
+                dtdphi_file, instruments=self.ifos
+            )
+        else:
+            filename = os.path.join(data.get_data_root_path(), "inspiral_dtdphi_pdf.h5")
+            self.time_phase_snr = inspiral_extrinsics.TimePhaseSNR.from_hdf5(
+                filename, instruments=self.ifos
+            )
+            print(
+                "dtdphi_file is not set, so loading the file in the build : %s"
+                % filename
+            )
+
+    def save_snr_chi_lnpdf(self):
+        for ifo in self.ifos:
+            for i, bankid in enumerate(self.bankids_map.keys()):
+                self.likelihood_ratios[bankid].terms[
+                    "P_of_SNR_chisq"
+                ].snr_chisq_lnpdf_noise[f"{ifo}_snr_chi"].array = (
+                    self.snr_chisq_lnpdf_noise[ifo][i].to("cpu").numpy()
+                )
+
+    def save_counts_by_template_id(self):
+        counts = self.counts_by_template_id_counter.to("cpu").numpy()
+        for bankid, ids in self.bankids_map.items():
+            counts_by_template_id = (
+                self.likelihood_ratios[bankid]
+                .terms["P_of_Template"]
+                .counts_by_template_id
+            )
+            counts_this_bank = counts[ids].ravel()
+            count_mask = counts_this_bank > 0
+            counts_this_bank = counts_this_bank[count_mask]
+            template_ids_this_bank = self.all_template_ids[ids].ravel()[count_mask]
+            assert len(counts_this_bank) == len(template_ids_this_bank)
+            for tid, count in zip(template_ids_this_bank, counts_this_bank):
+                assert tid in counts_by_template_id
+                counts_by_template_id[tid] += count
+
+        # reset the counter
+        self.counts_by_template_id_counter[:] = 0
+
+    def time_key(self, time):
+        size = 10  # granularity for tracking counts
+        return int(time) - int(time) % size
+
+    def train_noise(self, time, snrs, chisqs, single_masks):
+        # FIXME should this be in strike? But this depends on torch
+
+        time = self.time_key(time)
+        for ifo, single_mask in single_masks.items():
+            if True in single_mask:
+                # There are singles above threshold
+
+                #
+                # counts_by_template_id
+                #
+                # single mask is of the shape (nsubbank, ntemp_in_subbank)
+                # True values in single mask identify the template that has a count
+                self.counts_by_template_id_counter += single_masks
+
+                #
+                # SNR-chisq histogram
+                #
+                snr = snrs[ifo]
+                chisq = chisqs[ifo]
+                chisq_over_snr2 = chisq / snr**2
+
+                # determine which bankid the triggers come from
+                trig_bankids = self.bankids_index_expand[single_mask]
+
+                # torch bucketize returns the index of the right boundary
+                # but numpy histogramdd returns the left
+                snr_inds = torch.bucketize(snr, boundaries=self.bins[0]) - 1
+                chisq_over_snr_inds = (
+                    torch.bucketize(chisq_over_snr2, boundaries=self.bins[1]) - 1
+                )
+                self.snr_chisq_lnpdf_noise[ifo].index_put_(
+                    (trig_bankids, snr_inds, chisq_over_snr_inds),
+                    torch.tensor(1.0),
+                    accumulate=True,
+                )
+
+                #
+                # Count tracker
+                #
+                # max number of time keys after which old temp counts are deleted
+                num_keys = 500
+                ct_mask = (snr >= 6) & (chisq_over_snr2 <= 4e-2)
+                if True in ct_mask:
+                    ct_snr = snr[ct_mask]
+                    ct_chisq_over_snr2 = chisq_over_snr2[ct_mask]
+                    ct_trig_bankids = trig_bankids[ct_mask]
+                    ct_snr_inds = torch.bucketize(ct_snr, boundaries=self.bins[0]) - 1
+                    ct_chisq_over_snr2_inds = (
+                        torch.bucketize(ct_chisq_over_snr2, boundaries=self.bins[1]) - 1
+                    )
+                    for j, bankid in enumerate(self.bankids_map.keys()):
+                        # FIXME: consider avoiding the for loop
+                        # Get counts from this bankid
+                        this_bankid_mask = ct_trig_bankids == j
+                        if True in this_bankid_mask:
+                            snr_inds_this_bankid = (
+                                ct_snr_inds[this_bankid_mask].to("cpu").numpy()
+                            )
+                            chisq_over_snr2_inds_this_bankid = (
+                                ct_chisq_over_snr2_inds[this_bankid_mask]
+                                .to("cpu")
+                                .numpy()
+                            )
+                            counts = numpy.ravel_multi_index(
+                                (
+                                    snr_inds_this_bankid,
+                                    chisq_over_snr2_inds_this_bankid,
+                                ),
+                                self.binning.shape,
+                            )
+                            ct_temp = (
+                                self.likelihood_ratios[bankid]
+                                .terms["P_of_SNR_chisq"]
+                                .count_tracker_chi_temp
+                            )
+                            if time in ct_temp[ifo]:
+                                ct_temp[ifo][time] = numpy.concatenate(
+                                    (ct_temp[ifo][time], counts)
+                                )
+                            else:
+                                ct_temp[ifo][time] = counts
+                            while len(ct_temp[ifo]) > num_keys:
+                                ct_temp[ifo].popitem(last=False)
+
+    def store_counts(self, gracedb_times):
+        # Store counts for all bins whenever there is a gracedb upload
+        for lr in self.likelihood_ratios.values():
+            lr.terms["P_of_SNR_chisq"].store_counts(gracedb_times)
