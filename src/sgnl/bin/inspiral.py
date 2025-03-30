@@ -187,6 +187,20 @@ def parse_command_line():
         help="Only keep horizon distance values that differ by this much, "
         "fractionally, from their neighbours (default = 0.03).",
     )
+    group.add_option(
+        "--all-triggers-to-background",
+        action="store_true",
+        help="Save all triggers that pass the snr_min to background. If not set, only "
+        "singles during coinc time will be saved to background.",
+    )
+    group.add_option(
+        "--min-instruments-candidates",
+        metavar="num_ifos",
+        type=int,
+        default=1,
+        help="Set the minimum number of instruments to evaluate the likelihood ratio "
+        "and record in an output database (default = 1).",
+    )
     group.add_argument(
         "--output-likelihood-file",
         metavar="filename",
@@ -333,6 +347,7 @@ def inspiral(
     data_source_info: DataSourceInfo,
     condition_info: ConditionInfo,
     svd_bank: List[str],
+    all_triggers_to_background: bool = False,
     analysis_tag: str = "test",
     coincidence_threshold: float = 0.005,
     compress_likelihood_ratio: bool = False,
@@ -354,6 +369,7 @@ def inspiral(
     injection_file: str = None,
     input_likelihood_file: List[str] = None,
     job_tag: str = None,
+    min_instruments_candidates: int = 1,
     nslice: int = -1,
     nsubbank_pretend: int = None,
     output_kafka_server: str = None,
@@ -635,6 +651,8 @@ def inspiral(
                 template_durations=sorted_bank.template_durations,
                 device=torch_device,
                 coincidence_threshold=coincidence_threshold,
+                min_instruments_candidates=min_instruments_candidates,
+                all_triggers_to_background=all_triggers_to_background,
                 stillsuit_pad="stillsuit",
                 strike_pad=strike_pad,
                 is_online=IS_ONLINE,
@@ -971,6 +989,7 @@ def main():
         data_source_info=data_source_info,
         condition_info=condition_info,
         svd_bank=options.svd_bank,
+        all_triggers_to_background=options.all_triggers_to_background,
         analysis_tag=options.analysis_tag,
         coincidence_threshold=options.coincidence_threshold,
         compress_likelihood_ratio=options.compress_likelihood_ratio,
@@ -992,6 +1011,7 @@ def main():
         injection_file=options.injection_file,
         input_likelihood_file=options.input_likelihood_file,
         job_tag=options.job_tag,
+        min_instruments_candidates=options.min_instruments_candidates,
         nsubbank_pretend=options.nsubbank_pretend,
         nslice=options.nslice,
         output_kafka_server=options.output_kafka_server,
