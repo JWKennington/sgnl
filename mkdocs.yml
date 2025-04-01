@@ -3,6 +3,8 @@ site_name: SGNL Documentation
 nav:
   - Home: index.md
   - Installation: install.md
+  - Tutorials:
+    - Offline CBC Analysis: tutorials/offline_analysis.md
   - User Guide:
     - Key Concepts: user-guide/concepts.md
   - Developer Guide:
