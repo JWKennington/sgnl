@@ -16,10 +16,9 @@ from typing import Any
 import numpy
 import torch
 from ligo.lw import utils as ligolw_utils
-from strike.stats import far, inspiral_extrinsics
+from strike.stats import far
 from strike.stats.far import RankingStatPDF
 from strike.stats.likelihood_ratio import LnLikelihoodRatio
-from strike.utilities import data
 
 
 @dataclass
@@ -144,8 +143,7 @@ class StrikeObject:
                     for f in self.likelihood_ratios.values()
                 ]
             )
-            assert len(dtdphi_file) == 1
-            self.load_dtdphi(next(iter(dtdphi_file)))
+            assert len(dtdphi_file) == 1, "Can only support banks with same dtdphi file"
 
             self.ln_lr_from_triggers = {}
             self.likelihood_ratio_uploads = {}
@@ -369,7 +367,6 @@ class StrikeObject:
 
             _frank = lr.copy(frankenstein=True)
             # FIXME: finish does not return self
-            _frank.terms["P_of_dt_dphi"].time_phase_snr = self.time_phase_snr
             _frank.finish()
             self.ln_lr_from_triggers[bankid] = _frank.ln_lr_from_triggers
 
@@ -438,21 +435,6 @@ class StrikeObject:
             zfn,
             ligolw_utils.local_path_from_url(self.zerolag_rank_stat_pdf_file[bankid]),
         )
-
-    def load_dtdphi(self, dtdphi_file=None):
-        if dtdphi_file is not None:
-            self.time_phase_snr = inspiral_extrinsics.TimePhaseSNR.from_hdf5(
-                dtdphi_file, instruments=self.ifos
-            )
-        else:
-            filename = os.path.join(data.get_data_root_path(), "inspiral_dtdphi_pdf.h5")
-            self.time_phase_snr = inspiral_extrinsics.TimePhaseSNR.from_hdf5(
-                filename, instruments=self.ifos
-            )
-            print(
-                "dtdphi_file is not set, so loading the file in the build : %s"
-                % filename
-            )
 
     def save_snr_chi_lnpdf(self, bankid):
         for ifo in self.ifos:
