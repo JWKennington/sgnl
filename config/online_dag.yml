@@ -4,21 +4,15 @@
 instruments: H1L1V1
 min-instruments: 1
 
-tag: sgnl_test
+tag: # FIXME
 
-##--------------------------------
-# dcc options
-
-dcc:
-  document_number: T2200343
-  version: v3
 
 ##--------------------------------
 # data product options
 
 paths:
-  reference-psd: psd/H1L1V1-GSTLAL_REFERENCE_PSD-0-0.xml.gz
-  template-bank: bank/H1L1V1-GSTLAL_BBH_TEMPLATE_BANK-0-0.xml.gz
+  reference-psd: # FIXME
+  # template-bank: bank/H1L1V1-GSTLAL_BBH_TEMPLATE_BANK-0-0.xml.gz
 
 ##-----------------------------
 # data source options
@@ -49,8 +43,8 @@ source:
     H1: /dev/shm/kafka/H1_O3ReplayMDC
     L1: /dev/shm/kafka/L1_O3ReplayMDC
     V1: /dev/shm/kafka/V1_O3ReplayMDC
-  sample-rate: 16384 # FIXME in gstlal this is 4096??
-  source-queue-timeout: 0.1
+  sample-rate: 16384
+  source-queue-timeout: 1.3
 
 ##--------------------------------
 # psd options
@@ -82,37 +76,35 @@ svd:
   #     - 0:15:701
   #     - 15:1e6:351
   #   sort-by: mchirp
-  option-file: svd_manifest.json
+  option-file: # FIXME
 
 ##--------------------------------
 ## filtering options
 
 filter:
-  # group-svd: False # FIXME we might want this for gpus
   coincidence-threshold: 0.005
   # ht-gate-threshold: 0.8:15.0-45.0:100.0
   ht-gate-threshold: 50
   snr-min: 4
   torch-dtype: float32
   torch-device: cpu
-  event-config-file: fake_cbc.yaml
-  likelihood-snapshot-interval: 14400
-  injections:
-    live:
-      range: 0.01:1000.0
+  event-config-file: # FIXME
+  snapshot-interval: 14400
+  snapshot-delay: 0
+  injections: True
 
 ##--------------------------------
 ## prior options
 
 prior:
-  mass-model: mass_model/H1L1V1-GSTLAL_BBH_SALPETER_MASS_MODEL-0-0.h5
+  mass-model: # FIXME
 
 ##--------------------------------
 ## ranking options
 
 rank:
   ranking-stat-samples: 4194304
-  marginalized-likelihood-file: rank_stat_pdf.xml.gz
+  marginalized-likelihood-file: # FIXME
 
 ##--------------------------------
 ## upload options
@@ -120,12 +112,12 @@ rank:
 upload:
   gracedb-service-url:  # FIXME
   inj-gracedb-service-url:  # FIXME
-  gracedb-far-threshold: -1
+  gracedb-far-threshold: # FIXME
   gracedb-group: CBC
   gracedb-pipeline: SGNL
-  gracedb-search: AllSky
-  inj-gracedb-search: VTInjection
-  far-trials-factor: 2
+  gracedb-search: # FIXME
+  inj-gracedb-search: # FIXME
+  far-trials-factor: 1
   aggregator-far-trials-factor: 6
   aggregator-far-threshold: 3.8e-7
   aggregator-cadence-type: geometric
@@ -135,10 +127,10 @@ upload:
 ##--------------------------------
 ## pastro options
 
-#pastro:
-#  FGMC:
-#    upload-file: gstlal.p_astro.json
-#    mass-model: mass_model/fgmc_model_O4.h5
+pastro:
+  FGMC:
+    upload-file: sgnl.p_astro.json
+    mass-model: # FIXME
 
 ##--------------------------------
 ## service options
@@ -156,23 +148,14 @@ metrics:
 ## condor options
 
 condor:
-  profile: # FIXME
   transfer_files: false
   accounting-group: # FIXME
   accounting-group-user: # FIXME
-  #set path to singularity contaniner. eg. /home/divya.singh/observing/4/dev/builds/gstlal-dev_offline-inj-frames
-  #container: /home/yun-jing.huang/phd/gstlal/build/gstlal-20241116/
-  #requirements:
-  #  - '(TARGET.Gstlal_Edward=?=True)'
-  #directives:
-  #  +Gstlal_Edward: true
-  #directives:
-  #  +Gstlal_Online: true
   environment:
-  #  HDF5_USE_FILE_LOCKING: 'FALSE'
-  #  # Note this x509 certificate is only for the gstlalcbc.online shared account at CIT
-  #  X509_USER_CERT: /home/gstlalcbc.online/.cert/gstlalcbc_online_robot.key.pem
-  #  X509_USER_KEY: /home/gstlalcbc.online/.cert/gstlalcbc_online_robot.key.pem
+    PYTHONUNBUFFERED: 1
+    HDF5_USE_FILE_LOCKING: 'FALSE'
+    # X509_USER_PROXY:
     INFLUX_USERNAME: # FIXME
     INFLUX_PASSWORD: # FIXME
+    STRIKE_DATA_PATH: # FIXME
   getenv: True
