@@ -419,6 +419,9 @@ def inspiral(
         elif not impulse_ifo:
             raise ValueError("Must specify impulse_ifo when data_source='impulse'")
 
+    if min_instruments_candidates > 2:
+        raise ValueError("min_instruments_candidates > 2 not supported")
+
     # check pytorch data type
     dtype = torch_dtype
     if dtype == "float64":
@@ -552,6 +555,7 @@ def inspiral(
         injections=injections,
         input_likelihood_file=input_likelihood_file,
         is_online=IS_ONLINE,
+        min_instruments=min_instruments_candidates,
         output_likelihood_file=output_likelihood_file,
         rank_stat_pdf_file=rank_stat_pdf_file,
         verbose=verbose,

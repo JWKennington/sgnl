@@ -155,6 +155,7 @@ def main():
             lr_cache,
             trigger_cache,
             svd_stats,
+            config.filter.min_instruments_candidates,
         )
 
         dag.attach(layer)
@@ -227,6 +228,7 @@ def main():
             svd_bank_cache,
             trigger_cache,
             svd_stats,
+            config.filter.min_instruments_candidates,
         )
 
         dag.attach(layer)
@@ -291,7 +293,7 @@ def main():
             svd_bank_cache,
             prior_cache,
             config.ifos,
-            config.min_ifos,
+            config.filter.min_instruments_candidates,
         )
         dag.attach(layer)
 

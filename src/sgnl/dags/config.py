@@ -75,8 +75,8 @@ def build_config(config_path, dag_dir):
     config.ifos = config.ifo_list
     config.ifo_combos = to_ifo_combos(config.ifo_list)
     config.all_ifos = frozenset(config.ifos)
-    if not config.min_ifos:
-        config.min_ifos = 1
+    if not config.min_instruments_segments:
+        config.min_instruments_segments = 1
 
     config = create_segments(config)
 
@@ -107,7 +107,7 @@ def create_segments(config):
 
     if config.span != segment(0, 0):
         config = create_time_bins(
-            config, start_pad=512, min_instruments=config.min_ifos
+            config, start_pad=512, min_instruments=config.min_instruments_segments
         )
 
     return config

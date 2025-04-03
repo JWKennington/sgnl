@@ -85,6 +85,7 @@ class StrikeObject:
     injections: bool = False
     input_likelihood_file: list[str] = None
     is_online: bool = False
+    min_instruments: int = 1
     output_likelihood_file: list[str] = None
     rank_stat_pdf_file: str = None
     verbose: bool = False
@@ -115,6 +116,7 @@ class StrikeObject:
                     self.likelihood_ratios[bankid] = LnLikelihoodRatio(
                         template_ids=bank_template_ids,
                         instruments=self.ifos,
+                        min_instruments=self.min_instruments,
                         delta_t=self.coincidence_threshold,
                     )
         else:
@@ -124,6 +126,7 @@ class StrikeObject:
                     # if we are in nsubbbank_pretend mode, only load the first lr
                     # file and copy the rest
                     lr_class = LnLikelihoodRatio.load(lr_file)
+                    assert lr_class.min_instruments == self.min_instruments
                 self.likelihood_ratios[bankid] = lr_class
                 if self.compress_likelihood_ratio:
                     self.likelihood_ratios[bankid].terms[
