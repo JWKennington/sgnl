@@ -2,7 +2,7 @@
 # general options
 
 instruments: H1L1V1
-min-instruments: 1
+min-instruments-segments: 1
 
 tag: # FIXME
 
@@ -88,10 +88,11 @@ filter:
   snr-min: 4
   torch-dtype: float32
   torch-device: cpu
-  event-config-file: # FIXME
+  event-config-file: cbc_db.yaml
   snapshot-interval: 14400
   snapshot-delay: 0
   injections: True
+  min-instruments-candidates: 1
 
 ##--------------------------------
 ## prior options
