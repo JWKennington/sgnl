@@ -281,13 +281,19 @@ class Itacacac(TSTransform):
             # return the single ifo snrs
             snr1 = list(triggers["snrs"].values())[0]
             snr_above_min_mask = snr1 >= self.snr_min
-            all_network_snr = snr1 * snr_above_min_mask
-            subthresh_mask = snr1 < self.snr_min
-            ifo_combs = (
-                torch.ones_like(all_network_snr, dtype=torch.int)
-                * snr_above_min_mask
-                * self.ifos_number_map[on_ifos[0]]
-            )
+            if self.min_instruments_candidates == 1:
+                all_network_snr = snr1 * snr_above_min_mask
+                ifo_combs = (
+                    torch.ones_like(all_network_snr, dtype=torch.int)
+                    * snr_above_min_mask
+                    * self.ifos_number_map[on_ifos[0]]
+                )
+                noevents_mask = snr1 < self.snr_min
+            else:
+                all_network_snr = None
+                ifo_combs = None
+                noevents_mask = torch.ones_like(snr1, dtype=torch.bool)
+
             if self.all_triggers_to_background:
                 single_background_masks[on_ifos[0]] = snr_above_min_mask
 
@@ -301,16 +307,19 @@ class Itacacac(TSTransform):
                 snr1_above_min_mask,
                 snr2_above_min_mask,
                 all_network_snr,
-                subthresh_mask,
+                noevents_mask,
             ) = self.coinc2(snrs, times, on_ifos)
 
             # convert ifo combination masks to numbers
             ifo_numbers = [self.ifos_number_map[ifo] for ifo in on_ifos]
             ifo_combs = (
                 coinc2_mask * (ifo_numbers[0] * 10 + ifo_numbers[1])
-                + single_mask1 * ifo_numbers[0]
-                + single_mask2 * ifo_numbers[1]
             )
+            if self.min_instruments_candidates == 1:
+                ifo_combs += (
+                    + (single_mask1 * ifo_numbers[0])
+                    + (single_mask2 * ifo_numbers[1])
+                )
 
             if self.all_triggers_to_background:
                 single_background_mask1 = snr1_above_min_mask
@@ -336,7 +345,7 @@ class Itacacac(TSTransform):
                 single_background_mask2,
                 single_background_mask3,
                 all_network_snr,
-                subthresh_mask,
+                noevents_mask,
             ) = self.coinc3(triggers)
 
             # convert ifo combination masks to numbers
@@ -348,10 +357,13 @@ class Itacacac(TSTransform):
                 + coinc2_mask12 * (ifo_numbers[0] * 10 + ifo_numbers[1])
                 + coinc2_mask23 * (ifo_numbers[1] * 10 + ifo_numbers[2])
                 + coinc2_mask31 * (ifo_numbers[0] * 10 + ifo_numbers[2])
-                + single_mask1 * ifo_numbers[0]
-                + single_mask2 * ifo_numbers[1]
-                + single_mask3 * ifo_numbers[2]
             )
+            if self.min_instruments_candidates == 1:
+                ifo_combs += (
+                    + (single_mask1 * ifo_numbers[0])
+                    + (single_mask2 * ifo_numbers[1])
+                    + (single_mask3 * ifo_numbers[2])
+                )
 
             smasks = [
                 single_background_mask1,
@@ -363,7 +375,7 @@ class Itacacac(TSTransform):
         else:
             raise ValueError("nifo > 3 is not implemented")
 
-        return ifo_combs, all_network_snr, single_background_masks, subthresh_mask
+        return ifo_combs, all_network_snr, single_background_masks, noevents_mask
 
     def coinc3(self, triggers):
         ifos = list(triggers["snrs"].keys())
@@ -441,53 +453,67 @@ class Itacacac(TSTransform):
             (snr1 * coinc2_mask31) ** 2 + (snr3 * coinc2_mask31) ** 2
         ) ** 0.5
 
-        # 1 ifo
-        # FIXME: what to do when snrs are equal?
-        single_mask1 = (
-            ~coinc3_mask
-            & ~coinc2_mask12
-            & ~coinc2_mask23
-            & ~coinc2_mask31
-            & (snr1 > snr2)
-            & (snr1 >= snr3)
-            & (snr1 >= self.snr_min)
-        )
-        single_mask2 = (
-            ~coinc3_mask
-            & ~coinc2_mask12
-            & ~coinc2_mask23
-            & ~coinc2_mask31
-            & (snr2 >= snr1)
-            & (snr2 > snr3)
-            & (snr2 >= self.snr_min)
-        )
-        single_mask3 = (
-            ~coinc3_mask
-            & ~coinc2_mask12
-            & ~coinc2_mask23
-            & ~coinc2_mask31
-            & (snr3 > snr1)
-            & (snr3 >= snr2)
-            & (snr3 >= self.snr_min)
-        )
-
-        single_snr1 = snr1 * single_mask1
-        single_snr2 = snr2 * single_mask2
-        single_snr3 = snr3 * single_mask3
-
         all_network_snrs = (
             network_snr123
             + network_snr12
             + network_snr23
             + network_snr31
-            + single_snr1
-            + single_snr2
-            + single_snr3
         )
 
-        subthresh_mask = (
-            (snr1 < self.snr_min) & (snr2 < self.snr_min) & (snr3 < self.snr_min)
-        )
+        if self.min_instruments_candidates == 1:
+            # 1 ifo
+            # FIXME: what to do when snrs are equal?
+            single_mask1 = (
+                ~coinc3_mask
+                & ~coinc2_mask12
+                & ~coinc2_mask23
+                & ~coinc2_mask31
+                & (snr1 > snr2)
+                & (snr1 >= snr3)
+                & (snr1 >= self.snr_min)
+            )
+            single_mask2 = (
+                ~coinc3_mask
+                & ~coinc2_mask12
+                & ~coinc2_mask23
+                & ~coinc2_mask31
+                & (snr2 >= snr1)
+                & (snr2 > snr3)
+                & (snr2 >= self.snr_min)
+            )
+            single_mask3 = (
+                ~coinc3_mask
+                & ~coinc2_mask12
+                & ~coinc2_mask23
+                & ~coinc2_mask31
+                & (snr3 > snr1)
+                & (snr3 >= snr2)
+                & (snr3 >= self.snr_min)
+            )
+
+            single_snr1 = snr1 * single_mask1
+            single_snr2 = snr2 * single_mask2
+            single_snr3 = snr3 * single_mask3
+
+            all_network_snrs += (
+                + single_snr1
+                + single_snr2
+                + single_snr3
+            )
+
+            # Find the templates which we shouldn't expect an event from
+            noevents_mask = (
+                (snr1 < self.snr_min) & (snr2 < self.snr_min) & (snr3 < self.snr_min)
+            )
+
+        else:
+            single_mask1 = None
+            single_mask2 = None
+            single_mask3 = None
+
+            # Find the templates which we shouldn't expect an event from
+            noevents_mask = ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask23 & ~coinc2_mask31
+
 
         if self.all_triggers_to_background:
             single_background_mask1 = snr1 >= self.snr_min
@@ -516,7 +542,7 @@ class Itacacac(TSTransform):
             single_background_mask2,
             single_background_mask3,
             all_network_snrs,
-            subthresh_mask,
+            noevents_mask,
         )
 
     def coinc2(self, snrs, times, ifos):
@@ -530,19 +556,27 @@ class Itacacac(TSTransform):
         coinc_mask = (
             (abs(time1 - time2) < dt) & snr1_above_min_mask & snr2_above_min_mask
         )
-        single_mask1 = (snr1 > snr2) & ~coinc_mask & snr1_above_min_mask
-        single_mask2 = (snr1 <= snr2) & ~coinc_mask & snr2_above_min_mask
 
         snr_masked1 = snr1 * coinc_mask
         snr_masked2 = snr2 * coinc_mask
         coinc_network_snr = (snr_masked1**2 + snr_masked2**2) ** 0.5
+        all_network_snr = coinc_network_snr
 
-        single1 = snr1 * single_mask1
-        single2 = snr2 * single_mask2
+        if self.min_instruments_candidates == 1:
+            single_mask1 = (snr1 > snr2) & ~coinc_mask & snr1_above_min_mask
+            single_mask2 = (snr1 <= snr2) & ~coinc_mask & snr2_above_min_mask
+            single1 = snr1 * single_mask1
+            single2 = snr2 * single_mask2
+            all_network_snr += (single1 + single2)
 
-        all_network_snr = coinc_network_snr + single1 + single2
+            # Find templates which we don't expect a trigger from
+            noevents_mask = (snr1 < self.snr_min) & (snr2 < self.snr_min)
+        else:
+            single_mask1 = None
+            single_mask2 = None
 
-        subthresh_mask = (snr1 < self.snr_min) & (snr2 < self.snr_min)
+            # Find templates which we don't expect a trigger from
+            noevents_mask = ~coinc_mask
 
         return (
             coinc_mask,
@@ -551,16 +585,16 @@ class Itacacac(TSTransform):
             snr1_above_min_mask,
             snr2_above_min_mask,
             all_network_snr,
-            subthresh_mask,
+            noevents_mask,
         )
 
     def cluster_coincs(
-        self, ifo_combs, all_network_snr, template_ids, triggers, snr_ts, subthresh_mask
+        self, ifo_combs, all_network_snr, template_ids, triggers, snr_ts, noevents_mask
     ):
         clustered_snr, max_locations = torch.max(all_network_snr, dim=-1)
         max_locations_cpu = max_locations.to("cpu")
 
-        mask = ~subthresh_mask[range(self.nsubbank), max_locations]
+        mask = ~noevents_mask[range(self.nsubbank), max_locations]
         mask = mask.to("cpu").numpy()
         clustered_ifo_combs = ifo_combs.gather(1, max_locations.unsqueeze(1)).squeeze(
             -1
@@ -655,7 +689,7 @@ class Itacacac(TSTransform):
     def itacacac(self, snr_ts):
         triggers = self.find_peaks_and_calculate_chisqs(snr_ts)
 
-        ifo_combs, all_network_snr, single_background_masks, subthresh_mask = (
+        ifo_combs, all_network_snr, single_background_masks, noevents_mask = (
             self.make_coincs(triggers)
         )
 
@@ -685,7 +719,7 @@ class Itacacac(TSTransform):
         #        for k, v in triggers[trig_type].items():
         #            triggers[trig_type][k] = v.to("cpu").numpy()
 
-        if False not in subthresh_mask:
+        if False not in noevents_mask:
             clustered_coinc = {}
         else:
             clustered_coinc = self.cluster_coincs(
@@ -694,7 +728,7 @@ class Itacacac(TSTransform):
                 self.template_ids_np,
                 triggers,
                 snr_ts,
-                subthresh_mask,
+                noevents_mask,
             )
 
         return (
@@ -868,19 +902,6 @@ class Itacacac(TSTransform):
 
         if len(out_triggers) == 0:
             print("out events", out_events)
-
-        if self.min_instruments_candidates > 1:
-            real_out_events = []
-            real_out_triggers = []
-            real_out_snr_ts = []
-            for event, triggers, snr_ts in zip(out_events, out_triggers, out_snr_ts):
-                if len(trigger) >= self.min_instruments_candidates:
-                    real_out_events.append(event)
-                    real_out_triggers.append(triggers)
-                    real_out_snr_ts.append(snr_ts)
-            out_events = real_out_events
-            out_triggers = real_out_triggers
-            out_snr_ts = real_out_snr_ts
 
         return {
             "event": EventBuffer(ts, te, data=out_events),

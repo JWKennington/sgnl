@@ -186,6 +186,7 @@ def filter(
     lr_cache,
     trigger_cache,
     svd_stats,
+    min_instruments,
 ):
     executable = "sgnl-inspiral"
     resource_requests = {
@@ -215,12 +216,7 @@ def filter(
         Option("snr-min", filter_config.snr_min),
     ]
 
-    if filter_config.min_instruments_candidates:
-        common_opts.append(
-            Option(
-                "min-instruments-candidates", filter_config.min_instruments_candidates
-            )
-        )
+    common_opts.append(Option("min-instruments-candidates", min_instruments))
 
     if filter_config.all_triggers_to_background:
         common_opts.append(Option("all-triggers-to-background"))
@@ -351,6 +347,7 @@ def injection_filter(
     svd_bank_cache,
     trigger_cache,
     svd_stats,
+    min_instruments,
 ):
     executable = "sgnl-inspiral"
     resource_requests = {
@@ -382,12 +379,7 @@ def injection_filter(
         Option("injections"),
     ]
 
-    if filter_config.min_instruments_candidates:
-        common_opts.append(
-            Option(
-                "min-instruments-candidates", filter_config.min_instruments_candidates
-            )
-        )
+    common_opts.append(Option("min-instruments-candidates", min_instruments))
 
     common_inputs = [
         Option("event-config", filter_config.event_config_file),
@@ -638,7 +630,7 @@ def create_prior(
     svd_bank_cache,
     prior_cache,
     ifos,
-    min_ifos,
+    min_instruments,
     write_empty_zerolag=None,
     write_empty_marg_zerolag=None,
 ):
@@ -653,7 +645,7 @@ def create_prior(
     svd_banks = svd_bank_cache.groupby("bin")
     arguments = [
         Option("instrument", ifos),
-        Option("min-instruments", min_ifos),
+        Option("min-instruments", min_instruments),
         Option("coincidence-threshold", coincidence_threshold),
     ]
     if write_empty_zerolag:
@@ -1117,6 +1109,7 @@ def filter_online(
     marg_pdf_cache,
     ifos,
     tag,
+    min_instruments,
 ):
     executable = "sgnl-inspiral"
     resource_requests = {
@@ -1167,12 +1160,7 @@ def filter_online(
         # Option("snr-min", filter_config.snr_min),
     ]
 
-    if filter_config.min_instruments_candidates:
-        common_opts.append(
-            Option(
-                "min-instruments-candidates", filter_config.min_instruments_candidates
-            )
-        )
+    common_opts.append(Option("min-instruments-candidates", min_instruments))
 
     if filter_config.all_triggers_to_background:
         common_opts.append(Option("all-triggers-to-background"))
@@ -1292,6 +1280,7 @@ def injection_filter_online(
     marg_pdf_cache,
     ifos,
     tag,
+    min_instruments,
 ):
     executable = "sgnl-inspiral"
     resource_requests = {
@@ -1350,12 +1339,7 @@ def injection_filter_online(
         # Option("snr-min", filter_config.snr_min),
     ]
 
-    if filter_config.min_instruments_candidates:
-        common_opts.append(
-            Option(
-                "min-instruments-candidates", filter_config.min_instruments_candidates
-            )
-        )
+    common_opts.append(Option("min-instruments-candidates", min_instruments))
 
     # Set torch-dtype
     if filter_config.torch_dtype:

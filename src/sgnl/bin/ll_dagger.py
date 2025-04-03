@@ -100,7 +100,7 @@ def main():
             svd_bank_cache,
             prior_cache,
             config.ifos,
-            config.min_ifos,
+            config.filter.min_instruments_candidates,
             write_empty_zerolag=zerolag_pdf_cache,
             write_empty_marg_zerolag=marg_zerolag_pdf_cache,
         )
@@ -143,6 +143,7 @@ def main():
                 marg_pdf_cache=marg_pdf,
                 ifos=config.ifos,
                 tag=config.tag,
+                min_instruments=config.filter.min_instruments_candidates,
             )
             dag.attach(layer)
 
@@ -161,6 +162,7 @@ def main():
             marg_pdf_cache=marg_pdf,
             ifos=config.ifos,
             tag=config.tag,
+            min_instruments=config.filter.min_instruments_candidates,
         )
         dag.attach(layer)
 
