@@ -170,7 +170,7 @@ class SortedBank:
             gstlal Bank class
         """
         bank_metadata = {}
-        ifos = list(bank.keys())
+        ifos = sorted(bank.keys())
         bank_metadata["ifos"] = ifos
         bank_metadata["nifo"] = len(ifos)
 

@@ -5,7 +5,7 @@ start: # FIXME
 stop: # FIXME
 
 instruments: H1L1V1
-min-instruments: 1
+min-instruments-segments: 1
 
 ##--------------------------------
 # data product options
@@ -70,13 +70,13 @@ svd:
 filter:
   # group-svd-num: 5
   # all_triggers_to_background: False
-  # min_instruments_candidates: 1
+  min_instruments_candidates: 1
   coincidence-threshold: 0.01
   ht-gate-threshold: 50.0
   snr-min: 4
   torch-dtype: float32
   torch-device: cpu
-  event-config-file: # FIXME
+  event-config-file: cbc_db.yaml
 
 ##--------------------------------
 ## injection options

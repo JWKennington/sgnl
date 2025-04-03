@@ -10,6 +10,7 @@ element
 from __future__ import annotations
 
 import math
+from collections import OrderedDict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import combinations
@@ -119,7 +120,7 @@ class Itacacac(TSTransform):
             self.trigger_finding_samples
         ), "trigger_finding_duration must map to integer number of sample points"
         self.trigger_finding_samples = int(self.trigger_finding_samples)
-        self.ifos = list(self.autocorrelation_banks.keys())
+        self.ifos = sorted(self.autocorrelation_banks.keys())
         self.nifo = len(self.ifos)
 
         (
@@ -129,7 +130,9 @@ class Itacacac(TSTransform):
         ) = self.autocorrelation_banks[self.ifos[0]].shape
         self.autocorrelation_banks_real = {}
         self.autocorrelation_banks_imag = {}
-        self.ifos_number_map = {ifo: i + 1 for i, ifo in enumerate(self.ifos)}
+        self.ifos_number_map = OrderedDict(
+            [(ifo, i + 1) for i, ifo in enumerate(self.ifos)]
+        )
         for ifo in self.ifos:
             self.autocorrelation_banks_real[ifo] = self.autocorrelation_banks[ifo].real
             self.autocorrelation_banks_imag[ifo] = self.autocorrelation_banks[ifo].imag
@@ -188,7 +191,9 @@ class Itacacac(TSTransform):
             i: bankid for bankid, ids in self.bankids_map.items() for i in ids
         }
 
-    def find_peaks_and_calculate_chisqs(self, snr_ts: Array) -> Dict[str, list[Array]]:
+    def find_peaks_and_calculate_chisqs(
+        self, snr_ts: Dict[str, Array]
+    ) -> Dict[str, list[Array]]:
         """Find snr peaks in a given snr time series window, and obtain peak time,
         phase, and chisq
 
@@ -212,10 +217,10 @@ class Itacacac(TSTransform):
         # )
         idf = -padding
         triggers = {
-            "peak_locations": {},
-            "snrs": {},
-            "chisqs": {},
-            "snr_ts_snippet": {},
+            "peak_locations": OrderedDict(),
+            "snrs": OrderedDict(),
+            "chisqs": OrderedDict(),
+            "snr_ts_snippet": OrderedDict(),
         }
         for ifo, snr in snr_ts.items():
             shape = snr.shape
@@ -275,11 +280,12 @@ class Itacacac(TSTransform):
     def make_coincs(self, triggers):
         on_ifos = list(triggers["snrs"].keys())
         nifo = len(on_ifos)
-        single_background_masks = {}  # for snr chisq histogram
+        single_background_masks = OrderedDict()  # for snr chisq histogram
 
         if nifo == 1:
             # return the single ifo snrs
-            snr1 = list(triggers["snrs"].values())[0]
+            on_ifo = on_ifos[0]
+            snr1 = triggers["snrs"][on_ifo]
             snr_above_min_mask = snr1 >= self.snr_min
             if self.min_instruments_candidates == 1:
                 all_network_snr = snr1 * snr_above_min_mask
@@ -295,11 +301,12 @@ class Itacacac(TSTransform):
                 noevents_mask = torch.ones_like(snr1, dtype=torch.bool)
 
             if self.all_triggers_to_background:
-                single_background_masks[on_ifos[0]] = snr_above_min_mask
+                single_background_masks[on_ifo] = snr_above_min_mask
 
         elif nifo == 2:
-            times = list(triggers["peak_locations"].values())
-            snrs = list(triggers["snrs"].values())
+            times = [triggers["peak_locations"][ifo] for ifo in on_ifos]
+            snrs = [triggers["snrs"][ifo] for ifo in on_ifos]
+
             (
                 coinc2_mask,
                 single_mask1,
@@ -312,13 +319,10 @@ class Itacacac(TSTransform):
 
             # convert ifo combination masks to numbers
             ifo_numbers = [self.ifos_number_map[ifo] for ifo in on_ifos]
-            ifo_combs = (
-                coinc2_mask * (ifo_numbers[0] * 10 + ifo_numbers[1])
-            )
+            ifo_combs = coinc2_mask * (ifo_numbers[0] * 10 + ifo_numbers[1])
             if self.min_instruments_candidates == 1:
-                ifo_combs += (
-                    + (single_mask1 * ifo_numbers[0])
-                    + (single_mask2 * ifo_numbers[1])
+                ifo_combs += +(single_mask1 * ifo_numbers[0]) + (
+                    single_mask2 * ifo_numbers[1]
                 )
 
             if self.all_triggers_to_background:
@@ -349,7 +353,7 @@ class Itacacac(TSTransform):
             ) = self.coinc3(triggers)
 
             # convert ifo combination masks to numbers
-            ifo_numbers = list(self.ifos_number_map.values())
+            ifo_numbers = [self.ifos_number_map[ifo] for ifo in on_ifos]
 
             ifo_combs = (
                 coinc3_mask
@@ -360,7 +364,7 @@ class Itacacac(TSTransform):
             )
             if self.min_instruments_candidates == 1:
                 ifo_combs += (
-                    + (single_mask1 * ifo_numbers[0])
+                    +(single_mask1 * ifo_numbers[0])
                     + (single_mask2 * ifo_numbers[1])
                     + (single_mask3 * ifo_numbers[2])
                 )
@@ -379,8 +383,8 @@ class Itacacac(TSTransform):
 
     def coinc3(self, triggers):
         ifos = list(triggers["snrs"].keys())
-        times = list(triggers["peak_locations"].values())
-        snrs = list(triggers["snrs"].values())
+        times = [triggers["peak_locations"][ifo] for ifo in ifos]
+        snrs = [triggers["snrs"][ifo] for ifo in ifos]
 
         snr1 = snrs[0]
         snr2 = snrs[1]
@@ -454,10 +458,7 @@ class Itacacac(TSTransform):
         ) ** 0.5
 
         all_network_snrs = (
-            network_snr123
-            + network_snr12
-            + network_snr23
-            + network_snr31
+            network_snr123 + network_snr12 + network_snr23 + network_snr31
         )
 
         if self.min_instruments_candidates == 1:
@@ -495,11 +496,7 @@ class Itacacac(TSTransform):
             single_snr2 = snr2 * single_mask2
             single_snr3 = snr3 * single_mask3
 
-            all_network_snrs += (
-                + single_snr1
-                + single_snr2
-                + single_snr3
-            )
+            all_network_snrs += +single_snr1 + single_snr2 + single_snr3
 
             # Find the templates which we shouldn't expect an event from
             noevents_mask = (
@@ -512,8 +509,9 @@ class Itacacac(TSTransform):
             single_mask3 = None
 
             # Find the templates which we shouldn't expect an event from
-            noevents_mask = ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask23 & ~coinc2_mask31
-
+            noevents_mask = (
+                ~coinc3_mask & ~coinc2_mask12 & ~coinc2_mask23 & ~coinc2_mask31
+            )
 
         if self.all_triggers_to_background:
             single_background_mask1 = snr1 >= self.snr_min
@@ -567,7 +565,7 @@ class Itacacac(TSTransform):
             single_mask2 = (snr1 <= snr2) & ~coinc_mask & snr2_above_min_mask
             single1 = snr1 * single_mask1
             single2 = snr2 * single_mask2
-            all_network_snr += (single1 + single2)
+            all_network_snr += single1 + single2
 
             # Find templates which we don't expect a trigger from
             noevents_mask = (snr1 < self.snr_min) & (snr2 < self.snr_min)
@@ -605,7 +603,7 @@ class Itacacac(TSTransform):
         clustered_template_durations = self.template_durations[
             range(self.nsubbank), max_locations_cpu
         ]
-        sngls = {}
+        sngls = OrderedDict()
         for i, m in enumerate(mask):
             m = m.item()
             if m is True:
@@ -614,8 +612,8 @@ class Itacacac(TSTransform):
         trig_snrs = triggers["snrs"]
         trig_chisqs = triggers["chisqs"]
         trig_snr_ts_snippet = triggers["snr_ts_snippet"]
-        snr_ts_snippet_clustered = {}
-        snr_ts_clustered = {}
+        snr_ts_snippet_clustered = OrderedDict()
+        snr_ts_clustered = OrderedDict()
         for ifo in trig_snrs.keys():
             sngls[ifo] = {}
             max_peak_locations = (
@@ -949,6 +947,7 @@ class Itacacac(TSTransform):
                     "trigger_rates": EventBuffer(ts, te, data=None),
                 }
         else:
+            snr_ts = OrderedDict(sorted(snr_ts.items()))
             (
                 triggers,
                 ifo_combs,
