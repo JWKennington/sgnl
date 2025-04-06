@@ -12,7 +12,7 @@ In your working directory, copy over the following files from the repo
 
 1. `config/offline_dag.yml`:
 
-    This is the config file for genrationing the offline analysis workflow.
+    This is the config file for generating the offline analysis workflow.
     Modify the config file options to setup the configuration.
 
 2. `config/cbc_db.yaml`:
