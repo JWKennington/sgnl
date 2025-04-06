@@ -574,6 +574,7 @@ def inspiral(
             data_source=data_source_info.data_source,
             input_sample_rate=data_source_info.input_sample_rate,
             input_links=source_out_links,
+            whiten_sample_rate=template_maxrate,
             whiten_latency=output_kafka_server is not None,
         )
     else:
