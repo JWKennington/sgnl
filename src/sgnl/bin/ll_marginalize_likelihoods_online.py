@@ -283,7 +283,7 @@ def main():
             new_svd_bins = ["%04d" % i for i in range(int(name[0]), int(name[1]) + 1)]
             svd_bins.extend(new_svd_bins)
         elif len(name) == 3:
-            new_svd_bins = [int(name[0])]
+            new_svd_bins = ["%04d" % int(name[0])]
             svd_bins.extend(new_svd_bins)
         else:
             raise ValueError("Wrong name for registry file.")
