@@ -650,7 +650,7 @@ class Itacacac(TSTransform):
             snrs0 = snr_ts[ifo]
             snrs1 = snrs0.view(snrs0.shape[0], snrs0.shape[1] // 2, 2, snrs0.shape[2])
             snr_pairs = snrs1[range(snrs1.shape[0]), max_locations_cpu]
-            sngl_peaks = snr_pairs[range(snr_pairs.shape[0]), :, max_peak_locations]
+            sngl_peaks = snr_pairs[range(snr_pairs.shape[0]), :, max_peak_locations.astype(np.int32)]
             real = sngl_peaks[:, 0]
             imag = sngl_peaks[:, 1]
             phase = torch.atan2(imag, real)

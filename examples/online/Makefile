@@ -1,10 +1,10 @@
 all: inspiral range scald event_uploader event_plotter trigger_counter marginalize_likelihood
 
-H1_SVD_BANK=H1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
-L1_SVD_BANK=L1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
-V1_SVD_BANK=V1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
-EVENT_CONFIG=../../config/fake_cbc.yaml
-PASTRO_MODEL_FILE=fgmc_model_O4.h5
+H1_SVD_BANK=svd_bank/H1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
+L1_SVD_BANK=svd_bank/L1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
+V1_SVD_BANK=svd_bank/V1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz
+EVENT_CONFIG=../../config/cbc_db.yaml
+PASTRO_MODEL_FILE=mass_model/fgmc_model_sgnl_bbh_mdc.h5
 
 KAFKA_SERVER=localhost-v4:9196
 GRACEDB_GROUP=CBC
@@ -15,28 +15,27 @@ GRACEDB_URL=http://127.0.0.1:5000/api/
 TAG=sgnl_test
 JOB_TAG=0000_noninj
 FAR_THRESH=1e-6
-#RANK_STAT_PDF_FILE=rank_stat_pdf/H1L1V1-SGNL_RANK_STAT_PDFS-0-0.xml.gz
-RANK_STAT_PDF_FILE=H1L1V1-SGNL_POST_RANK_STAT_PDFS-1241725020-760106.xml.gz
-#LR_FILE=H1L1V1-0000_SGNL_MARG_LIKELIHOOD_RATIO_PRIOR-1241725020-760106.xml.gz
+RANK_STAT_PDF_FILE=rank_stat_pdf/H1L1V1-SGNL_RANK_STAT_PDFS-0-0.xml.gz
 LR_FILE=likelihood_ratio/H1L1V1-0000_SGNL_LIKELIHOOD_RATIO-0-0.xml.gz
-ZLG_FILE=zerolag_rank_stat_pdfs/H1L1V1-SGNL_ZEROLAG_RANK_STAT_PDFS-0-0.xml.gz
+ZLG_FILE=zerolag_rank_stat_pdfs/H1L1V1-0000_SGNL_ZEROLAG_RANK_STAT_PDFS-0-0.xml.gz
 
-${LR_FILE} ${ZLG_FILE}:
-	mkdir -p zerolag_rank_stat_pdfs likelihood_ratio rank_stat_pdfs
-	sgnl-create-prior-diststats \
-		--instrument H1 \
-		--instrument L1 \
-		--instrument V1 \
-		--min-instruments 1 \
-		--coincidence-threshold 0.005 \
-		--svd-file H1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz \
-		--svd-file L1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz \
-		--svd-file V1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz \
-		--mass-model-file H1L1V1-GSTLAL_BBH_SALPETER_MASS_MODEL-0-0.h5 \
-		--output-likelihood-file ${LR_FILE} \
-		--write-empty-rankingstatpdf ${ZLG_FILE}
+#${LR_FILE} ${ZLG_FILE}:
+#	mkdir -p zerolag_rank_stat_pdfs likelihood_ratio rank_stat_pdfs
+#	sgnl-create-prior-diststats \
+#		--instrument H1 \
+#		--instrument L1 \
+#		--instrument V1 \
+#		--min-instruments 1 \
+#		--coincidence-threshold 0.005 \
+#		--svd-file H1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz \
+#		--svd-file L1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz \
+#		--svd-file V1-0000_GSTLAL_SVD_BANK-1241725020-760106.xml.gz \
+#		--mass-model-file H1L1V1-GSTLAL_BBH_SALPETER_MASS_MODEL-0-0.h5 \
+#		--output-likelihood-file ${LR_FILE} \
+#		--write-empty-rankingstatpdf ${ZLG_FILE}
 
-inspiral: ${LR_FILE} ${ZLG_FILE}
+#inspiral: ${LR_FILE} ${ZLG_FILE}
+inspiral:
 	sgnl-inspiral \
 		--data-source white-realtime \
 		--psd-fft-length 4 \
@@ -49,15 +48,15 @@ inspiral: ${LR_FILE} ${ZLG_FILE}
 		--svd-bank ${L1_SVD_BANK} \
 		--svd-bank ${V1_SVD_BANK} \
 		--event-config ${EVENT_CONFIG} \
-		--trigger-output out.sqlite \
 		--input-likelihood-file ${LR_FILE} \
 		--output-likelihood-file ${LR_FILE} \
 		--rank-stat-pdf-file ${RANK_STAT_PDF_FILE} \
-		--zerolag-rank-stat-pdf-file zerolag_rank_stat_pdfs/H1L1V1-SGNL_ZEROLAG_RANK_STAT_PDFS-0-0.xml.gz \
+		--zerolag-rank-stat-pdf-file ${ZLG_FILE} \
 		--output-kafka-server ${KAFKA_SERVER} \
 		--gracedb-far-threshold ${FAR_THRESH} \
 		--analysis-tag ${TAG} \
-		--job-tag ${JOB_TAG}
+		--job-tag ${JOB_TAG} \
+		--snapshot-interval 100
 
 inspiral_gracedb:
 	sgnl-inspiral \
