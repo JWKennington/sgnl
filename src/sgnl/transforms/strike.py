@@ -68,10 +68,10 @@ class StrikeTransform(TransformElement):
                         # fapfar is updated every time we reload a rank stat pdf file in
                         # StrikeSink
                         # FIXME: reconcile far and combined_far
-                        e["false_alarm_probability"] = (
+                        e["false_alarm_probability"] = float(
                             self.strike_object.fapfar.fap_from_rank(e["likelihood"])
                         )
-                        e["combined_far"] = (
+                        e["combined_far"] = float(
                             self.strike_object.fapfar.far_from_rank(e["likelihood"])
                             * self.strike_object.FAR_trialsfactor
                         )
