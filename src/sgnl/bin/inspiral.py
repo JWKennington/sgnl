@@ -25,6 +25,7 @@ from sgn.sinks import NullSink
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, Latency, condition
+from sgnts.sinks import DumpSeriesSink
 
 from sgnl import simulation
 from sgnl.control import SnapShotControl
@@ -108,6 +109,11 @@ def parse_command_line():
         metavar="filename",
         action="append",
         help="Set the name of the sqlite output file *.sqlite",
+    )
+    group.add_argument(
+        "--snr-timeseries-output",
+        metavar="filename",
+        help="Set the name of the file to dump SNR timeseries data to",
     )
     group.add_argument(
         "--impulse-bank",
@@ -383,6 +389,7 @@ def inspiral(
     torch_device: str = "cpu",
     torch_dtype: str = "float32",
     trigger_output: List[str] = None,
+    snr_timeseries_output: str = None,
     trigger_finding_duration: float = 1,
     verbose: bool = False,
     zerolag_rank_stat_pdf_file: List[str] = None,
@@ -666,11 +673,29 @@ def inspiral(
             ),
         )
         for ifo in ifos:
-            pipeline.insert(
-                link_map={
-                    "Itacacac:snk:" + ifo: lloid_output_source_link[ifo],
-                }
-            )
+            if snr_timeseries_output:
+                outname = os.path.join(
+                    os.path.dirname(snr_timeseries_output),
+                    ifo + "_" + os.path.basename(snr_timeseries_output),
+                )
+                pipeline.insert(
+                    DumpSeriesSink(
+                        name=ifo + "DumpSNR",
+                        sink_pad_names=(ifo,),
+                        fname=outname,
+                        verbose=verbose,
+                    ),
+                    link_map={
+                        "Itacacac:snk:" + ifo: lloid_output_source_link[ifo],
+                        ifo + "DumpSNR:snk:" + ifo: lloid_output_source_link[ifo],
+                    },
+                )
+            else:
+                pipeline.insert(
+                    link_map={
+                        "Itacacac:snk:" + ifo: lloid_output_source_link[ifo],
+                    }
+                )
 
         if IS_ONLINE:
             #
@@ -1033,6 +1058,7 @@ def main():
         torch_dtype=options.torch_dtype,
         trigger_finding_duration=options.trigger_finding_duration,
         trigger_output=options.trigger_output,
+        snr_timeseries_output=options.snr_timeseries_output,
         verbose=options.verbose,
         zerolag_rank_stat_pdf_file=options.zerolag_rank_stat_pdf_file,
     )
