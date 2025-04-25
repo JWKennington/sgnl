@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
+import os
 from argparse import ArgumentParser
 
 from sgn.apps import Pipeline
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, condition
-from sgnts.sinks import NullSeriesSink
+from sgnts.sinks import DumpSeriesSink, NullSeriesSink
 
 from sgnl.sinks import PSDSink
 
@@ -33,6 +34,11 @@ def parse_command_line():
         help="Set the output filename. If no filename is given, the output is dumped"
         " to stdout.",
     )
+    parser.add_argument(
+        "--whitened-data-output-name",
+        metavar="filename",
+        help="Set the output filename for dumping whitened data into",
+    )
 
     options = parser.parse_args()
 
@@ -43,6 +49,7 @@ def reference_psd(
     data_source_info: DataSourceInfo,
     condition_info: ConditionInfo,
     output_name=None,
+    whitened_data_output_name=None,
     verbose=None,
 ):
 
@@ -85,16 +92,33 @@ def reference_psd(
     )
 
     for ifo in ifos:
-        pipeline.insert(
-            NullSeriesSink(
-                name=ifo + "HoftSink",
-                sink_pad_names=("hoft",),
-                verbose=verbose,
-            ),
-            link_map={
-                ifo + "HoftSink:snk:hoft": condition_out_links[ifo],
-            },
-        )
+        if whitened_data_output_name:
+            outname = os.path.join(
+                os.path.dirname(whitened_data_output_name),
+                ifo + "_" + os.path.basename(whitened_data_output_name),
+            )
+            pipeline.insert(
+                DumpSeriesSink(
+                    name=ifo + "HoftSink",
+                    sink_pad_names=("hoft",),
+                    fname=outname,
+                    verbose=verbose,
+                ),
+                link_map={
+                    ifo + "HoftSink:snk:hoft": condition_out_links[ifo],
+                },
+            )
+        else:
+            pipeline.insert(
+                NullSeriesSink(
+                    name=ifo + "HoftSink",
+                    sink_pad_names=("hoft",),
+                    verbose=verbose,
+                ),
+                link_map={
+                    ifo + "HoftSink:snk:hoft": condition_out_links[ifo],
+                },
+            )
     pipeline.insert(
         PSDSink(
             fname=output_name,
@@ -118,6 +142,7 @@ def main():
         data_source_info=data_source_info,
         condition_info=condition_info,
         output_name=options.output_name,
+        whitened_data_output_name=options.whitened_data_output_name,
         verbose=options.verbose,
     )
 
