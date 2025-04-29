@@ -8,6 +8,7 @@ import matplotlib
 
 matplotlib.use("agg")
 from cycler import cycler
+from matplotlib import pyplot as plt
 
 matplotlib.rcParams.update(
     {
@@ -25,18 +26,20 @@ matplotlib.rcParams.update(
         "axes.prop_cycle": cycler("color", ["r", "g", "b", "c", "m", "orange", "aqua"]),
     }
 )
-from matplotlib import pyplot as plt
 
 IFO_COLOR = {"H1": "#e74c3c", "L1": "#3498db", "V1": "#9b59b6", "K1": "#f1c40f"}
 
 
 # https://stackoverflow.com/questions/61488790/how-can-i-proportionally-mix-colors-in-python
 def __combine_hex_values(colors):
-    tot_weight = len(colors)
     r = int(sum([int(c[1:3], 16) for c in colors]) / len(colors))
     g = int(sum([int(c[3:5], 16) for c in colors]) / len(colors))
     b = int(sum([int(c[5:7], 16) for c in colors]) / len(colors))
-    zpad = lambda x: x if len(x) == 2 else "0" + x
+
+    def _fix(x):
+        return x if len(x) == 2 else "0" + x
+
+    zpad = _fix
     return "#" + zpad(hex(r)[2:]) + zpad(hex(g)[2:]) + zpad(hex(b)[2:])
 
 
@@ -68,8 +71,11 @@ def b64(plot=None):
     return base64.b64encode(buffer.read()).decode("utf-8")
 
 
-def page(sections=[]):
-    """Given a list of Section classes, return the html suitable for a standalone web page"""
+def page(sections=None):
+    """Given a list of Section classes, return the html suitable for a
+    standalone web page"""
+    if sections is None:
+        sections = []
     out = """
 <!DOCTYPE html>
 <html lang="en">
@@ -93,7 +99,7 @@ def page(sections=[]):
         <h1>Streaming Graph Navigator</h1>
       </div>
       <div class=col-md-3>
-      
+
       </div>
     </div>
   </div>
@@ -215,25 +221,25 @@ class Section(list):
                         images_html += f"""
                           <th scope="col">{key}</th>
                           """
-                images_html += f"""
+                images_html += """
                     </tr>
                   </thead>
                   <tbody class="table-group-divider">
                 """
                 for row in d["table"]:
-                    images_html += f"""
+                    images_html += """
                     <tr>"""
-                    for k, v in row.items():
+                    for _k, v in row.items():
                         images_html += f"""
                       <td>{v}</td>"""
-                    images_html += f"""
+                    images_html += """
                     </tr>"""
-                images_html += f"""
+                images_html += """
                   </tbody>
                 </table>
                 """
 
-                images_html += f""" 
+                images_html += f"""
                 <p class="card-text">{d['caption']}</p>
               </div>
             </div>

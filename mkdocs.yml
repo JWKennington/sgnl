@@ -22,7 +22,6 @@ nav:
       - ll_inspiral_event_plotter: api/scripts/ll_inspiral_event_plotter.md
       - ll_inspiral_event_uploader: api/scripts/ll_inspiral_event_uploader.md
       - median_of_psds: api/scripts/median_of_psds.md
-      - mock_gracedb_server: api/scripts/mock_gracedb_server.md
       - reference_psd: api/scripts/reference_psd.md
       - results_page: api/scripts/results_page.md
       - sim_page: api/scripts/sim_page.md
