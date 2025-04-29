@@ -302,7 +302,10 @@ def analysis_segments(
 
     # segment length dependent on the number of instruments
     # so that longest job runtimes are similar
-    segment_length = lambda n_ifo: one_ifo_length / 2 ** (n_ifo - 1)
+    def _sl(n_ifo, one_ifo_length=one_ifo_length):
+        return one_ifo_length / 2 ** (n_ifo - 1)
+
+    segment_length = _sl
 
     # generate analysis segments
     for n in range(min_instruments, 1 + len(ifos)):

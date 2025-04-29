@@ -150,15 +150,19 @@ max-line-length = 88
 extend-ignore = [
     "E203",
     "S101",
+    "S406",
 ]
 per-file-ignores = [
     "__init__.py:F401",
     "_version.py:BLK100",
     "docs/conf.py:E501",
     "tests/*.py:E731",
+    "src/sgnl/viz.py:E402,E501",
+    "src/sgnl/dags/segments.py:S310",
 ]
 exclude = [
     "build",
     "docs",
     "_version.py",
+    "examples",
 ]

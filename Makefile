@@ -1,4 +1,7 @@
 .PHONY: help
+
+all: format lint type-check test
+
 help :
 	@echo
 	@echo 'Commands:'
