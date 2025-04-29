@@ -650,11 +650,15 @@ class Itacacac(TSTransform):
             snrs0 = snr_ts[ifo]
             snrs1 = snrs0.view(snrs0.shape[0], snrs0.shape[1] // 2, 2, snrs0.shape[2])
             snr_pairs = snrs1[range(snrs1.shape[0]), max_locations_cpu]
-            sngl_peaks = snr_pairs[range(snr_pairs.shape[0]), :, max_peak_locations.astype(np.int32)]
+            sngl_peaks = snr_pairs[
+                range(snr_pairs.shape[0]), :, max_peak_locations.astype(np.int64)
+            ]
             real = sngl_peaks[:, 0]
             imag = sngl_peaks[:, 1]
             phase = torch.atan2(imag, real)
-            sngls[ifo]["phase"] = phase.to("cpu").numpy()[mask]
+            sngls[ifo]["phase"] = (
+                phase[mask].to("cpu").numpy().astype(np.float32, copy=False)
+            )
 
             if self.is_online:
                 # get snr snippet around the peak for the clustered coincs
@@ -677,7 +681,10 @@ class Itacacac(TSTransform):
             "clustered_template_ids": clustered_template_ids[mask],
             "clustered_template_durations": clustered_template_durations[mask],
             "clustered_ifo_combs": clustered_ifo_combs[mask].to("cpu").numpy(),
-            "clustered_snr": clustered_snr[mask].to("cpu").numpy(),
+            "clustered_snr": clustered_snr[mask]
+            .to("cpu")
+            .numpy()
+            .astype(np.float32, copy=False),
             "sngls": sngls,
             "snr_ts_snippet_clustered": snr_ts_snippet_clustered,
             "snr_ts_clustered": snr_ts_clustered,
@@ -697,6 +704,7 @@ class Itacacac(TSTransform):
                 maxsnr_id = np.unravel_index(
                     torch.argmax(snr).to("cpu").numpy(), snr.shape
                 )
+                # print('maxsnr_id', maxsnr_id.dtype)
                 max_snr = float(snr[maxsnr_id])
                 if max_snr >= self.snr_min:
                     time = triggers["peak_locations"][ifo][maxsnr_id].to("cpu").numpy()
@@ -818,6 +826,7 @@ class Itacacac(TSTransform):
                             clustered_coinc["snr_ts_snippet_clustered"][ifo][j]
                             .to("cpu")
                             .numpy()
+                            .astype(np.float32, copy=False)
                         )
                         bankid = clustered_coinc["clustered_bankids"][j]
                         autocorr_length = self.autocorrelation_lengths[bankid]
@@ -855,6 +864,7 @@ class Itacacac(TSTransform):
                             clustered_coinc["snr_ts_clustered"][ifo][j]
                             .to("cpu")
                             .numpy()
+                            .astype(np.float32, copy=False)
                         )
                         assert snr_ts_snippet.shape[-1] > 0, f"{ifo}"
                         snr_ts_snippet_out = lal.CreateCOMPLEX8TimeSeries(
