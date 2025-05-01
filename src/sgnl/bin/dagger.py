@@ -322,12 +322,14 @@ def main():
             svd_bins=svd_bins,
             root=config.paths.rank_dir,
         )
-        for inj_name in config.injections.filter:
+        for inj_name, inj_args in config.injections.filter.items():
+            min_mchirp, max_mchirp = map(float, inj_args["range"].split(":"))
+            svd_bins_inj = mchirp_range_to_bins(min_mchirp, max_mchirp, svd_stats)
             time_clustered_triggers_cache += DataCache.generate(
                 DataType.CLUSTERED_TRIGGERS,
                 config.all_ifos,
                 config.span,
-                svd_bins=svd_bins,
+                svd_bins=svd_bins_inj,
                 subtype=inj_name,
                 root=config.paths.rank_dir,
             )
@@ -335,7 +337,7 @@ def main():
         all_clustered_triggers_cache = (
             clustered_triggers_cache + clustered_inj_triggers_cache
         )
-        layer = layers.cluster_snr(
+        layer = layers.add_trigger_dbs(
             config.condor,
             config.filter,
             all_clustered_triggers_cache,

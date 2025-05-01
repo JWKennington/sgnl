@@ -687,7 +687,7 @@ def create_prior(
     return layer
 
 
-def cluster_snr(
+def add_trigger_dbs(
     condor_config, filter_config, trigger_cache, clustered_trigger_cache, column, window
 ):
     executable = "stillsuit-merge-reduce"
