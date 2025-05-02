@@ -12,15 +12,37 @@ family of libraries. The SGN family of libraries includes:
 
 The current dev environment is setup in 3 steps:
 
-1. Clone the repos
-2. (Optional) Create a new python environment
+1. (Optional) Create an environment with one of the following options:
+    - Writable singularity container
+    - Conda environment
+2. Clone the repos
 3. Install the packages
+
+## Prepare Isolated Python Environment
+
+### Prepare a Writable Singularity Container
+
+```bash
+singularity build --fix-perms --sandbox CONTAINER_NAME docker://containers.ligo.org/greg/sgnl:latest
+singularity run -B $TMPDIR --writable CONTAINER_NAME
+```
+
+### Prepare Isolated Python Environment
+
+Prepare a new python environment via your preferred method. Below is an example
+using conda.
+
+```bash
+conda create -n sgn-env python=3.10
+conda activate sgn-env
+```
 
 ## Clone repos
 
 The repos can be cloned using the below commands. It is recommended to clone
 all the repos to have the complete set of tools available, in the same
-directory.
+directory. If you are using a singularity container, a common pratice is to
+clone the repos under `CONTAINER_NAME/src`.
 
 ### Note: Git LFS and Test Data
 
@@ -44,16 +66,6 @@ git clone git@git.ligo.org:greg/sgn.git
 git clone git@git.ligo.org:greg/sgn-ts.git
 git clone git@git.ligo.org:greg/sgn-ligo.git
 git clone git@git.ligo.org:greg/sgnl.git
-```
-
-## Prepare Isolated Python Environment
-
-Prepare a new python environment via your preferred method. Below is an example
-using conda.
-
-```bash
-conda create -n sgn-env python=3.10
-conda activate sgn-env
 ```
 
 ## Install SGN Family of Libraries
@@ -100,6 +112,18 @@ package dependencies. The order is:
 - `sgn-ts`
 - `sgn-ligo`
 - `sgnl`
+
+### Install strike data
+
+If you are not using a singularity container, you will need to run the following to
+install pre-generated strike data.
+
+```bash
+strike-config set --path <path> --setup
+export STRIKE_DATA_PATH=<path>
+```
+
+The default path that strike looks for is `${HOME}/strike_data`.
 
 ## Test the Installation
 

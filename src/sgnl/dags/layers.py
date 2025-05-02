@@ -47,16 +47,17 @@ def create_submit_description(condor_config):
         "kill_sig": "15",
         "accounting_group": condor_config.accounting_group,
         "accounting_group_user": condor_config.accounting_group_user,
-        "getenv": condor_config.getenv,
     }
+
+    if condor_config.getenv:
+        submit_description["getenv"] = condor_config.getenv
+
     requirements = []
     environment = {}
 
     # Container options
     if "container" in condor_config:
-        # singularity_image = condor_config["container"]
-        # FIXME add singularity once we have a container
-        # submit_description["MY.SingularityImage"] = f'"{condor_config.container}"'
+        submit_description["MY.SingularityImage"] = f'"{condor_config.container}"'
         submit_description["transfer_executable"] = False
 
     # Scitoken options
