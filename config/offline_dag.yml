@@ -120,4 +120,4 @@ summary:
 condor:
   accounting-group: # FIXME
   accounting-group-user: # FIXME
-  getenv: True
+  container: # FIXME

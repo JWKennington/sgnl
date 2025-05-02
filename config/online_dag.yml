@@ -159,4 +159,4 @@ condor:
     INFLUX_USERNAME: # FIXME
     INFLUX_PASSWORD: # FIXME
     STRIKE_DATA_PATH: # FIXME
-  getenv: True
+  container: # FIXME
