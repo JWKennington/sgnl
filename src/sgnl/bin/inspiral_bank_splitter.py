@@ -262,7 +262,6 @@ def parse_command_line():
     for appx in arguments.approximant:
         mn, mx, appxstring = appx.split(":")
         approximants.append((float(mn), float(mx), appxstring))
-    arguments.approximant = approximants
 
     if arguments.num_banks:
         num_banks_str = arguments.num_banks
@@ -281,7 +280,7 @@ def parse_command_line():
     else:
         psd = None
         psdinterp = None
-    return arguments, psd, psdinterp
+    return arguments, psd, psdinterp, approximants
 
 
 def assign_approximant(mchirp, approximants):
@@ -311,6 +310,7 @@ def split_bank(
     instrument=None,
     output_path=None,
     approximants=None,
+    arguments=None
 ):
 
     # load or generate svd metadata
@@ -374,13 +374,12 @@ def split_bank(
                 (0.0, 0.0, row.spin2z),
             )(psd)[0]
 
-    # FIXME
-    # process = ligolw_process.register_to_xmldoc(
-    #    xmldoc,
-    #    program = "sgnl_bank_splitter",
-    #    paramdict = arguments.__dict__,
-    #    comment = "Assign template IDs"
-    # )
+    process = ligolw_process.register_to_xmldoc(
+       xmldoc,
+       program = "sgnl_bank_splitter",
+       paramdict = arguments.__dict__,
+       comment = "Assign template IDs"
+    )
     if output_full_bank_file is not None:
         ligolw_utils.write_filename(xmldoc, output_full_bank_file, verbose=verbose)
 
@@ -508,13 +507,12 @@ def split_bank(
             lw.appendChild(sngl_inspiral_table)
             # overwrite approximant to store in process table
             approximant = approximant
-            # paramdict = dict(**__dict__, **{"clipleft": clipleft,
-            # "clipright": clipright, "bank-id": "%d_%d" % (n,m)}) # FIXME
-            # store the process params
+            paramdict = dict(**arguments.__dict__, **{"clipleft": clipleft,
+            "clipright": clipright, "bank-id": "%d_%d" % (n,m)})
             process = ligolw_process.register_to_xmldoc(
                 xmldoc,
                 program="sgnl-inspiral-bank-splitter",
-                paramdict={},
+                paramdict=paramdict,
                 comment="Split bank into smaller banks for SVD",
             )
             for row in rows:
@@ -633,7 +631,7 @@ def split_bank(
 
 
 def main():
-    arguments, psd, psdinterp = parse_command_line()
+    arguments, psd, psdinterp, approximants = parse_command_line()
     split_bank(
         bank_name=arguments.bank_name,
         stats_file=arguments.stats_file,
@@ -653,7 +651,8 @@ def main():
         num_banks=arguments.num_banks,
         instrument=arguments.instrument,
         output_path=arguments.output_path,
-        approximants=arguments.approximant,
+        approximants=approximants,
+        arguments=arguments
     )
 
 
