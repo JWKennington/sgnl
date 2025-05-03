@@ -109,7 +109,24 @@ def main():
         )
 
     elif args.workflow == "svd":
-        pass
+        split_bank_cache = DataCache.find(
+            DataType.SPLIT_BANK, svd_bins="*", subtype="*", root=config.paths.input_data
+        )
+        median_psd_cache = DataCache.find(
+            DataType.MEDIAN_PSD, root=config.paths.input_data
+        )
+
+        svd_bins, svd_stats = load_svd_options(config.svd.option_file, config.svd)
+        svd_cache = DataCache.generate(
+            DataType.SVD_BANK,
+            config.ifos,
+            config.span,
+            svd_bins=svd_bins,
+            root=config.paths.input_data,
+        )
+
+
+        dag.attach(layers.svd_bank(config.svd, config.condor, list(sorted(config.all_ifos)), split_bank_cache, median_psd_cache, svd_cache, svd_bins, svd_stats))
 
     elif args.workflow == "filter":
         if not config.paths.filter_dir:
