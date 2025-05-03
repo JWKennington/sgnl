@@ -505,10 +505,10 @@ def split_bank(
             lw = xmldoc.appendChild(ligolw.LIGO_LW())
             sngl_inspiral_table = lsctables.New(lsctables.SnglInspiralTable)
             lw.appendChild(sngl_inspiral_table)
-            # overwrite approximant to store in process table
-            approximant = approximant
             paramdict = dict(**arguments.__dict__, **{"clipleft": clipleft,
             "clipright": clipright, "bank-id": "%d_%d" % (n,m)})
+            # overwrite approximant to store in process table
+            paramdict['approximant'] = approximant
             process = ligolw_process.register_to_xmldoc(
                 xmldoc,
                 program="sgnl-inspiral-bank-splitter",
