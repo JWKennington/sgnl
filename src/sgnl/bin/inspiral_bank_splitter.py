@@ -310,7 +310,7 @@ def split_bank(
     instrument=None,
     output_path=None,
     approximants=None,
-    arguments=None
+    arguments=None,
 ):
 
     # load or generate svd metadata
@@ -375,10 +375,10 @@ def split_bank(
             )(psd)[0]
 
     process = ligolw_process.register_to_xmldoc(
-       xmldoc,
-       program = "sgnl_bank_splitter",
-       paramdict = arguments.__dict__,
-       comment = "Assign template IDs"
+        xmldoc,
+        program="sgnl_bank_splitter",
+        paramdict=arguments.__dict__,
+        comment="Assign template IDs",
     )
     if output_full_bank_file is not None:
         ligolw_utils.write_filename(xmldoc, output_full_bank_file, verbose=verbose)
@@ -505,10 +505,16 @@ def split_bank(
             lw = xmldoc.appendChild(ligolw.LIGO_LW())
             sngl_inspiral_table = lsctables.New(lsctables.SnglInspiralTable)
             lw.appendChild(sngl_inspiral_table)
-            paramdict = dict(**arguments.__dict__, **{"clipleft": clipleft,
-            "clipright": clipright, "bank-id": "%d_%d" % (n,m)})
+            paramdict = dict(
+                **arguments.__dict__,
+                **{
+                    "clipleft": clipleft,
+                    "clipright": clipright,
+                    "bank-id": "%d_%d" % (n, m),
+                },
+            )
             # overwrite approximant to store in process table
-            paramdict['approximant'] = approximant
+            paramdict["approximant"] = approximant
             process = ligolw_process.register_to_xmldoc(
                 xmldoc,
                 program="sgnl-inspiral-bank-splitter",
@@ -652,7 +658,7 @@ def main():
         instrument=arguments.instrument,
         output_path=arguments.output_path,
         approximants=approximants,
-        arguments=arguments
+        arguments=arguments,
     )
 
 
