@@ -12,13 +12,13 @@ family of libraries. The SGN family of libraries includes:
 
 The current dev environment is setup in 3 steps:
 
-1. (Optional) Create an environment with one of the following options:
+1. (Optional) Prepare an environment with one of the following options:
     - Writable singularity container
     - Conda environment
 2. Clone the repos
 3. Install the packages
 
-## Prepare Isolated Python Environment
+## Prepare Environment
 
 ### Prepare a Writable Singularity Container
 
@@ -54,14 +54,13 @@ the test data.
 ### Clone the Repos in Order
 
 Clone the repos in the order listed below. The first two are only required for
-the `sgn-ligo` library.
+the `sgnl` library.
 
 ```bash
-# First two only required for SGNL/SGN-LIGO
+# First two only required for SGNL
 git clone git@git.ligo.org:greg/strike.git
 git clone git@git.ligo.org:greg/stillsuit.git
 
-# Following are required for all
 git clone git@git.ligo.org:greg/sgn.git
 git clone git@git.ligo.org:greg/sgn-ts.git
 git clone git@git.ligo.org:greg/sgn-ligo.git
@@ -72,7 +71,7 @@ git clone git@git.ligo.org:greg/sgnl.git
 
 Install the SGN family of libraries using the below command in each
 respective directory, in the order listed below. To get all development
-dependencies, use the `[dev]` tag on the sgn* packages when using the local
+dependencies, use the `[dev]` tag on the sgn\* packages when using the local
 editable pip install `pip install -e .`. Specific commands
 are given below, that assume all repositories have been cloned into a common
 parent directory, which is the cwd at the beginning of the below.
