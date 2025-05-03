@@ -158,10 +158,10 @@ class templates_workspace:
     FIR_WHITENER: bool = 0
 
     def __post_init__(self):
-        if self.fhigh is None:
-            self.fhigh = self.sample_rate_max / 2.0
         if self.sample_rate_max is None:
             self.sample_rate_max = max(self.time_slices["rate"])
+        if self.fhigh is None:
+            self.fhigh = self.sample_rate_max / 2.0
         if self.duration is None:
             self.duration = max(self.time_slices["end"])
         if self.length_max is None:

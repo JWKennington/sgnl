@@ -37,7 +37,10 @@ lsctables.use_in(DefaultContentHandler)
 
 
 # FIXME do we want to hardcode the program?
-def read_approximant(xmldoc, programs=("gstlal_bank_splitter",)):
+# FIXME Remove gstlal_bank_splitter once we're not longer using gstlal
+def read_approximant(
+    xmldoc, programs=("gstlal_bank_splitter", "sgnl-inspiral-bank-splitter")
+):
     process_ids = set()
     for program in programs:
         process_ids |= lsctables.ProcessTable.get_table(xmldoc).get_ids_by_program(
@@ -341,7 +344,7 @@ def build_bank(
     bank_sngl_table = lsctables.SnglInspiralTable.get_table(bank_xmldoc)
     # FIXME Do we want to hardcode the program here?
     (approximant,) = ligolw_process.get_process_params(
-        bank_xmldoc, "gstlal_bank_splitter", "--approximant"
+        bank_xmldoc, "sgnl-inspiral-bank-splitter", "--approximant"
     )
     fhigh = check_ffinal_and_find_max_ffinal(bank_xmldoc)
     flow = cal_higher_f_low(bank_sngl_table, fhigh, flow, approximant, max_duration)
