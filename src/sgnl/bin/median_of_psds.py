@@ -34,13 +34,12 @@ def parse_command_line():
     parser.add_argument(
         "--input-files",
         action="append",
-        nargs="+",
         help="Provide the file names of the LIGO light-weight XML PSD input files"
         " *{xml, xml.gz}",
     )
 
     options = parser.parse_args()
-    filenames = options.input_files[0]
+    filenames = options.input_files
     if options.input_cache:
         filenames += [CacheEntry(line).url for line in open(options.input_cache)]
 
