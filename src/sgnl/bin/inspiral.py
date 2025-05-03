@@ -978,8 +978,8 @@ def inspiral(
             else:
                 HTTPControl.port = "5%s" % job_tag[:4]
         HTTPControl.tag = analysis_tag
-        HTTPControl.registry_file = "%s_registry.txt" % job_tag
-        with SnapShotControl():
+        registry_file = "%s_registry.txt" % job_tag
+        with SnapShotControl(registry_file=registry_file):
             pipeline.run()
     else:
         pipeline.run()

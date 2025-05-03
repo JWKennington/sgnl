@@ -278,10 +278,10 @@ def main():
     port = 40000  # FIXME: do we use other ports??
     HTTPControl.port = port
     HTTPControl.tag = options.tag
-    HTTPControl.registry_file = "sgnl_trigger_counter_registry.txt"
     HTTPControl.get_queues["trigger_counter"] = Queue(1)
     HTTPControl.post_queues["trigger_counter"] = Queue(1)
-    with HTTPControl() as sgn_control:
+    registry_file = "sgnl_trigger_counter_registry.txt"
+    with HTTPControl(registry_file=registry_file) as sgn_control:
         ZLC = ZeroLagCounts(
             kafka_server=options.kafka_server,
             logger=logger,
