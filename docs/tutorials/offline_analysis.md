@@ -4,7 +4,7 @@ This document describes how to set up an offline CBC analysis with SGNL.
 
 ## Prepare conda env
 
-Follow the [installation guide](../install.md) and make a singularity container.
+Follow the [installation guide](../install.md) and make a **singularity container**.
 
 ## Prepare working directory
 
@@ -24,7 +24,7 @@ In your working directory, copy over the following files from the repo
 Workflows can be created by:
 
 ```bash
-sgnl-dagger -c <offline config file> -w <workflow>
+singularity exec CONTAINER_NAME sgnl-dagger -c <offline config file> -w <workflow>
 ``` 
 
 Currently the supported offline workflows are:

@@ -27,7 +27,7 @@ nav:
       - sim_page: api/scripts/sim_page.md
     - Transforms:
       - Horizon: api/transforms/horizon.md
-      - ItACACAC: api/transforms/itacacac.md
+      - Itacacac: api/transforms/itacacac.md
       - LLOID: api/transforms/lloid.md
       - LLOIDCorrelate: api/transforms/lloid_correlate.md
       - Strike: api/transforms/strike.md
