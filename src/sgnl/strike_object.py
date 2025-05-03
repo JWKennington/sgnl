@@ -462,7 +462,7 @@ class StrikeObject:
             counts_by_template_id[tid] += count
 
         # reset the counter
-        self.counts_by_template_id_counter[:] = 0
+        self.counts_by_template_id_counter[ids] = 0
 
     def time_key(self, time):
         size = 10  # granularity for tracking counts
