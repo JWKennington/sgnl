@@ -67,6 +67,10 @@ def parse_command_line(args: list[str] = None) -> argparse.Namespace:
 def main():
     args = parse_command_line()
     config = build_config(args.config, args.dag_dir)
+    svd_bins, svd_stats = load_svd_options(config.svd.option_file, config.svd)
+    max_duration = max(svd_bin["max_dur"] for svd_bin in svd_stats.bins.values())
+    filter_start_pad = 16 * config.psd.fft_length + max_duration
+    create_time_bins(config, start_pad=filter_start_pad)
 
     if args.dag_name:
         dag_name = args.dag_name
@@ -116,7 +120,6 @@ def main():
             DataType.MEDIAN_PSD, root=config.paths.input_data
         )
 
-        svd_bins, svd_stats = load_svd_options(config.svd.option_file, config.svd)
         svd_cache = DataCache.generate(
             DataType.SVD_BANK,
             config.ifos,
@@ -138,12 +141,6 @@ def main():
         svd_bank_cache = DataCache.find(
             DataType.SVD_BANK, root=config.paths.input_data, svd_bins="*"
         )
-
-        svd_bins, svd_stats = load_svd_options(config.svd.option_file, config.svd)
-
-        max_duration = max(svd_bin["max_dur"] for svd_bin in svd_stats.bins.values())
-        filter_start_pad = 16 * config.psd.fft_length + max_duration
-        create_time_bins(config, start_pad=filter_start_pad)
 
         lr_cache = DataCache.generate(
             DataType.LIKELIHOOD_RATIO,
@@ -213,12 +210,6 @@ def main():
         svd_bank_cache = DataCache.find(
             DataType.SVD_BANK, root=config.paths.input_data, svd_bins="*"
         )
-
-        svd_bins, svd_stats = load_svd_options(config.svd.option_file, config.svd)
-
-        max_duration = max(svd_bin["max_dur"] for svd_bin in svd_stats.bins.values())
-        filter_start_pad = 16 * config.psd.fft_length + max_duration
-        create_time_bins(config, start_pad=filter_start_pad)
 
         trigger_cache = DataCache(DataType.TRIGGERS)
 
@@ -292,8 +283,6 @@ def main():
             svd_bins="*",
             subtype="*",
         )
-
-        svd_bins, svd_stats = load_svd_options(config.svd.option_file, config.svd)
 
         prior_cache = DataCache.generate(
             DataType.PRIOR_LIKELIHOOD_RATIO,
