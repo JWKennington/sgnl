@@ -24,7 +24,7 @@ The current dev environment is setup in 3 steps:
 
 ```bash
 singularity build --fix-perms --sandbox CONTAINER_NAME docker://containers.ligo.org/greg/sgnl:latest
-singularity run -B $TMPDIR --writable CONTAINER_NAME
+singularity run --writable CONTAINER_NAME
 ```
 
 ### Prepare Isolated Python Environment
