@@ -22,7 +22,7 @@ import sys
 
 from ezdag import DAG
 
-from sgnl.bin import inspiral_bank_splitter
+from sgnl.bin import inspiral_bank_splitter, inspiral_set_svdbin_option
 from sgnl.dags import layers
 from sgnl.dags.config import build_config, create_time_bins
 from sgnl.dags.util import DataCache, DataType, load_svd_options, mchirp_range_to_bins
@@ -119,6 +119,8 @@ def main():
                 "approximants": config.svd.approximant
             },  # argument dict needs the approx strings
         )
+
+        inspiral_set_svdbin_option.set_svdbin_option(config)
         return
 
     svd_bins, svd_stats = load_svd_options(config.svd.option_file, config.svd)
