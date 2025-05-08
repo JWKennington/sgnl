@@ -4,6 +4,7 @@ nav:
   - Home: index.md
   - Installation: install.md
   - Tutorials:
+    - Online CBC Analysis: tutorials/online_analysis.md
     - Offline CBC Analysis: tutorials/offline_analysis.md
   - User Guide:
     - Key Concepts: user-guide/concepts.md

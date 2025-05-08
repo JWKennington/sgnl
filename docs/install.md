@@ -10,24 +10,29 @@ family of libraries. The SGN family of libraries includes:
 
 ## Overview
 
-The current dev environment is setup in 3 steps:
+The current dev environment can be setup in 2 ways:
 
-1. (Optional) Prepare an environment with one of the following options:
-    - Writable singularity container
-    - Conda environment
-2. Clone the repos
-3. Install the packages
+1. Singularity container
+2. Isolated Python Environment
+    1. Prepare conda env
+    2. Clone the repos
+    3. Install the packages
 
-## Prepare Environment
+## Singularity Container
 
-### Prepare a Writable Singularity Container
+The sgn\* packages and their dependencies are pre-installed in the container.
 
 ```bash
 singularity build --fix-perms --sandbox CONTAINER_NAME docker://containers.ligo.org/greg/sgnl:latest
 singularity run --writable CONTAINER_NAME
 ```
 
-### Prepare Isolated Python Environment
+The sgn\* packages are cloned under `CONTAINER_NAME/src`, enter each repo and do `git pull`
+to pull new changes.
+
+## Isolated Python Environment
+
+### Prepare conda env
 
 Prepare a new python environment via your preferred method. Below is an example
 using conda.
@@ -37,21 +42,20 @@ conda create -n sgn-env python=3.10
 conda activate sgn-env
 ```
 
-## Clone repos
+### Clone repos
 
 The repos can be cloned using the below commands. It is recommended to clone
 all the repos to have the complete set of tools available, in the same
-directory. If you are using a singularity container, a common pratice is to
-clone the repos under `CONTAINER_NAME/src`.
+directory.
 
-### Note: Git LFS and Test Data
+#### Note: Git LFS and Test Data
 
 The `sgnl` library uses git-lfs to store test data. To download the test data
 files, install `git-lfs` and run `git lfs install`. If you have already cloned
 the repos, you can run `git lfs pull` in the respective directories to download
 the test data.
 
-### Clone the Repos in Order
+#### Clone the Repos in Order
 
 Clone the repos in the order listed below. The first two are only required for
 the `sgnl` library.
@@ -67,7 +71,7 @@ git clone git@git.ligo.org:greg/sgn-ligo.git
 git clone git@git.ligo.org:greg/sgnl.git
 ```
 
-## Install SGN Family of Libraries
+### Install SGN Family of Libraries
 
 Install the SGN family of libraries using the below command in each
 respective directory, in the order listed below. To get all development
@@ -112,17 +116,21 @@ package dependencies. The order is:
 - `sgn-ligo`
 - `sgnl`
 
-### Install strike data
+#### Install strike data
 
-If you are not using a singularity container, you will need to run the following to
-install pre-generated strike data.
+If you are not using a singularity container, you will need to install pre-generated
+strike data. The default path is `strike/data`. To install into the default path:
+
+```bash
+strike-config set --setup
+```
+
+To install into a custom path:
 
 ```bash
 strike-config set --path <path> --setup
 export STRIKE_DATA_PATH=<path>
 ```
-
-The default path that strike looks for is `${HOME}/strike_data`.
 
 ## Test the Installation
 
