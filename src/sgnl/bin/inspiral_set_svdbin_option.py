@@ -157,9 +157,7 @@ def svd_bin_to_dtdphi_file(config, svd_bin, stats_bin, aggregate="mean"):
     return dtdphi_file
 
 
-def main():
-    args = parse_command_line()
-    config = build_config(args.config, args.dag_dir)
+def set_svdbin_option(config):
     _, svd_stats = load_svd_options(config.svd.option_file, config.svd)
 
     # set up autocorrelation mapping
@@ -209,3 +207,13 @@ def main():
 
     with open(config.svd.option_file, "w") as jsf:
         jsf.write(json.dumps(svd_stats, sort_keys=True, indent=4))
+
+
+def main():
+    args = parse_command_line()
+    config = build_config(args.config, args.dag_dir)
+    set_svdbin_option(config)
+
+
+if __name__ == "__main__":
+    main()

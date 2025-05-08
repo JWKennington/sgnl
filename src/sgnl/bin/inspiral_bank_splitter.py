@@ -290,6 +290,14 @@ def assign_approximant(mchirp, approximants):
     raise ValueError("Valid approximant not given for this chirp mass")
 
 
+def split_approximant_strings(approximant_strs):
+    approximants = []
+    for appx in approximant_strs:
+        mn, mx, appxstring = appx.split(":")
+        approximants.append((float(mn), float(mx), appxstring))
+    return approximants
+
+
 def split_bank(
     bank_name,
     stats_file,
@@ -310,8 +318,11 @@ def split_bank(
     instrument=None,
     output_path=None,
     approximants=None,
-    arguments=None,
+    argument_dict=None,
 ):
+
+    # make sure output_path exists
+    os.makedirs(output_path, exist_ok=True)
 
     # load or generate svd metadata
     if os.path.exists(stats_file):
@@ -377,7 +388,7 @@ def split_bank(
     process = ligolw_process.register_to_xmldoc(
         xmldoc,
         program="sgnl_bank_splitter",
-        paramdict=arguments.__dict__,
+        paramdict=argument_dict,
         comment="Assign template IDs",
     )
     if output_full_bank_file is not None:
@@ -506,7 +517,7 @@ def split_bank(
             sngl_inspiral_table = lsctables.New(lsctables.SnglInspiralTable)
             lw.appendChild(sngl_inspiral_table)
             paramdict = dict(
-                **arguments.__dict__,
+                argument_dict,
                 **{
                     "clipleft": clipleft,
                     "clipright": clipright,
@@ -658,7 +669,7 @@ def main():
         instrument=arguments.instrument,
         output_path=arguments.output_path,
         approximants=approximants,
-        arguments=arguments,
+        argument_dict=arguments.__dict__,
     )
 
 
