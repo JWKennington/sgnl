@@ -321,6 +321,9 @@ def split_bank(
     argument_dict=None,
 ):
 
+    # make sure output_path exists
+    os.makedirs(output_path, exist_ok=True)
+
     # load or generate svd metadata
     if os.path.exists(stats_file):
         with open(stats_file, "r") as f:
