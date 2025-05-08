@@ -22,6 +22,7 @@ import sys
 
 from ezdag import DAG
 
+from sgnl.bin import inspiral_bank_splitter
 from sgnl.dags import layers
 from sgnl.dags.config import build_config, create_time_bins
 from sgnl.dags.util import DataCache, DataType, load_svd_options, mchirp_range_to_bins
@@ -35,10 +36,17 @@ def parse_command_line(args: list[str] = None) -> argparse.Namespace:
         description="Generate a sgnl dag from a config file"
     )
     parser.add_argument(
+        "-i",
+        "--init",
+        action="store_true",
+        help="Run initialization steps needed before making a dag. Cannot be "
+        "provided at same time as --workflow.",
+    )
+    parser.add_argument(
         "-c", "--config", type=str, required=True, help="The config file to load"
     )
     parser.add_argument(
-        "-w", "--workflow", type=str, required=True, help="The type of dag to generate"
+        "-w", "--workflow", type=str, help="The type of dag to generate"
     )
     parser.add_argument(
         "--dag-dir",
@@ -61,12 +69,58 @@ def parse_command_line(args: list[str] = None) -> argparse.Namespace:
                 " will be appended to the file name automatically."
             )
 
+    if args.init is True and args.workflow is not None:
+        raise ValueError("Cannot specify both --init and --workflow.")
+    elif args.init is False and args.workflow is None:
+        raise ValueError("Must specify either --init or --workflow.")
+
     return args
 
 
 def main():
     args = parse_command_line()
     config = build_config(args.config, args.dag_dir)
+    if args.init:
+        # NOTE bank_name, output_full_bank_file, psd, psd_xml, and
+        # psdinterp bank-splitter options are currently not implemented
+        # options here. User will need to manually run bank splitter for
+        # this functionality at this time
+        arguments = {
+            "bank_name": None,
+            "f_final": config.svd.max_f_final,
+            "f_low": config.svd.f_low,
+            "filename": config.paths.template_bank,
+            "group_by_chi": (
+                config.svd.num_chi_bins if config.svd.sort_by == "chi" else None
+            ),
+            "group_by_mu": (
+                config.svd.num_mu_bins if config.svd.sort_by == "mu" else None
+            ),
+            "instrument": config.instruments,
+            "n": config.svd.num_split_templates,
+            "num_banks": (
+                config.svd.num_banks
+                if isinstance(config.svd.num_banks, list)
+                else [config.svd.num_banks]
+            ),
+            "output_path": os.path.join(config.paths.input_data, "split_bank"),
+            "overlap": config.svd.overlap,
+            "sort_by": config.svd.sort_by,
+            "stats_file": config.svd.option_file,
+            "verbose": True,
+        }
+        inspiral_bank_splitter.split_bank(
+            **arguments,
+            approximants=inspiral_bank_splitter.split_approximant_strings(
+                config.svd.approximant
+            ),
+            argument_dict=arguments
+            | {
+                "approximants": config.svd.approximant
+            },  # argument dict needs the approx strings
+        )
+        return
+
     svd_bins, svd_stats = load_svd_options(config.svd.option_file, config.svd)
     max_duration = max(svd_bin["max_dur"] for svd_bin in svd_stats.bins.values())
     filter_start_pad = 16 * config.psd.fft_length + max_duration
@@ -128,8 +182,18 @@ def main():
             root=config.paths.input_data,
         )
 
-
-        dag.attach(layers.svd_bank(config.svd, config.condor, list(sorted(config.all_ifos)), split_bank_cache, median_psd_cache, svd_cache, svd_bins, svd_stats))
+        dag.attach(
+            layers.svd_bank(
+                config.svd,
+                config.condor,
+                list(sorted(config.all_ifos)),
+                split_bank_cache,
+                median_psd_cache,
+                svd_cache,
+                svd_bins,
+                svd_stats,
+            )
+        )
 
     elif args.workflow == "filter":
         if not config.paths.filter_dir:
