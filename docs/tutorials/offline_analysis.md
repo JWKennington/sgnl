@@ -2,9 +2,15 @@
 
 This document describes how to set up an offline CBC analysis with SGNL.
 
-## Prepare conda env
+## Prepare container
 
 Follow the [installation guide](../install.md) and make a **singularity container**.
+
+### Build sif container
+
+```bash
+singularity build CONTAINER_NAME.sif CONTAINER_NAME
+```
 
 ## Prepare working directory
 
@@ -13,7 +19,8 @@ In your working directory, copy over the following files from the repo
 1. `config/offline_dag.yml`:
 
     This is the config file for generating the offline analysis workflow.
-    Modify the config file options to setup the configuration.
+    Modify the config file options to setup the configuration. Note that
+    the `container:` field shoud be the `sif` container.
 
 2. `config/cbc_db.yaml`:
 

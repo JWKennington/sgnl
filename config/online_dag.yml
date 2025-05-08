@@ -152,11 +152,14 @@ condor:
   transfer_files: false
   accounting-group: # FIXME
   accounting-group-user: # FIXME
+  directives:
+    use_oauth_services: # FIXME
+    igwn_oauth_options: # FIXME
   environment:
     PYTHONUNBUFFERED: 1
     HDF5_USE_FILE_LOCKING: 'FALSE'
-    # X509_USER_PROXY:
+    BEARER_TOKEN_FILE: # FIXME
     INFLUX_USERNAME: # FIXME
     INFLUX_PASSWORD: # FIXME
-    STRIKE_DATA_PATH: # FIXME
+    # STRIKE_DATA_PATH: only set this if you are not using a container
   container: # FIXME
