@@ -176,7 +176,16 @@ def median_psd(psd_config, condor_config, ref_psd_cache, median_psd_cache):
     return layer
 
 
-def svd_bank(svd_config, condor_config, all_ifos, split_bank_cache, median_psd_cache, svd_cache, svd_bins, svd_stats):
+def svd_bank(
+    svd_config,
+    condor_config,
+    all_ifos,
+    split_bank_cache,
+    median_psd_cache,
+    svd_cache,
+    svd_bins,
+    svd_stats,
+):
     executable = "sgnl-inspiral-svd-bank"
     resource_requests = {
         "request_cpus": 1,
@@ -200,8 +209,8 @@ def svd_bank(svd_config, condor_config, all_ifos, split_bank_cache, median_psd_c
     for (ifo, svd_bin), svd_banks in svd_cache.groupby("ifo", "bin").items():
 
         # grab sub-bank specific configuration if available
-        if "bank_name" in svd_stats['bins'][svd_bin]:
-            bank_name = svd_stats['bins'][svd_bin]["bank_name"]
+        if "bank_name" in svd_stats["bins"][svd_bin]:
+            bank_name = svd_stats["bins"][svd_bin]["bank_name"]
             svd_config = svd_config.sub_banks[bank_name]
         else:
             svd_config = svd_config
@@ -214,23 +223,23 @@ def svd_bank(svd_config, condor_config, all_ifos, split_bank_cache, median_psd_c
             Option("samples-max-256", svd_config.samples_max_256),
             Option("samples-max", svd_config.samples_max),
             Option("svd-tolerance", svd_config.tolerance),
-            Option("autocorrelation-length", svd_stats['bins'][svd_bin]["ac_length"]),
+            Option("autocorrelation-length", svd_stats["bins"][svd_bin]["ac_length"]),
         ]
         if "max_duration" in svd_config:
             arguments.append(Option("max-duration", svd_config.max_duration))
         if "sample_rate" in svd_config:
             arguments.append(Option("sample-rate", svd_config.sample_rate))
         # FIXME figure out where this option should live
-        #if 'use_bankchisq' in config.rank and config.rank.use_bankchisq:
+        # if 'use_bankchisq' in config.rank and config.rank.use_bankchisq:
         #    arguments.append(Option("use-bankchisq"))
 
         layer += Node(
-            arguments = arguments,
-            inputs = [
+            arguments=arguments,
+            inputs=[
                 Option("reference-psd", median_psd_cache.files),
                 Option("template-banks", sorted(split_banks[svd_bin].files)),
             ],
-            outputs = Option("write-svd", svd_banks.files)
+            outputs=Option("write-svd", svd_banks.files),
         )
 
     return layer
@@ -1214,6 +1223,9 @@ def filter_online(
         Option("analysis-tag", tag),
         Option("far-trials-factor", upload_config.far_trials_factor),
         Option("gracedb-far-threshold", upload_config.gracedb_far_threshold),
+        Option(
+            "gracedb-aggregator-far-threshold", upload_config.aggregator_far_threshold
+        ),
         Option("gracedb-group", upload_config.gracedb_group),
         Option("gracedb-search", upload_config.gracedb_search),
         Option("snapshot-interval", filter_config.snapshot_interval),
@@ -1392,6 +1404,9 @@ def injection_filter_online(
         Option("analysis-tag", tag),
         Option("far-trials-factor", upload_config.far_trials_factor),
         Option("gracedb-far-threshold", upload_config.gracedb_far_threshold),
+        Option(
+            "gracedb-aggregator-far-threshold", upload_config.aggregator_far_threshold
+        ),
         Option("gracedb-group", upload_config.gracedb_group),
         Option("gracedb-search", upload_config.inj_gracedb_search),
         Option("injections"),
