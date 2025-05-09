@@ -256,6 +256,15 @@ def parse_command_line():
         "upload to gracedb).",
     )
     group.add_argument(
+        "--gracedb-aggregator-far-threshold",
+        metavar="Hertz",
+        type=float,
+        default=3.84e-07,
+        help="False-alarm rate threshold for different aggregation methods for gracedb "
+        "uploads in Hertz (default 1/month). Below threshold: max snr, above "
+        "threshold: min far",
+    )
+    group.add_argument(
         "--gracedb-group",
         metavar="name",
         default="Test",
@@ -361,6 +370,7 @@ def inspiral(
     event_config: str = None,
     fake_sink: bool = False,
     far_trials_factor: float = 1.0,
+    gracedb_aggregator_far_threshold: float = 3.84e-07,
     gracedb_far_threshold: float = -1,
     gracedb_group: str = "Test",
     gracedb_label: list[str] = None,
@@ -730,6 +740,8 @@ def inspiral(
                         process_params=process_params,
                         output_kafka_server=output_kafka_server,
                         far_thresh=gracedb_far_threshold,
+                        aggregator_thresh=gracedb_aggregator_far_threshold,
+                        far_trials_factor=far_trials_factor,
                         gracedb_group=gracedb_group,
                         gracedb_pipeline=gracedb_pipeline,
                         gracedb_search=gracedb_search,
@@ -1029,6 +1041,7 @@ def main():
         event_config=options.event_config,
         fake_sink=options.fake_sink,
         far_trials_factor=options.far_trials_factor,
+        gracedb_aggregator_far_threshold=options.gracedb_aggregator_far_threshold,
         gracedb_far_threshold=options.gracedb_far_threshold,
         gracedb_group=options.gracedb_group,
         gracedb_label=options.gracedb_label,

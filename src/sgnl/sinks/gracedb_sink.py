@@ -31,6 +31,8 @@ class GraceDBSink(HTTPControlSinkElement):
     """
 
     far_thresh: float = -1
+    aggregator_thresh: float = 3.84e-07
+    far_trials_factor: int = 1
     output_kafka_server: str = None
     gracedb_service_url: str = None
     gracedb_group: str = "Test"
@@ -57,6 +59,7 @@ class GraceDBSink(HTTPControlSinkElement):
         self.events = None
         self.psds = {}
         self.state = {"far-threshold": self.far_thresh}
+        self.public_far_threshold = self.aggregator_thresh / self.far_trials_factor
         self.sngls_dict = {}
         for sub in self.template_sngls:
             for tid, sngl in sub.items():
@@ -103,11 +106,12 @@ class GraceDBSink(HTTPControlSinkElement):
         # send event data to kafka or gracedb
         if self.client and self.state["far-threshold"] >= 0:
 
-            event, trigs, snr_ts = min_far_event(
+            event, trigs, snr_ts = best_event(
                 self.events["event"].data,
                 self.events["trigger"].data,
                 self.events["snr_ts"].data,
                 self.state["far-threshold"],
+                self.public_far_threshold,
             )
             if event is not None:
                 xmldoc = event_trigs_to_coinc_xmldoc(
@@ -272,24 +276,37 @@ def publish_gracedb(client, xmldoc, group, pipeline, search, labels):
     print("Written Log:", log)
 
 
-def min_far_event(events, triggers, snr_ts, thresh):
+def best_event(events, triggers, snr_ts, thresh, opa_thresh):
     if not events:
         return None, None, None
-    min_far, min_ix = min(
+
+    # if there are events below opa threshold, pick max snr
+    _, best_ix = max(
         (
-            (e["combined_far"], n)
+            (e["network_snr"], n)
             for n, e in enumerate(events)
-            if e["combined_far"] is not None
+            if e["combined_far"] is not None and e["combined_far"] <= opa_thresh
         ),
         default=(None, None),
     )
-    if min_far is not None and min_far <= thresh:
-        return (
-            events[min_ix],
-            [t for t in triggers[min_ix] if t is not None],
-            snr_ts[min_ix],
+    if best_ix is None:
+        # otherwise pick min far
+        _, best_ix = min(
+            (
+                (e["combined_far"], n)
+                for n, e in enumerate(events)
+                if e["combined_far"] is not None and e["combined_far"] <= thresh
+            ),
+            default=(None, None),
         )
-    return None, None, None
+    if best_ix is None:
+        # no events below upload threshold
+        return None, None, None
+    return (
+        events[best_ix],
+        [t for t in triggers[best_ix] if t is not None],
+        snr_ts[best_ix],
+    )
 
 
 #
