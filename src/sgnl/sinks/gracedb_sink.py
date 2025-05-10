@@ -512,10 +512,12 @@ def event_trigs_to_coinc_xmldoc(
                 )
 
             trigs.extend(subthresh_trigs)
-            event["network_snr"] = sum(trig["snr"] ** 2 for trig in trigs) ** 0.5
-            event["time"] = min(trig["time"] for trig in trigs)
         except Exception as e:
             print(f"Subthreshold search failed with error:\n{e}")
+    event["network_snr_subthresh"] = sum(trig["snr"] ** 2 for trig in trigs) ** 0.5
+    event["time_subthresh"] = sorted((trig["ifo"], trig["time"]) for trig in trigs)[0][
+        1
+    ]
 
     for n, ifo in enumerate(analysis_ifos):
         time_slide_table[n].instrument = ifo
@@ -569,8 +571,8 @@ def event_trigs_to_coinc_xmldoc(
         coinc_inspiral_table[0],
         event,
         {
-            "time": "end",
-            "network_snr": "snr",
+            "time_subthresh": "end",
+            "network_snr_subthresh": "snr",
             "combined_far": "combined_far",
             "false_alarm_probability": "false_alarm_rate",
             "likelihood": None,
@@ -591,8 +593,8 @@ def event_trigs_to_coinc_xmldoc(
         coinc_event_table[0],
         event,
         {
-            "time": None,
-            "network_snr": None,
+            "time_subthresh": None,
+            "network_snr_subthresh": None,
             "combined_far": None,
         },
         {},
