@@ -1839,9 +1839,9 @@ def collect_metrics(
     heartbeat_metrics.append("marginalize_likelihoods_online_heartbeat")
     heartbeat_metrics.append("trigger_counter_heartbeat")
 
-    state_metrics = [
-        f"{prefix}{ifo}_strain_dropped" for ifo in ifos for prefix in topic_prefix
-    ]  # FIXME do we need this?
+    # state_metrics = [
+    #     f"{prefix}{ifo}_strain_dropped" for ifo in ifos for prefix in topic_prefix
+    # ]  # FIXME do we need this?
     usage_metrics = [f"{prefix}ram_history" for prefix in topic_prefix]
 
     latency_metrics = [
@@ -1858,7 +1858,7 @@ def collect_metrics(
             range_metrics,
             network_metrics,
             usage_metrics,
-            state_metrics,
+            # state_metrics,
             latency_metrics,
             heartbeat_metrics,
         )
