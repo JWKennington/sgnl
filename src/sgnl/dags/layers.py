@@ -6,6 +6,7 @@
 import itertools
 import os
 import shutil
+from math import ceil
 
 from ezdag import Argument, Layer, Node, Option
 
@@ -1887,7 +1888,14 @@ def collect_metrics(
     # set up partitioning
     # FIXME don't hard code the 1000
     max_agg_jobs = 1000
-    num_jobs = len(svd_bins)
+
+    if filter_config.group_svd_num:
+        num_jobs = ceil(len(svd_bins) / filter_config.group_svd_num)
+    elif filter_config.dynamic_group:
+        num_jobs = len(filter_config.dynamic_group.split(","))
+    else:
+        num_jobs = len(svd_bins)
+
     agg_job_bounds = list(range(0, num_jobs, max_agg_jobs))
     min_topics_per_job = 1
 
