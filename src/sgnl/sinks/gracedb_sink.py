@@ -60,7 +60,7 @@ class GraceDBSink(HTTPControlSinkElement):
         self.psds = {}
         self.state = {"far-threshold": self.far_thresh}
         self.public_far_threshold = (
-            self.aggregator_thresh / self.aggregator_far_trials_factor
+            self.aggregator_far_thresh / self.aggregator_far_trials_factor
         )
         self.sngls_dict = {}
         for sub in self.template_sngls:
