@@ -1226,6 +1226,10 @@ def filter_online(
         Option(
             "gracedb-aggregator-far-threshold", upload_config.aggregator_far_threshold
         ),
+        Option(
+            "gracedb-aggregator-far-trials-factor",
+            upload_config.aggregator_far_trials_factor,
+        ),
         Option("gracedb-group", upload_config.gracedb_group),
         Option("gracedb-search", upload_config.gracedb_search),
         Option("snapshot-interval", filter_config.snapshot_interval),
@@ -1406,6 +1410,10 @@ def injection_filter_online(
         Option("gracedb-far-threshold", upload_config.gracedb_far_threshold),
         Option(
             "gracedb-aggregator-far-threshold", upload_config.aggregator_far_threshold
+        ),
+        Option(
+            "gracedb-aggregator-far-trials-factor",
+            upload_config.aggregator_far_trials_factor,
         ),
         Option("gracedb-group", upload_config.gracedb_group),
         Option("gracedb-search", upload_config.inj_gracedb_search),

@@ -31,8 +31,8 @@ class GraceDBSink(HTTPControlSinkElement):
     """
 
     far_thresh: float = -1
-    aggregator_thresh: float = 3.84e-07
-    far_trials_factor: int = 1
+    aggregator_far_thresh: float = 3.84e-07
+    aggregator_far_trials_factor: int = 1
     output_kafka_server: str = None
     gracedb_service_url: str = None
     gracedb_group: str = "Test"
@@ -59,7 +59,9 @@ class GraceDBSink(HTTPControlSinkElement):
         self.events = None
         self.psds = {}
         self.state = {"far-threshold": self.far_thresh}
-        self.public_far_threshold = self.aggregator_thresh / self.far_trials_factor
+        self.public_far_threshold = (
+            self.aggregator_thresh / self.aggregator_far_trials_factor
+        )
         self.sngls_dict = {}
         for sub in self.template_sngls:
             for tid, sngl in sub.items():
