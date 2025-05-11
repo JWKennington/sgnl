@@ -151,7 +151,7 @@ class GraceDBSink(HTTPControlSinkElement):
                     )
 
                 # count tracker
-                gracedb_times = [event["time"] / 1e9]
+                gracedb_times = [event["time_subthresh"] / 1e9]
                 self.strike_object.store_counts(gracedb_times)
 
                 self.start_time = time.time()
@@ -577,7 +577,7 @@ def event_trigs_to_coinc_xmldoc(
             "false_alarm_probability": "false_alarm_rate",
             "likelihood": None,
         },
-        {"time": ns_to_gps},
+        {"time_subthresh": ns_to_gps},
     )
     coinc_inspiral_table[0].ifos = ",".join(sorted(found_ifos))
 
