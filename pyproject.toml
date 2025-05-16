@@ -23,7 +23,7 @@ dependencies = [
     "ligo-scald",
 ]
 
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     { name = "Chad Hanna", email = "crh184@psu.edu" },
     { name = "Yun-Jing Huang", email = "yzh5436@psu.edu" },
