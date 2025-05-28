@@ -15,6 +15,9 @@ dependencies = [
     "pandas",
     # LIGO dependencies
     "ligo-gracedb==2.14.1",
+    "lalsuite>=7.26",
+    "igwn-ligolw",
+    "python-ligo-lw",
     # SGN dependencies
     "sgn",
     "sgn-ts",
