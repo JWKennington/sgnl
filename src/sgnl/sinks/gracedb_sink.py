@@ -129,7 +129,9 @@ class GraceDBSink(HTTPControlSinkElement):
                 )
 
                 # add psd frequeny series
-                lal.series.make_psd_xmldoc(self.psds, xmldoc.childNodes[-1])
+                lal.series.make_psd_xmldoc(
+                    self.psds, xmldoc.childNodes[-1], encoding="base64"
+                )
 
                 if self.output_kafka_server:
                     publish_kafka(
@@ -561,7 +563,9 @@ def event_trigs_to_coinc_xmldoc(
 
         # Add snr time series
         ts = snr_ts[row.ifo]
-        snr_time_series_element = lalseries.build_COMPLEX8TimeSeries(ts)
+        snr_time_series_element = lalseries.build_COMPLEX8TimeSeries(
+            ts, encoding="base64"
+        )
         snr_time_series_element.appendChild(
             param.Param.from_pyvalue("event_id", row.event_id)
         )
