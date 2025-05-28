@@ -287,7 +287,9 @@ def best_event(events, triggers, snr_ts, thresh, opa_thresh):
         (
             (e["network_snr"], n)
             for n, e in enumerate(events)
-            if e["combined_far"] is not None and e["combined_far"] <= opa_thresh
+            if e["combined_far"] is not None
+            and e["combined_far"] > 0
+            and e["combined_far"] <= opa_thresh
         ),
         default=(None, None),
     )
@@ -297,7 +299,9 @@ def best_event(events, triggers, snr_ts, thresh, opa_thresh):
             (
                 (e["combined_far"], n)
                 for n, e in enumerate(events)
-                if e["combined_far"] is not None and e["combined_far"] <= thresh
+                if e["combined_far"] is not None
+                and e["combined_far"] > 0
+                and e["combined_far"] <= thresh
             ),
             default=(None, None),
         )

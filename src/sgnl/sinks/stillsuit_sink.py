@@ -1,24 +1,148 @@
 """A sink element to write triggers into a sqlite database."""
 
-# Copyright (C) 2024 Yun-Jing Huang
+# Copyright (C) 2024-2025 Yun-Jing Huang
 
 import os
 import socket
 from dataclasses import dataclass
+from queue import Empty
 from time import asctime
 from typing import Any, Sequence
 
 import stillsuit
 import yaml
 from ligo import segments
+from sgn.subprocess import Parallelize, ParallelizeSinkElement
 from sgnligo.base import now
 from sgnts.base import Offset
 
 from sgnl.control import SnapShotControlSinkElement
+from sgnl.strike_object import StrikeObject
+
+
+def init_config_row(table, extra=None):
+    out = {c["name"]: None for c in table["columns"] if not c["name"].startswith("__")}
+    if extra is not None:
+        out.update(extra)
+    return out
+
+
+def init_dbs(argdict):
+    bankids = argdict["bankids"]
+    config_name = argdict["config_name"]
+    filters = argdict["filters"]
+    process = argdict["process"]
+    process_params = argdict["process_params"]
+    sim = argdict["sim"]
+    ifos = argdict["ifos"]
+    dbs = {}
+    temp_segments = {}
+    for bankid in bankids:
+        print(f"{asctime()} Initialize a new db for bankid: {bankid}", flush=True)
+        dbs[bankid], temp_segments[bankid] = init_static(
+            ifos, config_name, process, process_params, filters[bankid], sim
+        )
+    return dbs, temp_segments
+
+
+def init_static(ifos, config_name, process_row, params, filters, sims=None):
+    process_row["start_time"] = int(now())
+
+    out = stillsuit.StillSuit(config=config_name, dbname=":memory:")
+    out.insert_static({"process_params": params})
+    out.insert_static({"filter": filters})
+    if sims is not None:
+        out.insert_static({"simulation": sims})
+
+    #
+    # Segments
+    #
+    temp_segments = segments.segmentlistdict(
+        {ifo: segments.segmentlist() for ifo in ifos}
+    )
+
+    return out, temp_segments
+
+
+def on_snapshot(
+    data,
+    temp_segments,
+    dbs,
+    ifos,
+    config_name,
+    config_segment,
+    process,
+    process_params,
+    filters,
+    sim,
+    shutdown,
+):
+    snapshot_data = data["snapshot"]
+    fn = snapshot_data["fn"]
+    bankid = snapshot_data["bankid"]
+    process["end_time"] = int(now())
+
+    # Insert segments
+    # FIXME: they don't have to be bank dependent if we switch to
+    # writing out all the banks at once
+    temp_segments[bankid].coalesce()
+    out_segments = []
+    for ifo, seg in temp_segments[bankid].items():
+        for segment in seg:
+            segment_row = init_config_row(config_segment)
+            segment_row["start_time"] = Offset.tons(segment[0])
+            segment_row["end_time"] = Offset.tons(segment[1])
+            segment_row["ifo"] = ifo
+            segment_row["name"] = "afterhtgate"
+            out_segments.append(segment_row)
+
+    # Write in-memory database to file
+    print(f"{asctime()} Writing out db {fn}...", flush=True)
+    dbs[bankid].insert_static({"segment": out_segments})
+    dbs[bankid].insert_static({"process": [process]})
+    dbs[bankid].to_file(fn)
+    dbs[bankid].db.close()
+
+    # Create a new db
+    dbs[bankid], temp_segments[bankid] = init_static(
+        ifos, config_name, process, process_params, filters[bankid], sim
+    )
+
+    if "in_lr_file" in snapshot_data and not shutdown:
+        # Update LRs for injection jobs here because they don't have
+        # snapshots in StrikeSink
+        print(f"{asctime()} StillSuitSink update assign lr: {bankid}")
+        in_lr_file = snapshot_data["in_lr_file"]
+        lr_dict = StrikeObject.on_snapshot_reload(in_lr_file)
+        lr_dict["bankid"] = bankid
+    else:
+        lr_dict = None
+    return lr_dict
+
+
+def insert_event(data, dbs):
+    event_dict = data["event_dict"]
+    for event, trigger in zip(event_dict["event"], event_dict["trigger"]):
+        # FIXME: make insert event skip bankid
+        bankid = event["bankid"]
+        dbs[bankid].insert_event(
+            {"event": event, "trigger": trigger},
+            ignore_cols={
+                "event": ["network_snr_subthresh", "time_subthresh", "bankid"],
+                "trigger": ["template_duration"],
+            },
+        )
+
+
+def append_segment(data, temp_segments):
+    seg_data = data["segment"]
+    for ifo, seg in seg_data.items():
+        for temp_segment in temp_segments.values():
+            temp_segment[ifo].append(segments.segment(*seg))
 
 
 @dataclass
-class StillSuitSink(SnapShotControlSinkElement):
+class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
     ifos: list = None
     config_name: str = None
     bankids_map: dict[str, list] = None
@@ -39,11 +163,12 @@ class StillSuitSink(SnapShotControlSinkElement):
     strike_object: int = None
 
     def __post_init__(self):
-        super().__post_init__()
         if self.config_name is None:
             raise ValueError("Must provide config_name")
         if not self.is_online and self.trigger_output is None:
             raise ValueError("Must provide trigger_output")
+
+        SnapShotControlSinkElement.__post_init__(self)
 
         self.tables = ["trigger", "event"]
         self.event_dict = {t: [] for t in self.tables}
@@ -54,23 +179,19 @@ class StillSuitSink(SnapShotControlSinkElement):
 
         if self.is_online:
             for bankid in self.bankids:
-                four_digit_id = "%04d" % int(bankid)
-
                 # FIXME: use job_tag?? but what to use with multi-bank mode?
                 if self.injections:
-                    four_digit_id = four_digit_id + "_inj"
+                    fn_bankid = bankid + "_inj"
                 else:
-                    four_digit_id = four_digit_id + "_noninj"
+                    fn_bankid = bankid + "_noninj"
 
-                self.add_snapshot_filename(
-                    "%s_SGNL_TRIGGERS" % four_digit_id, "sqlite.gz"
-                )
+                self.add_snapshot_filename("%s_SGNL_TRIGGERS" % fn_bankid, "sqlite.gz")
             self.register_snapshot()
 
         #
         # Process
         #
-        self.process_row = self.init_config_row(self.config["process"])
+        self.process_row = init_config_row(self.config["process"])
         self.process_row["ifos"] = ",".join(self.ifos)
         self.process_row["is_online"] = int(self.is_online)
         self.process_row["node"] = socket.gethostname()
@@ -89,14 +210,14 @@ class StillSuitSink(SnapShotControlSinkElement):
                     continue
                 elif isinstance(values, list):
                     for v in values:
-                        param_row = self.init_config_row(self.config["process_params"])
+                        param_row = init_config_row(self.config["process_params"])
                         param_row["param"] = name
                         param_row["program"] = self.program
                         param_row["value"] = str(v)
                         self.params.append(param_row)
                     continue
 
-                param_row = self.init_config_row(self.config["process_params"])
+                param_row = init_config_row(self.config["process_params"])
                 param_row["param"] = name
                 param_row["program"] = self.program
                 param_row["value"] = str(values)
@@ -109,7 +230,7 @@ class StillSuitSink(SnapShotControlSinkElement):
         if self.nsubbank_pretend:
             subbank = self.template_sngls[0]
             for template_id, sngl in subbank.items():
-                filter_row = self.init_config_row(self.config["filter"])
+                filter_row = init_config_row(self.config["filter"])
                 filter_row["_filter_id"] = template_id
                 filter_row["bank_id"] = int(self.subbankids[0].split("_")[0])
                 filter_row["subbank_id"] = int(self.subbankids[0].split("_")[1])
@@ -133,7 +254,7 @@ class StillSuitSink(SnapShotControlSinkElement):
             for i, subbank in enumerate(self.template_sngls):
                 for template_id, sngl in subbank.items():
                     bankid = self.subbankids[i].split("_")[0]
-                    filter_row = self.init_config_row(self.config["filter"])
+                    filter_row = init_config_row(self.config["filter"])
                     filter_row["_filter_id"] = template_id
                     filter_row["bank_id"] = int(bankid)
                     filter_row["subbank_id"] = int(self.subbankids[i].split("_")[1])
@@ -159,7 +280,7 @@ class StillSuitSink(SnapShotControlSinkElement):
         if self.injection_list is not None:
             self.sims = []
             for inj in self.injection_list:
-                sim_row = self.init_config_row(self.config["simulation"])
+                sim_row = init_config_row(self.config["simulation"])
                 sim_row["_simulation_id"] = inj.simulation_id
                 sim_row["coa_phase"] = inj.coa_phase
                 sim_row["distance"] = inj.distance
@@ -183,10 +304,28 @@ class StillSuitSink(SnapShotControlSinkElement):
                 sim_row["spin2z"] = inj.spin2z
                 sim_row["waveform"] = inj.waveform
                 self.sims.append(sim_row)
+        else:
+            self.sims = None
 
-        self.out = {}
-        for bankid in self.bankids:
-            self.init_static(bankid)
+        self.worker_argdict = {
+            "injections": self.injections,
+            "bankids": list(self.bankids),
+            "config_name": self.config_name,
+            "filters": self.filters,
+            "process": self.process_row,
+            "process_params": self.params,
+            "sim": None if self.injection_list is None else self.sims,
+            "config_segment": self.config["segment"],
+            "ifos": self.ifos,
+            "subproc_init": False,
+            "dbs": None,
+            "temp_segments": None,
+        }
+        ParallelizeSinkElement.__post_init__(self)
+
+        # FIXME Parallelize.enabled is only enabled once the
+        # pipeline starts, so delay initializing the dbs until later
+        self.init = False
 
     def get_username(self):
         try:
@@ -204,44 +343,65 @@ class StillSuitSink(SnapShotControlSinkElement):
         except (ImportError, KeyError):
             raise KeyError
 
-    def init_config_row(self, table, extra=None):
-        out = {
-            c["name"]: None for c in table["columns"] if not c["name"].startswith("__")
-        }
-        if extra is not None:
-            out.update(extra)
-        return out
+    def process_outqueue(self, data):
+        new_lr = data["new_lr"]
+        frankenstein = data["frankenstein"]
+        likelihood_ratio_upload = data["likelihood_ratio_upload"]
+        bankid = data["bankid"]
+        print(f"{asctime()} StillSuit Update dynamic", bankid, flush=True)
+        self.strike_object.update_dynamic(
+            bankid, frankenstein, likelihood_ratio_upload, new_lr
+        )
+
+    def get_state_from_queue(self):
+        try:
+            data = self.out_queue.get_nowait()
+            self.process_outqueue(data)
+        except Empty:
+            return
 
     def pull(self, pad, frame):
+        # FIXME Parallelize.enabled is only enabled once the
+        # pipeline starts, so delay initializing the dbs to here
+        # if not in subprocess mode
+        if not self.init and not Parallelize.enabled:
+            self.dbs, self.temp_segments = init_dbs(self.worker_argdict)
+            self.init = True
+
         if frame.EOS:
             self.mark_eos(pad)
 
         pad_name = self.rsnks[pad]
         if pad_name == self.itacacac_pad_name:
-            self.event_dict["trigger"] = frame.events["trigger"].data
-            self.event_dict["event"] = frame.events["event"].data
+            if frame.events["event"].data is not None:
+                data = {
+                    "event_dict": {
+                        "trigger": frame.events["trigger"].data,
+                        "event": frame.events["event"].data,
+                    }
+                }
+                if Parallelize.enabled:
+                    self.in_queue.put(data)
+                else:
+                    insert_event(data, self.dbs)
         else:
             for buf in frame:
                 if buf.data is not None:
-                    self.segments[self.segments_pad_map[pad_name]].append(
-                        segments.segment(frame.offset, frame.end_offset)
-                    )
+                    data = {
+                        "segment": {
+                            self.segments_pad_map[pad_name]: (
+                                frame.offset,
+                                frame.end_offset,
+                            )
+                        }
+                    }
+                    if Parallelize.enabled:
+                        self.in_queue.put(data)
+                    else:
+                        append_segment(data, self.temp_segments)
 
     def internal(self):
-        # check if there are empty buffers
-        if self.event_dict["event"] is not None:
-            for event, trigger in zip(
-                self.event_dict["event"], self.event_dict["trigger"]
-            ):
-                # FIXME: make insert event skip bankid
-                bankid = event["bankid"]
-                event.pop("bankid")
-                for trig in trigger:
-                    if trig is not None:
-                        trig.pop("template_duration")
-                self.out[bankid].insert_event({"event": event, "trigger": trigger})
-        self.event_dict = {t: [] for t in self.tables}
-
+        super().internal()
         if self.at_eos:
             if self.is_online:
                 for bankid in self.bankids:
@@ -251,66 +411,142 @@ class StillSuitSink(SnapShotControlSinkElement):
                         fn_bankid = bankid + "_noninj"
                     desc = "%s_SGNL_TRIGGERS" % fn_bankid
                     fn = self.snapshot_filenames(desc)
-                    self.on_snapshot(fn, bankid)
+                    sdict = {
+                        "snapshot": {
+                            "fn": fn,
+                            "bankid": bankid,
+                        }
+                    }
+                    if Parallelize.enabled:
+                        self.in_queue.put(sdict)
+                    else:
+                        lr_dict = on_snapshot(
+                            sdict,
+                            self.temp_segments,
+                            self.dbs,
+                            self.ifos,
+                            self.config_name,
+                            self.config["segment"],
+                            self.process_row,
+                            self.params,
+                            self.filters,
+                            self.sims,
+                            True,
+                        )
+                if Parallelize.enabled:
+                    if self.terminated.is_set():
+                        print("At EOS and subprocess is terminated")
+                    else:
+                        drained_outq = self.sub_process_shutdown(600)
+                        print("after shutdown", len(drained_outq))
             else:
                 for bankid, fn in self.trigger_output.items():
-                    self.on_snapshot(fn, bankid)
-
-        if self.is_online:
-            for i, bankid in enumerate(self.bankids):
-                if self.injections:
-                    fn_bankid = bankid + "_inj"
-                else:
-                    fn_bankid = bankid + "_noninj"
-                desc = "%s_SGNL_TRIGGERS" % fn_bankid
-                if self.snapshot_ready(desc):
-                    fn = self.snapshot_filenames(desc)
-                    self.on_snapshot(fn, bankid)
-                    self.init_static(bankid)
+                    sdict = {
+                        "snapshot": {
+                            "fn": fn,
+                            "bankid": bankid,
+                        }
+                    }
+                    lr_dict = on_snapshot(
+                        sdict,
+                        self.temp_segments,
+                        self.dbs,
+                        self.ifos,
+                        self.config_name,
+                        self.config["segment"],
+                        self.process_row,
+                        self.params,
+                        self.filters,
+                        self.sims,
+                        True,
+                    )
+        else:
+            if self.is_online:
+                self.get_state_from_queue()
+                for i, bankid in enumerate(self.bankids):
+                    # FIXME: consider not looping over banks, since
+                    # we have the subprocess
                     if self.injections:
-                        print(f"{asctime()} StillSuitSink update assign lr: {bankid}")
-                        self.strike_object.update_assign_lr(bankid)
-                        if i == 0:
-                            self.strike_object.load_rank_stat_pdf()
+                        fn_bankid = bankid + "_inj"
+                    else:
+                        fn_bankid = bankid + "_noninj"
+                    desc = "%s_SGNL_TRIGGERS" % fn_bankid
+                    if self.snapshot_ready(desc):
+                        fn = self.snapshot_filenames(desc)
+                        sdict = {
+                            "snapshot": {
+                                "fn": fn,
+                                "bankid": bankid,
+                            }
+                        }
+                        if self.injections:
+                            if i == 0:
+                                self.strike_object.load_rank_stat_pdf()
+                            in_lr_file = self.strike_object.input_likelihood_file[
+                                bankid
+                            ]
+                            sdict["snapshot"]["in_lr_file"] = in_lr_file
+                        if Parallelize.enabled:
+                            self.in_queue.put(sdict)
+                        else:
+                            lr_dict = on_snapshot(
+                                sdict,
+                                self.temp_segments,
+                                self.dbs,
+                                self.ifos,
+                                self.config_name,
+                                self.config["segment"],
+                                self.process_row,
+                                self.params,
+                                self.filters,
+                                self.sims,
+                                False,
+                            )
+                            if lr_dict is not None:
+                                self.process_outqueue(lr_dict)
 
-    def init_static(self, bankid):
-        print(f"{asctime()} Initialize a new db for bankid: {bankid}")
-        self.process_row["start_time"] = int(now())
+    @staticmethod
+    def sub_process_internal(**kwargs):
+        inq, outq, argdict = kwargs["inq"], kwargs["outq"], kwargs["worker_argdict"]
+        subproc_init = argdict["subproc_init"]
+        config_name = argdict["config_name"]
+        filters = argdict["filters"]
+        process = argdict["process"]
+        process_params = argdict["process_params"]
+        sim = argdict["sim"]
+        ifos = argdict["ifos"]
+        config_segment = argdict["config_segment"]
 
-        self.out[bankid] = stillsuit.StillSuit(
-            config=self.config_name, dbname=":memory:"
-        )
-        self.out[bankid].insert_static({"process_params": self.params})
-        self.out[bankid].insert_static({"filter": self.filters[bankid]})
-        #
-        # Segments
-        #
-        ifos = self.segments_pad_map.values()
-        self.segments = segments.segmentlistdict(
-            {ifo: segments.segmentlist() for ifo in ifos}
-        )
-        if self.injection_list is not None:
-            self.out[bankid].insert_static({"simulation": self.sims})
+        if not subproc_init:
+            argdict["dbs"], argdict["temp_segments"] = init_dbs(argdict)
+            argdict["subproc_init"] = True
 
-    def on_snapshot(self, fn, bankid):
-        # Write out segments
-        self.segments.coalesce()
-        out_segments = []
-        for ifo, seg in self.segments.items():
-            for segment in seg:
-                segment_row = self.init_config_row(self.config["segment"])
-                segment_row["start_time"] = Offset.tons(segment[0])
-                segment_row["end_time"] = Offset.tons(segment[1])
-                segment_row["ifo"] = ifo
-                segment_row["name"] = "afterhtgate"
-                out_segments.append(segment_row)
-        self.out[bankid].insert_static({"segment": out_segments})
+        dbs = argdict["dbs"]
+        temp_segments = argdict["temp_segments"]
 
-        # Add end time in process table
-        self.process_row["end_time"] = int(now())
-        self.out[bankid].insert_static({"process": [self.process_row]})
-
-        # Write in-memory database to file
-        print(f"{asctime()} Writing out db {fn}...")
-        self.out[bankid].to_file(fn)
-        self.out[bankid].db.close()
+        try:
+            data = inq.get(timeout=1)
+            if "segment" in data:
+                append_segment(data, temp_segments)
+            elif "event_dict" in data:
+                insert_event(data, dbs)
+            elif "snapshot" in data:
+                lr_dict = on_snapshot(
+                    data,
+                    temp_segments,
+                    dbs,
+                    ifos,
+                    config_name,
+                    config_segment,
+                    process,
+                    process_params,
+                    filters,
+                    sim,
+                    kwargs["worker_shutdown"].is_set(),
+                )
+                if lr_dict is not None:
+                    outq.put(lr_dict)
+            else:
+                raise ValueError("Unknown data")
+        except Empty:
+            return

@@ -1233,10 +1233,15 @@ def filter_online(
         ),
         Option("gracedb-group", upload_config.gracedb_group),
         Option("gracedb-search", upload_config.gracedb_search),
-        Option("snapshot-interval", filter_config.snapshot_interval),
-        Option("snapshot-delay", filter_config.snapshot_delay),
         # Option("snr-min", filter_config.snr_min),
     ]
+
+    if filter_config.snapshot_multiprocess:
+        common_opts.append(Option("snapshot-multiprocess"))
+    if filter_config.snapshot_interval:
+        common_opts.append(Option("snapshot-interval", filter_config.snapshot_interval))
+    # if filter_config.snapshot_delay:
+    #     common_opts.append(Option("snapshot-delay", filter_config.snapshot_delay))
 
     common_opts.append(Option("min-instruments-candidates", min_instruments))
 
@@ -1419,10 +1424,15 @@ def injection_filter_online(
         Option("gracedb-group", upload_config.gracedb_group),
         Option("gracedb-search", upload_config.inj_gracedb_search),
         Option("injections"),
-        Option("snapshot-interval", filter_config.snapshot_interval),
-        Option("snapshot-delay", filter_config.snapshot_delay),
         # Option("snr-min", filter_config.snr_min),
     ]
+
+    if filter_config.snapshot_multiprocess:
+        common_opts.append(Option("snapshot-multiprocess"))
+    if filter_config.snapshot_interval:
+        common_opts.append(Option("snapshot-interval", filter_config.snapshot_interval))
+    # if filter_config.snapshot_delay:
+    #     common_opts.append(Option("snapshot-delay", filter_config.snapshot_delay))
 
     common_opts.append(Option("min-instruments-candidates", min_instruments))
 

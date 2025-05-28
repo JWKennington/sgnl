@@ -22,6 +22,7 @@ from sgn.apps import Pipeline
 from sgn.base import get_sgn_logger
 from sgn.control import HTTPControl
 from sgn.sinks import NullSink
+from sgn.subprocess import Parallelize
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, Latency, condition
@@ -41,6 +42,8 @@ from sgnl.transforms import (
 )
 
 LOGGER = get_sgn_logger("sgnl")
+
+torch.set_num_threads(1)
 
 
 @ligolw_array.use_in
@@ -161,12 +164,17 @@ def parse_command_line():
         help="The interval at which to procude snapshots of trigger, likelihood, and "
         "zerolag files",
     )
+    # group.add_argument(
+    #     "--snapshot-delay",
+    #     metavar="seconds",
+    #     type=float,
+    #     default=0,
+    #     help="The delay between different banks at which to procude snapshots.",
+    # )
     group.add_argument(
-        "--snapshot-delay",
-        metavar="seconds",
-        type=float,
-        default=0,
-        help="The delay between different banks at which to procude snapshots.",
+        "--snapshot-multiprocess",
+        action="store_true",
+        help="Use multiprocessing for online snapshotting.",
     )
     group.add_argument(
         "--far-trials-factor",
@@ -402,13 +410,14 @@ def inspiral(
     process_params: dict = None,
     rank_stat_pdf_file: List[str] = None,
     reconstruct_inj_segments: bool = False,
-    snapshot_delay: float = 0,
+    # snapshot_delay: float = 0,
     snapshot_interval: float = 14400,
+    snapshot_multiprocess: bool = False,
     snr_min: float = 4,
+    snr_timeseries_output: str = None,
     torch_device: str = "cpu",
     torch_dtype: str = "float32",
     trigger_output: List[str] = None,
-    snr_timeseries_output: str = None,
     trigger_finding_duration: float = 1,
     verbose: bool = False,
     zerolag_rank_stat_pdf_file: List[str] = None,
@@ -418,6 +427,8 @@ def inspiral(
     #
 
     IS_ONLINE = data_source_info.data_source in ["devshm", "white-realtime"]
+    if snapshot_multiprocess and not IS_ONLINE:
+        raise ValueError("snapshot_multiprocess is only allowed for online mode")
 
     #
     # Sanity check
@@ -497,7 +508,7 @@ def inspiral(
         raise ValueError("output_kafka_server can only be set if in online mode")
 
     SnapShotControl.snapshot_interval = snapshot_interval
-    SnapShotControl.delay = snapshot_delay
+    # SnapShotControl.delay = snapshot_delay
     if injections:
         SnapShotControl.startup_delay = 600
 
@@ -821,36 +832,35 @@ def inspiral(
             #
             # StillSuit - trigger output
             #
-            pipeline.insert(
-                StillSuitSink(
-                    name="StillSuitSnk",
-                    sink_pad_names=("trigs",)
-                    + tuple(["segments_" + ifo for ifo in ifos]),
-                    ifos=ifos,
-                    config_name=event_config,
-                    bankids_map=sorted_bank.bankids_map,
-                    trigger_output=(
-                        OrderedDict(
-                            (k, trigger_output[i])
-                            for i, k in enumerate(sorted_bank.bankids_map.keys())
-                        )
-                        if trigger_output
-                        else None
-                    ),
-                    template_ids=sorted_bank.template_ids.numpy(),
-                    template_sngls=sorted_bank.sngls,
-                    subbankids=sorted_bank.subbankids,
-                    itacacac_pad_name="trigs",
-                    segments_pad_map={"segments_" + ifo: ifo for ifo in ifos},
-                    process_params=process_params,
-                    program="sgnl-inspiral",
-                    injection_list=injection_list,
-                    is_online=IS_ONLINE,
-                    nsubbank_pretend=bool(nsubbank_pretend),
-                    injections=injections,
-                    strike_object=strike_object,
+            stillsuit_sink = StillSuitSink(
+                name="StillSuitSnk",
+                sink_pad_names=("trigs",) + tuple(["segments_" + ifo for ifo in ifos]),
+                ifos=ifos,
+                config_name=event_config,
+                bankids_map=sorted_bank.bankids_map,
+                trigger_output=(
+                    OrderedDict(
+                        (k, trigger_output[i])
+                        for i, k in enumerate(sorted_bank.bankids_map.keys())
+                    )
+                    if trigger_output
+                    else None
                 ),
+                template_ids=sorted_bank.template_ids.numpy(),
+                template_sngls=sorted_bank.sngls,
+                subbankids=sorted_bank.subbankids,
+                itacacac_pad_name="trigs",
+                segments_pad_map={"segments_" + ifo: ifo for ifo in ifos},
+                process_params=process_params,
+                program="sgnl-inspiral",
+                injection_list=injection_list,
+                is_online=IS_ONLINE,
+                nsubbank_pretend=bool(nsubbank_pretend),
+                injections=injections,
+                strike_object=strike_object,
+                queue_maxsize=0,
             )
+            pipeline.insert(stillsuit_sink)
 
             for ifo in ifos:
                 pipeline.insert(
@@ -887,6 +897,7 @@ def inspiral(
                     bankids_map=sorted_bank.bankids_map,
                     background_pad="trigs",
                     horizon_pads=["horizon_" + ifo for ifo in ifos],
+                    queue_maxsize=0,
                 )
                 pipeline.insert(
                     strike_sink,
@@ -1001,8 +1012,15 @@ def inspiral(
                 HTTPControl.port = "5%s" % job_tag[:4]
         HTTPControl.tag = analysis_tag
         registry_file = "%s_registry.txt" % job_tag
-        with SnapShotControl(registry_file=registry_file):
-            pipeline.run()
+        if snapshot_multiprocess:
+            with (
+                SnapShotControl(registry_file=registry_file),
+                Parallelize(pipeline) as parallelize,
+            ):
+                parallelize.run()
+        else:
+            with SnapShotControl(registry_file=registry_file):
+                pipeline.run()
     else:
         pipeline.run()
 
@@ -1075,14 +1093,15 @@ def main():
         process_params=process_params,
         rank_stat_pdf_file=options.rank_stat_pdf_file,
         reconstruct_inj_segments=options.reconstruct_inj_segments,
-        snapshot_delay=options.snapshot_delay,
+        # snapshot_delay=options.snapshot_delay,
         snapshot_interval=options.snapshot_interval,
+        snapshot_multiprocess=options.snapshot_multiprocess,
         snr_min=options.snr_min,
+        snr_timeseries_output=options.snr_timeseries_output,
         torch_device=options.torch_device,
         torch_dtype=options.torch_dtype,
         trigger_finding_duration=options.trigger_finding_duration,
         trigger_output=options.trigger_output,
-        snr_timeseries_output=options.snr_timeseries_output,
         verbose=options.verbose,
         zerolag_rank_stat_pdf_file=options.zerolag_rank_stat_pdf_file,
     )
