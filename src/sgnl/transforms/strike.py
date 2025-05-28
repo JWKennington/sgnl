@@ -43,7 +43,7 @@ class StrikeTransform(TransformElement):
                 # Assign likelihoods and FARs!
                 #
                 bankid = e["bankid"]
-                if self.strike_object.ln_lr_from_triggers[bankid] is not None:
+                if self.strike_object.frankensteins[bankid] is not None:
                     # update triggers
                     trigs = []
                     for i, ti in enumerate(t):
@@ -59,7 +59,7 @@ class StrikeTransform(TransformElement):
                             trigs.append(copytrig)
 
                     e["likelihood"] = float(
-                        self.strike_object.ln_lr_from_triggers[bankid](
+                        self.strike_object.frankensteins[bankid].ln_lr_from_triggers(
                             trigs, self.strike_object.offset_vectors
                         )
                     )

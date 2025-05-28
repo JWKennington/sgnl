@@ -4,6 +4,8 @@ strike elements
 
 # Copyright (C) 2025 Yun-Jing Huang
 
+import gc
+import io
 import os
 import shutil
 import sys
@@ -11,6 +13,7 @@ import time
 import zlib
 from collections.abc import Sequence
 from dataclasses import dataclass
+from time import asctime
 from typing import Any
 
 import numpy
@@ -18,7 +21,18 @@ import torch
 from ligo.lw import utils as ligolw_utils
 from strike.stats import far
 from strike.stats.far import RankingStatPDF
-from strike.stats.likelihood_ratio import LnLikelihoodRatio
+from strike.stats.likelihood_ratio import LnLikelihoodRatio, P_of_Template
+
+GC = False
+
+
+def xml_string(rstat):
+    f = io.BytesIO()
+    rstat.save_fileobj(f)
+    if GC:
+        print("gc save fileobj", gc.collect())
+    f.seek(0)
+    return f.read().decode("utf-8")
 
 
 @dataclass
@@ -101,7 +115,7 @@ class StrikeObject:
 
         # Init LnLikelihoodRatio and RankingStatPDF instances
         self.likelihood_ratios = {}
-        if self.is_online is False:
+        if not self.is_online:
             # offline mode
             if self.output_likelihood_file is not None:
                 for bankid, ids in self.bankids_map.items():
@@ -125,6 +139,8 @@ class StrikeObject:
                     # if we are in nsubbbank_pretend mode, only load the first lr
                     # file and copy the rest
                     lr_class = LnLikelihoodRatio.load(lr_file)
+                    if GC:
+                        print("gc load lr", gc.collect())
                     assert lr_class.min_instruments == self.min_instruments
                 self.likelihood_ratios[bankid] = lr_class
                 if self.compress_likelihood_ratio:
@@ -134,6 +150,14 @@ class StrikeObject:
                         threshold=self.compress_likelihood_ratio_threshold,
                         verbose=self.verbose,
                     )
+
+            template_ids = numpy.concatenate(
+                [lr.template_ids for lr in self.likelihood_ratios.values()]
+            )
+            P_of_Template.load_population_model(
+                template_ids,
+                next(iter(self.likelihood_ratios.values())).population_model_file,
+            )
 
             # load dtdphi file only once, and share among the banks
             # assumes the dtdphi file is the same across banks
@@ -145,11 +169,15 @@ class StrikeObject:
             )
             assert len(dtdphi_file) == 1, "Can only support banks with same dtdphi file"
 
-            self.ln_lr_from_triggers = {}
+            self.frankensteins = {}
             self.likelihood_ratio_uploads = {}
 
             for bankid in self.bankids_map:
-                self.update_assign_lr(bankid, reload_file=False)
+                frankensteins, likelihood_ratio_uploads = (
+                    StrikeObject._update_assign_lr(self.likelihood_ratios[bankid])
+                )
+                self.frankensteins[bankid] = frankensteins
+                self.likelihood_ratio_uploads[bankid] = likelihood_ratio_uploads
 
             self.rank_stat_pdf = None
             self.fapfar = None
@@ -162,12 +190,41 @@ class StrikeObject:
                     bid: RankingStatPDF.load(zerolag_pdf_file)
                     for bid, zerolag_pdf_file in self.zerolag_rank_stat_pdf_file.items()
                 }
+                if GC:
+                    print("gc load zerolag", gc.collect())
             else:
                 self.zerolag_rank_stat_pdfs = None
 
         #
         # SNR chisq histogram
         #
+        if self.all_template_ids is None:
+            # Note this is only for quick pipeline testing purposes
+            # Should not use this in a real pipeline
+            ntempmax = 0
+            temps = []
+            for lr in self.likelihood_ratios.values():
+                if len(lr.template_ids) > 600:
+                    ntemp = int(round(len(lr.template_ids) / 2))
+                    lrtemp = list(lr.template_ids)
+                    temps.append(lrtemp[:ntemp])
+                    temps.append(lrtemp[-ntemp:])
+                    if ntemp > ntempmax:
+                        ntempmax = ntemp
+                else:
+                    ntemp = len(lr.template_ids)
+                    temps.append(lr.template_ids)
+                    if ntemp > ntempmax:
+                        ntempmax = ntemp
+
+            nsubbanks = len(temps)
+            self.all_template_ids = numpy.zeros(
+                (nsubbanks, ntempmax), dtype=numpy.int32
+            )
+            for i, t in enumerate(temps):
+                n = len(t)
+                self.all_template_ids[i, :n] = t
+
         if len(self.likelihood_ratios) > 0:
             self.template_ids_tensor = torch.tensor(
                 self.all_template_ids, device=self.device
@@ -307,120 +364,187 @@ class StrikeObject:
                         for i, k in enumerate(self.bankids_map)
                     }
 
-    def update_assign_lr(self, bankid, reload_file=True):
-
-        in_lr_file = self.input_likelihood_file[bankid]
-        lr = self.likelihood_ratios[bankid]
-
-        # re-load likelihood ratio file for injection jobs
-        if (
-            reload_file
-            and in_lr_file is not None
-            and (
-                self.output_likelihood_file is None
-                or in_lr_file != self.output_likelihood_file[bankid]
-            )
-        ):
-            params_before = (
-                lr.template_ids,
-                lr.instruments,
-                lr.min_instruments,
-                lr.delta_t,
-            )
-
-            # FIXME combine this hack with frankenstein class
-            trigger_rates_before = lr.terms["P_of_tref_Dh"].triggerrates
-            horizon_history_before = lr.terms["P_of_tref_Dh"].horizon_history
-
-            for tries in range(10):
-                try:
-                    lr = LnLikelihoodRatio.load(in_lr_file)
-                except (OSError, EOFError, zlib.error) as e:
-                    print(
-                        f"Error in reading rank stat on try {tries}: {e}",
-                        file=sys.stderr,
-                    )
-                    time.sleep(1)
-                else:
-                    break
-            else:
-                raise RuntimeError("Exceeded retries, exiting.")
-
-            if params_before != (
-                lr.template_ids,
-                lr.instruments,
-                lr.min_instruments,
-                lr.delta_t,
-            ):
-                raise ValueError(
-                    "'%s' contains incompatible ranking statistic configuration"
-                    % self.input_likelihood_file
+    @staticmethod
+    def _load_lr(in_lr_file):
+        for tries in range(10):
+            try:
+                lr = LnLikelihoodRatio.load(in_lr_file)
+            except (OSError, EOFError, zlib.error) as e:
+                print(
+                    f"Error in reading rank stat on try {tries}: {e}",
+                    file=sys.stderr,
                 )
+                time.sleep(1)
             else:
-                lr.terms["P_of_tref_Dh"].triggerrates = trigger_rates_before
-                lr.terms["P_of_tref_Dh"].horizon_history = horizon_history_before
-                self.likelihood_ratios[bankid] = lr
-
-        if lr.is_healthy(self.verbose):
-            # FIXME FIXME is this correct? this is following gstlal
-            # self.ln_lr_from_triggers[bankid] = lr.copy(frankenstein=True).finish()
-
-            _frank = lr.copy(frankenstein=True)
-            # FIXME: finish does not return self
-            _frank.finish()
-            self.ln_lr_from_triggers[bankid] = _frank.ln_lr_from_triggers
-
-            # FIXME gstlal calls another frankenstein, do we need another copy?
-            self.likelihood_ratio_uploads[bankid] = lr.copy(frankenstein=True)
-            if self.verbose:
-                print("likelihood ratio assignment ENABLED", file=sys.stderr)
+                break
         else:
-            self.ln_lr_from_triggers[bankid] = None
-            self.likelihood_ratio_uploads[bankid] = None
-            if self.verbose:
-                print("likelihood ratio assignment DISABLED", file=sys.stderr)
+            raise RuntimeError("Exceeded retries, exiting.")
+        return lr
+
+    @staticmethod
+    def _update_assign_lr(lr):
+        # Make frankensteins and call the finish method
+
+        frankenstein = None
+        likelihood_ratio_upload = None
+        if lr.is_healthy():
+            frankenstein = lr.copy(frankenstein=True)
+            frankenstein.finish()
+
+            likelihood_ratio_upload = lr.copy(frankenstein=True)
+            print("likelihood ratio assignment ENABLED", file=sys.stderr, flush=True)
+        else:
+            print("likelihood ratio assignment DISABLED", file=sys.stderr, flush=True)
+
+        return frankenstein, likelihood_ratio_upload
+
+    def update_dynamic(
+        self, bankid, frankenstein, likelihood_ratio_upload, new_lr=None
+    ):
+        # Update triggerrates and horizon_history since they are not
+        # updated in the subprocess
+        if new_lr is not None:
+            old_lr = self.likelihood_ratios[bankid]
+            # sanity check lrs
+            if (
+                new_lr.instruments,
+                new_lr.min_instruments,
+                new_lr.delta_t,
+            ) != (
+                old_lr.instruments,
+                old_lr.min_instruments,
+                old_lr.delta_t,
+            ) or (new_lr.template_ids != old_lr.template_ids).any():
+                raise ValueError("Found incompatible ranking statistic configuration")
+            else:
+                triggerrates = old_lr.terms["P_of_tref_Dh"].triggerrates
+                horizon_history = old_lr.terms["P_of_tref_Dh"].horizon_history
+                old_lr.terms["P_of_tref_Dh"].triggerrates = None
+                old_lr.terms["P_of_tref_Dh"].horizon_history = None
+                old_lr.triggerrates = None
+                old_lr.horizon_history = None
+
+                # replace with new dictionary because this lowers the ram for
+                # some reason, I don't know if the root cause is in the LR class
+                new_lrs = {
+                    bid: f for bid, f in self.likelihood_ratios.items() if bid != bankid
+                }
+                del old_lr
+                del self.likelihood_ratios
+                if GC:
+                    print("gc del likelihood ratios", gc.collect())
+
+                # update triggerrates and horizon history
+                new_lr.terms["P_of_tref_Dh"].triggerrates = triggerrates
+                new_lr.terms["P_of_tref_Dh"].horizon_history = horizon_history
+                new_lr.triggerrates = triggerrates
+                new_lr.horizon_history = horizon_history
+
+                new_lrs[bankid] = new_lr
+                self.likelihood_ratios = new_lrs
+
+        # replace with new dictionary because this lowers the ram for
+        # some reason, I don't know if the root cause is in the LR class
+        # FIXME: This reduces the ram, but is a mess
+        new_frankensteins = {
+            bid: f for bid, f in self.frankensteins.items() if bid != bankid
+        }
+        new_likelihood_ratio_uploads = {
+            bid: f
+            for bid, f in (self.likelihood_ratio_uploads.items())
+            if bid != bankid
+        }
+        del self.frankensteins
+        del self.likelihood_ratio_uploads
+        if GC:
+            print("gc frank", gc.collect(), flush=True)
+
+        lr = self.likelihood_ratios[bankid]
+        triggerrates = lr.terms["P_of_tref_Dh"].triggerrates
+        horizon_history = lr.terms["P_of_tref_Dh"].horizon_history
+
+        likelihood_ratio_upload.terms["P_of_tref_Dh"].triggerrates = triggerrates
+        likelihood_ratio_upload.terms["P_of_tref_Dh"].horizon_history = horizon_history
+        likelihood_ratio_upload.triggerrates = triggerrates
+        likelihood_ratio_upload.horizon_history = horizon_history
+        new_likelihood_ratio_uploads[bankid] = likelihood_ratio_upload
+
+        frankenstein.terms["P_of_tref_Dh"].triggerrate = triggerrates
+        frankenstein.terms["P_of_tref_Dh"].horizon_history = horizon_history
+        frankenstein.triggerrates = triggerrates
+        frankenstein.horizon_history = horizon_history
+        new_frankensteins[bankid] = frankenstein
+
+        self.frankensteins = new_frankensteins
+        self.likelihood_ratio_uploads = new_likelihood_ratio_uploads
+
+        # Now clear references manually
+        if GC:
+            if gc.garbage:
+                print("Uncollectable objects found:", flush=True)
+                for item in gc.garbage:
+                    del item  # Attempt to break references
+                gc.collect()  # Collect again after attempting to break references
+                print(f"Garbage list is now: {gc.garbage}", flush=True)
+            print("gc after cleaning gc.garbage", gc.collect(), flush=True)
+            # print("ram after switching riggerrates", ram(), flush=True)
+            print("gc garbage", gc.garbage, flush=True)
 
     def load_rank_stat_pdf(self):
         if os.access(
             ligolw_utils.local_path_from_url(self.rank_stat_pdf_file), os.R_OK
         ):
+            if self.fapfar is not None:
+                self.fapfar.ccdf_interpolator = None
+                self.fapfar = None
+                self.rank_stat_pdf.noise_lr_lnpdf = None
+                self.rank_stat_pdf.signal_lr_lnpdf = None
+                self.rank_stat_pdf.zero_lag_lr_lnpdf = None
+                self.rank_stat_pdf.segments = None
+                self.rank_stat_pdf.template_ids = None
+                self.rank_stat_pdf.instruments = None
+                self.rank_stat_pdf.noise_counts_before_extinction = None
+                self.rank_stat_pdf = None
+                del self.fapfar
+                del self.rank_stat_pdf
+                if GC:
+                    print("gc", gc.collect(), flush=True)
+
             rspdf = RankingStatPDF.load(self.rank_stat_pdf_file)
+            if GC:
+                print("gc load pdf", gc.collect())
             self.rank_stat_pdf = rspdf
 
             for bankid in self.bankids_map:
-                if (
-                    not self.likelihood_ratios[bankid].template_ids
-                    <= rspdf.template_ids
-                ):
+                if not numpy.isin(
+                    self.likelihood_ratios[bankid].template_ids, rspdf.template_ids
+                ).all():
                     raise ValueError("wrong templates")
 
             if rspdf.is_healthy(self.verbose):
                 self.fapfar = far.FAPFAR(rspdf.new_with_extinction())
-                if self.verbose:
-                    print(
-                        "false-alarm probability and rate assignment ENABLED",
-                        file=sys.stderr,
-                    )
+                print(
+                    "false-alarm probability and rate assignment ENABLED",
+                    file=sys.stderr,
+                )
             else:
                 self.fapfar = None
-                if self.verbose:
-                    print(
-                        "false-alarm probability and rate assignment DISABLED",
-                        file=sys.stderr,
-                    )
+                print(
+                    "false-alarm probability and rate assignment DISABLED",
+                    file=sys.stderr,
+                )
         else:
             # If we are unable to load the file, disable FAR assignment
             # FIXME: should we make it fail?
             self.rank_stat_pdf = None
             self.fapfar = None
-            if self.verbose:
-                print(
-                    "cannot load file, false-alarm probability and rate assignment "
-                    "DISABLED",
-                    file=sys.stderr,
-                )
+            print(
+                f"{asctime()} cannot load file, false-alarm probability and ",
+                "rate assignment DISABLED",
+                file=sys.stderr,
+            )
 
-    def save_snapshot(self, bankid, fn):
+    def _save_snapshot(self, bankid, fn):
         # write snapshot files to disk
         self.likelihood_ratios[bankid].save(fn)
         zfn = fn.replace("LIKELIHOOD_RATIO", "ZEROLAG_RANK_STAT_PDFS")
@@ -436,7 +560,20 @@ class StrikeObject:
             ligolw_utils.local_path_from_url(self.zerolag_rank_stat_pdf_file[bankid]),
         )
 
-    def save_snr_chi_lnpdf(self, bankid):
+    @staticmethod
+    def save_snapshot(lr, fn, ofn):
+        # write snapshot files to disk
+        lr.save(fn)
+        if GC:
+            print("gc save lr", gc.collect())
+
+        # copy snapshot to output path
+        shutil.copy(
+            fn,
+            ligolw_utils.local_path_from_url(ofn),
+        )
+
+    def _save_snr_chi_lnpdf(self, bankid):
         for ifo in self.ifos:
             i = list(self.bankids_map.keys()).index(bankid)
             # FIXME the casting to float is to resolve strike errors
@@ -446,7 +583,15 @@ class StrikeObject:
                 self.snr_chisq_lnpdf_noise[ifo][i].to("cpu").numpy().astype(float)
             )
 
-    def save_counts_by_template_id(self, bankid):
+    @staticmethod
+    def save_snr_chi_lnpdf(ifos, bankidix, lr, snr_chisq_lnpdf_noise):
+        for ifo in ifos:
+            # FIXME the casting to float is to resolve strike errors
+            lr.terms["P_of_SNR_chisq"].snr_chisq_lnpdf_noise[f"{ifo}_snr_chi"].array = (
+                snr_chisq_lnpdf_noise[ifo][bankidix].to("cpu").numpy().astype(float)
+            )
+
+    def _save_counts_by_template_id(self, bankid):
         ids = self.bankids_map[bankid]
         counts = self.counts_by_template_id_counter
         counts_by_template_id = (
@@ -463,6 +608,115 @@ class StrikeObject:
 
         # reset the counter
         self.counts_by_template_id_counter[ids] = 0
+
+    @staticmethod
+    def save_counts_by_template_id(lr, counts_this_bank, all_template_ids):
+        # NOTE: modifies the contents of lr in place
+        counts_by_template_id = lr.terms["P_of_Template"].counts_by_template_id
+        count_mask = counts_this_bank > 0
+        counts_this_bank = counts_this_bank[count_mask]
+        template_ids_this_bank = all_template_ids.ravel()[count_mask]
+        assert len(counts_this_bank) == len(template_ids_this_bank)
+        for tid, count in zip(template_ids_this_bank, counts_this_bank):
+            assert tid in counts_by_template_id
+            counts_by_template_id[tid] += count
+
+    def update_array_data(self, bankid):
+        # useful variables
+        lr = self.likelihood_ratios[bankid]
+
+        # Save the snr chi counts
+        StrikeObject.save_snr_chi_lnpdf(
+            self.ifos,
+            list(self.bankids_map.keys()).index(bankid),
+            lr,
+            self.snr_chisq_lnpdf_noise,
+        )
+
+        # Save counts by template id
+        ids = self.bankids_map[bankid]
+        counts = self.counts_by_template_id_counter
+        counts_this_bank = counts[ids].to("cpu").numpy().ravel()
+        StrikeObject.save_counts_by_template_id(
+            lr, counts_this_bank, self.all_template_ids[ids]
+        )
+        # reset the counter
+        self.counts_by_template_id_counter[ids] = 0
+
+    @staticmethod
+    def reset_dynamic(frankenstein, likelihood_ratio_upload, new_lr=None):
+        # Set dynamic attributes to None in the subprocess
+        # because we will be replacing them later in the main process
+        # with the up-to-date objects.
+        # Will probably lower the ram increase when put into the queue.
+        if new_lr is not None:
+            new_lr.terms["P_of_tref_Dh"].triggerrates = None
+            new_lr.terms["P_of_tref_Dh"].horizon_history = None
+            new_lr.triggerrates = None
+            new_lr.horizon_history = None
+
+        frankenstein.terms["P_of_tref_Dh"].triggerrates = None
+        frankenstein.terms["P_of_tref_Dh"].horizon_history = None
+        frankenstein.triggerrates = None
+        frankenstein.horizon_history = None
+        likelihood_ratio_upload.terms["P_of_tref_Dh"].triggerrates = None
+        likelihood_ratio_upload.terms["P_of_tref_Dh"].horizon_history = None
+        likelihood_ratio_upload.triggerrates = None
+        likelihood_ratio_upload.horizon_history = None
+        if GC:
+            print("gc set triggerrates None", gc.collect(), flush=True)
+
+    @staticmethod
+    def on_snapshot_reload(in_lr_file):
+        # This method is for injection jobs
+        # FIXME: find a way to merge this with on_snapshot method??
+        new_lr = StrikeObject._load_lr(in_lr_file)
+        frankenstein, likelihood_ratio_upload = StrikeObject._update_assign_lr(new_lr)
+
+        StrikeObject.reset_dynamic(frankenstein, likelihood_ratio_upload, new_lr)
+
+        lr_dict = {
+            "new_lr": new_lr,
+            "frankenstein": frankenstein,
+            "likelihood_ratio_upload": likelihood_ratio_upload,
+        }
+        return lr_dict
+
+    def prepare_inq_data(self, fn, bankid):
+        lr = self.likelihood_ratios[bankid]
+        zero_lr = self.zerolag_rank_stat_pdfs[bankid]
+        in_lr_file = self.input_likelihood_file[bankid]
+        output_likelihood_file = self.output_likelihood_file[bankid]
+        zerolag_output_file = self.zerolag_rank_stat_pdf_file[bankid]
+        verbose = self.verbose
+        data = {
+            "lr": lr,
+            "zero_lr": zero_lr,
+            "bankid": bankid,
+            "output_likelihood_file": output_likelihood_file,
+            "output_zerolag_likelihood_file": zerolag_output_file,
+            "fn": fn,
+            "in_lr_file": in_lr_file,
+            "verbose": verbose,
+        }
+        return data
+
+    @staticmethod
+    def snapshot_io(lr, zero_lr, fn, outfile, zero_outfile):
+        print(f"{asctime()} Writing out likelihood ratio and zerolag file {fn}...")
+        StrikeObject.save_snapshot(lr, fn, outfile)
+        StrikeObject.save_snapshot(
+            zero_lr,
+            fn.replace("LIKELIHOOD_RATIO", "ZEROLAG_RANK_STAT_PDFS"),
+            zero_outfile,
+        )
+
+    @staticmethod
+    def snapshot_fileobj(lr, zero_lr, bankid):
+        return {
+            "xml": {bankid: xml_string(lr)},
+            "zerolagxml": {bankid: xml_string(zero_lr)},
+        }
 
     def time_key(self, time):
         size = 10  # granularity for tracking counts
@@ -539,6 +793,7 @@ class StrikeObject:
                                 ),
                                 self.binning.shape,
                             )
+
                             ct_temp = (
                                 self.likelihood_ratios[bankid]
                                 .terms["P_of_SNR_chisq"]

@@ -11,7 +11,7 @@ class SnapShotControl(HTTPControl):
     snapshot_interval = 14400
     last_snapshot = {}
     snapshots_enabled = False
-    delay = 0
+    # delay = 0
     startup_delay = 0
 
     def __enter__(self):
@@ -28,7 +28,7 @@ class SnapShotControl(HTTPControl):
         t += cls.startup_delay
         for desc in descs:
             cls.last_snapshot[elem][desc] = t
-            t += cls.delay
+            # t += cls.delay
 
     @classmethod
     def _snapshot_ready(cls, elem, t, desc):
@@ -60,6 +60,7 @@ class SnapShotControlSinkElement(HTTPControlSinkElement, SnapShotControl):
         HTTPControlSinkElement.__post_init__(self)
         self.descriptions = []
         self.extensions = []
+        self.startup_delays = {}
 
     def snapshot_ready(self, desc):
         return SnapShotControl._snapshot_ready(self.name, int(tconvert("now")), desc)
@@ -73,6 +74,8 @@ class SnapShotControlSinkElement(HTTPControlSinkElement, SnapShotControl):
         SnapShotControl._register_snapshot(
             self.name, int(tconvert("now")), self.descriptions
         )
+        for desc in self.descriptions:
+            self.startup_delays[desc] = self.startup_delay
 
     def snapshot_filenames(self, desc, ifos="H1L1V1"):
         assert (
@@ -83,6 +86,12 @@ class SnapShotControlSinkElement(HTTPControlSinkElement, SnapShotControl):
         start, duration = SnapShotControl._update_last_snapshot_time(
             self.name, int(tconvert("now")), desc
         )
+        startup_delay = self.startup_delays[desc]
+        if startup_delay:
+            start -= startup_delay
+            duration += startup_delay
+            self.startup_delays[desc] = 0
+
         gpsdir = str(start)[:5]
         try:
             os.mkdir(gpsdir)

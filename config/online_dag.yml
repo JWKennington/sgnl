@@ -91,6 +91,7 @@ filter:
   event-config-file: cbc_db.yaml
   snapshot-interval: 14400
   snapshot-delay: 0
+  snapshot-multiprocess: True
   injections: True
   min-instruments-candidates: 1
 
