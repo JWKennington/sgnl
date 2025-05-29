@@ -1,27 +1,13 @@
 # Copyright (C) 2024  Cort Posnansky (cort.posnansky@ligo.org)
-#
-# This program is free software; you can redistribute it and/or modify it
-# under the terms of the GNU General Public License as published by the
-# Free Software Foundation; either version 2 of the License, or (at your
-# option) any later version.
-#
-# This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General
-# Public License for more details.
-#
-# You should have received a copy of the GNU General Public License along
-# with this program; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 import getpass
 import pathlib
 
 import yaml
-from ligo.lw import utils as ligolw_utils
-from ligo.lw.utils import segments as ligolw_segments
-from ligo.segments import segment, segmentlist, segmentlistdict
+from igwn_ligolw import utils as ligolw_utils
+from igwn_ligolw.utils import segments as ligolw_segments
+from igwn_segments import segment, segmentlist, segmentlistdict
 
 from sgnl.dags import segments
 from sgnl.dags.util import (

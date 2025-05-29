@@ -5,7 +5,7 @@
 from dataclasses import dataclass
 
 import lal
-from ligo.lw import utils as ligolw_utils
+from igwn_ligolw import utils as ligolw_utils
 from sgn.base import Frame, SinkElement, SinkPad
 
 

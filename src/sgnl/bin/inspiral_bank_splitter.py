@@ -14,19 +14,21 @@ from argparse import ArgumentParser
 import lal
 import numpy
 import scipy
-from ligo.lw import ligolw, lsctables
-from ligo.lw import utils as ligolw_utils
-from ligo.lw.utils import process as ligolw_process
+from igwn_ligolw import ligolw, lsctables
+from igwn_ligolw import utils as ligolw_utils
+from igwn_ligolw.array import use_in as array_use_in
+from igwn_ligolw.param import use_in as param_use_in
+from igwn_ligolw.utils import process as ligolw_process
 
 from sgnl import chirptime, spawaveform, svd_bank, templates
 from sgnl.psd import HorizonDistance, harmonic_mean, read_psd
 
 
+@array_use_in
+@param_use_in
+@lsctables.use_in
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass
-
-
-lsctables.use_in(LIGOLWContentHandler)
 
 
 def T050017_filename(instruments, description, seg, extension, path=None):

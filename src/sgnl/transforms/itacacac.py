@@ -16,10 +16,10 @@ from dataclasses import dataclass
 from itertools import combinations
 from typing import Any, Dict
 
+import igwn_segments as segments
 import lal
 import numpy as np
 import torch
-from ligo import segments
 from sgnts.base import (
     AdapterConfig,
     Array,

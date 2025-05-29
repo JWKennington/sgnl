@@ -1,7 +1,7 @@
 """an executable to calculate p(astro) values and upload to GraceDB events"""
 
-# Copyright (C)      Becca Ewing
-# Copyright (C) 2024 Yun-Jing Huang
+# Copyright (C)           Becca Ewing
+# Copyright (C) 2024-2025 Yun-Jing Huang
 
 __usage__ = "sgnl-ll-inspiral-pastro-uploader [--options]"
 __author__ = (
@@ -25,11 +25,11 @@ from argparse import ArgumentParser
 from collections import deque
 from io import BytesIO
 
+from igwn_ligolw import ligolw, lsctables
+from igwn_ligolw import utils as ligolw_utils
+from igwn_ligolw.array import use_in as array_use_in
+from igwn_ligolw.param import use_in as param_use_in
 from ligo.gracedb.rest import GraceDb, HTTPError
-from ligo.lw import array as ligolw_array
-from ligo.lw import ligolw, lsctables
-from ligo.lw import param as ligolw_param
-from ligo.lw import utils as ligolw_utils
 from ligo.scald import utils
 from pastro import pastro  # FIXME move pastro to sgn?
 
@@ -38,8 +38,8 @@ from sgnl.gracedb import FakeGracedbClient
 
 
 @lsctables.use_in
-@ligolw_array.use_in
-@ligolw_param.use_in
+@array_use_in
+@param_use_in
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass
 

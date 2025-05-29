@@ -5,12 +5,17 @@
 
 import math
 
+import igwn_segments as segments
+from igwn_ligolw import ligolw, lsctables
+from igwn_ligolw import utils as ligolw_utils
+from igwn_ligolw.array import use_in as array_use_in
+from igwn_ligolw.param import use_in as param_use_in
 from lal import LIGOTimeGPS
-from ligo import segments
-from ligo.lw import ligolw, lsctables
-from ligo.lw import utils as ligolw_utils
 
 
+@array_use_in
+@param_use_in
+@lsctables.use_in
 class ContentHandler(ligolw.LIGOLWContentHandler):
     pass
 

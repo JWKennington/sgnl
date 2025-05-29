@@ -17,7 +17,7 @@ dependencies = [
     "ligo-gracedb==2.14.1",
     "lalsuite>=7.26",
     "igwn-ligolw",
-    "python-ligo-lw",
+    "igwn-segments",
     # SGN dependencies
     "sgn",
     "sgn-ts",

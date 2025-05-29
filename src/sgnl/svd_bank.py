@@ -1,8 +1,8 @@
 """This module contains methods for reading in SVD bank files."""
 
-# Copyright (C) 2009 Kipp Cannon, Chad Hanna
-# Copyright (C) 2010 Kipp Cannon, Chad Hanna, Leo Singer
-# Copyright (C) 2024 Yun-Jing Huang
+# Copyright (C) 2009      Kipp Cannon, Chad Hanna
+# Copyright (C) 2010      Kipp Cannon, Chad Hanna, Leo Singer
+# Copyright (C) 2024-2025 Yun-Jing Huang
 
 import copy
 import sys
@@ -15,11 +15,13 @@ from typing import Any
 import lal
 import numpy
 import scipy
-from ligo.lw import array as ligolw_array
-from ligo.lw import ligolw, lsctables
-from ligo.lw import param as ligolw_param
-from ligo.lw import utils as ligolw_utils
-from ligo.lw.utils import process as ligolw_process
+from igwn_ligolw import ligolw, lsctables
+from igwn_ligolw import utils as ligolw_utils
+from igwn_ligolw.array import use_in as array_use_in
+from igwn_ligolw.ligolw import Array as ligolw_array
+from igwn_ligolw.ligolw import Param as ligolw_param
+from igwn_ligolw.param import use_in as param_use_in
+from igwn_ligolw.utils import process as ligolw_process
 
 from sgnl import cbc_template_fir, chirptime, spawaveform, templates
 from sgnl.psd import HorizonDistance, condition_psd
@@ -27,13 +29,11 @@ from sgnl.psd import HorizonDistance, condition_psd
 Attributes = ligolw.sax.xmlreader.AttributesImpl
 
 
+@array_use_in
+@param_use_in
+@lsctables.use_in
 class DefaultContentHandler(ligolw.LIGOLWContentHandler):
     pass
-
-
-ligolw_array.use_in(DefaultContentHandler)
-ligolw_param.use_in(DefaultContentHandler)
-lsctables.use_in(DefaultContentHandler)
 
 
 # FIXME do we want to hardcode the program?
@@ -417,50 +417,42 @@ def write_bank(filename, banks, psd_input, process_param_dict=None, verbose=Fals
                 auto_correlation
             )
         root.appendChild(bank.sngl_inspiral_table)
+        root.appendChild(ligolw_param.from_pyvalue("filter_length", bank.filter_length))
+        root.appendChild(ligolw_param.from_pyvalue("logname", bank.logname or ""))
+        root.appendChild(ligolw_param.from_pyvalue("snr_threshold", bank.snr_threshold))
         root.appendChild(
-            ligolw_param.Param.from_pyvalue("filter_length", bank.filter_length)
-        )
-        root.appendChild(ligolw_param.Param.from_pyvalue("logname", bank.logname or ""))
-        root.appendChild(
-            ligolw_param.Param.from_pyvalue("snr_threshold", bank.snr_threshold)
-        )
-        root.appendChild(
-            ligolw_param.Param.from_pyvalue(
+            ligolw_param.from_pyvalue(
                 "template_bank_filename", bank.template_bank_filename
             )
         )
-        root.appendChild(ligolw_param.Param.from_pyvalue("bank_id", bank.bank_id))
-        root.appendChild(ligolw_param.Param.from_pyvalue("new_deltaf", bank.newdeltaF))
+        root.appendChild(ligolw_param.from_pyvalue("bank_id", bank.bank_id))
+        root.appendChild(ligolw_param.from_pyvalue("new_deltaf", bank.newdeltaF))
+        root.appendChild(ligolw_param.from_pyvalue("working_f_low", bank.working_f_low))
+        root.appendChild(ligolw_param.from_pyvalue("f_low", bank.f_low))
         root.appendChild(
-            ligolw_param.Param.from_pyvalue("working_f_low", bank.working_f_low)
-        )
-        root.appendChild(ligolw_param.Param.from_pyvalue("f_low", bank.f_low))
-        root.appendChild(
-            ligolw_param.Param.from_pyvalue(
-                "sample_rate_max", int(bank.sample_rate_max)
-            )
+            ligolw_param.from_pyvalue("sample_rate_max", int(bank.sample_rate_max))
         )
         root.appendChild(
-            ligolw_array.Array.build(
+            ligolw_array.build(
                 "autocorrelation_bank_real", bank.autocorrelation_bank.real
             )
         )
         root.appendChild(
-            ligolw_array.Array.build(
+            ligolw_array.build(
                 "autocorrelation_bank_imag", bank.autocorrelation_bank.imag
             )
         )
         root.appendChild(
-            ligolw_array.Array.build("autocorrelation_mask", bank.autocorrelation_mask)
+            ligolw_array.build("autocorrelation_mask", bank.autocorrelation_mask)
         )
-        root.appendChild(ligolw_array.Array.build("sigmasq", numpy.array(bank.sigmasq)))
+        root.appendChild(ligolw_array.build("sigmasq", numpy.array(bank.sigmasq)))
         root.appendChild(
-            ligolw_array.Array.build(
+            ligolw_array.build(
                 "bank_correlation_matrix_real", bank.bank_correlation_matrix.real
             )
         )
         root.appendChild(
-            ligolw_array.Array.build(
+            ligolw_array.build(
                 "bank_correlation_matrix_imag", bank.bank_correlation_matrix.imag
             )
         )
@@ -468,20 +460,20 @@ def write_bank(filename, banks, psd_input, process_param_dict=None, verbose=Fals
         for frag in bank.bank_fragments:
             el = root.appendChild(ligolw.LIGO_LW())
 
-            el.appendChild(ligolw_param.Param.from_pyvalue("rate", int(frag.rate)))
-            el.appendChild(ligolw_param.Param.from_pyvalue("start", frag.start))
-            el.appendChild(ligolw_param.Param.from_pyvalue("end", frag.end))
-            el.appendChild(ligolw_array.Array.build("chifacs", frag.chifacs))
+            el.appendChild(ligolw_param.from_pyvalue("rate", int(frag.rate)))
+            el.appendChild(ligolw_param.from_pyvalue("start", frag.start))
+            el.appendChild(ligolw_param.from_pyvalue("end", frag.end))
+            el.appendChild(ligolw_array.build("chifacs", frag.chifacs))
             if frag.mix_matrix is not None:
-                el.appendChild(ligolw_array.Array.build("mix_matrix", frag.mix_matrix))
+                el.appendChild(ligolw_array.build("mix_matrix", frag.mix_matrix))
             el.appendChild(
-                ligolw_array.Array.build(
+                ligolw_array.build(
                     "orthogonal_template_bank", frag.orthogonal_template_bank
                 )
             )
             if frag.singular_values is not None:
                 el.appendChild(
-                    ligolw_array.Array.build("singular_values", frag.singular_values)
+                    ligolw_array.build("singular_values", frag.singular_values)
                 )
 
     psd = psd_input[bank.sngl_inspiral_table[0].ifo]
@@ -522,20 +514,22 @@ def read_banks(filename, contenthandler, verbose=False, fast=False):
         bank.sngl_inspiral_table.parentNode.removeChild(bank.sngl_inspiral_table)
 
         # Read root-level scalar parameters
-        bank.bank_id = ligolw_param.get_pyvalue(root, "bank_id")
-        bank.sample_rate_max = ligolw_param.get_pyvalue(root, "sample_rate_max")
+        bank.bank_id = ligolw_param.get_param(root, "bank_id").value
+        bank.sample_rate_max = ligolw_param.get_param(root, "sample_rate_max").value
         if not fast:
-            bank.filter_length = ligolw_param.get_pyvalue(root, "filter_length")
-            bank.logname = ligolw_param.get_pyvalue(root, "logname") or None
-            bank.snr_threshold = ligolw_param.get_pyvalue(root, "snr_threshold")
-            bank.template_bank_filename = ligolw_param.get_pyvalue(
+            bank.filter_length = ligolw_param.get_param(root, "filter_length").value
+            bank.logname = ligolw_param.get_param(root, "logname") or None
+            bank.snr_threshold = ligolw_param.get_param(root, "snr_threshold").value
+            bank.template_bank_filename = ligolw_param.get_param(
                 root, "template_bank_filename"
-            )
+            ).value
             try:
-                bank.newdeltaF = ligolw_param.get_pyvalue(root, "new_deltaf")
-                bank.working_f_low = ligolw_param.get_pyvalue(root, "working_f_low")
-                bank.f_low = ligolw_param.get_pyvalue(root, "f_low")
-                bank.sample_rate_max = ligolw_param.get_pyvalue(root, "sample_rate_max")
+                bank.newdeltaF = ligolw_param.get_param(root, "new_deltaf").value
+                bank.working_f_low = ligolw_param.get_param(root, "working_f_low").value
+                bank.f_low = ligolw_param.get_param(root, "f_low").value
+                bank.sample_rate_max = ligolw_param.get_param(
+                    root, "sample_rate_max"
+                ).value
             except ValueError:
                 pass
 
@@ -586,9 +580,9 @@ def read_banks(filename, contenthandler, verbose=False, fast=False):
             node for node in root.childNodes if node.tagName == ligolw.LIGO_LW.tagName
         ):
             frag = BankFragment(
-                rate=ligolw_param.get_pyvalue(el, "rate"),
-                start=ligolw_param.get_pyvalue(el, "start"),
-                end=ligolw_param.get_pyvalue(el, "end"),
+                rate=ligolw_param.get_param(el, "rate").value,
+                start=ligolw_param.get_param(el, "start").value,
+                end=ligolw_param.get_param(el, "end").value,
             )
 
             if not fast:
