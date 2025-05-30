@@ -18,11 +18,11 @@ import os
 import sys
 from argparse import ArgumentParser
 
+import igwn_segments as segments
+from igwn_ligolw import ligolw, lsctables
+from igwn_ligolw.array import use_in as array_use_in
+from igwn_ligolw.param import use_in as param_use_in
 from lal.utils import CacheEntry
-from ligo import segments
-from ligo.lw import array as ligolw_array
-from ligo.lw import ligolw, lsctables
-from ligo.lw import param as ligolw_param
 from strike.stats import far
 
 from sgnl import sgnlio
@@ -203,8 +203,8 @@ def trigger_veto_func(trigger, vetoseglists):
 #
 
 
-@ligolw_array.use_in
-@ligolw_param.use_in
+@array_use_in
+@param_use_in
 @lsctables.use_in
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass

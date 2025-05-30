@@ -16,8 +16,8 @@ import timeit
 from collections import deque
 from queue import Queue
 
+from igwn_ligolw import utils as ligolw_utils
 from lal.utils import CacheEntry
-from ligo.lw import utils as ligolw_utils
 from ligo.scald import aggregator
 from ligo.scald.io import kafka
 from sgn.control import HTTPControl

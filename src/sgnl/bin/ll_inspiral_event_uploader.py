@@ -23,23 +23,23 @@ from io import BytesIO
 
 import numpy
 import yaml
+from igwn_ligolw import ligolw, lsctables
+from igwn_ligolw import utils as ligolw_utils
+from igwn_ligolw.array import use_in as array_use_in
+from igwn_ligolw.param import use_in as param_use_in
+from igwn_segments import segment
 from lal import LIGOTimeGPS
 from ligo.gracedb.rest import DEFAULT_SERVICE_URL as DEFAULT_GRACEDB_URL
 from ligo.gracedb.rest import GraceDb, HTTPError
-from ligo.lw import array as ligolw_array
-from ligo.lw import ligolw, lsctables
-from ligo.lw import param as ligolw_param
-from ligo.lw import utils as ligolw_utils
 from ligo.scald import utils
 from ligo.scald.io import influx
-from ligo.segments import segment
 
 from sgnl import events
 from sgnl.gracedb import FakeGracedbClient
 
 
-@ligolw_array.use_in
-@ligolw_param.use_in
+@array_use_in
+@param_use_in
 @lsctables.use_in
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass

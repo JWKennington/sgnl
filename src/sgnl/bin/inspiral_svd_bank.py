@@ -7,9 +7,9 @@
 from argparse import ArgumentParser
 
 import numpy
+from igwn_ligolw import lsctables
+from igwn_ligolw import utils as ligolw_utils
 from lal.utils import CacheEntry
-from ligo.lw import lsctables
-from ligo.lw import utils as ligolw_utils
 
 from sgnl import svd_bank
 from sgnl.psd import read_psd

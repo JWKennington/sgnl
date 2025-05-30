@@ -14,10 +14,10 @@ from collections import OrderedDict
 from typing import List
 
 import torch
-from ligo.lw import array as ligolw_array
-from ligo.lw import ligolw, lsctables
-from ligo.lw import param as ligolw_param
-from ligo.lw import utils as ligolw_utils
+from igwn_ligolw import ligolw, lsctables
+from igwn_ligolw import utils as ligolw_utils
+from igwn_ligolw.array import use_in as array_use_in
+from igwn_ligolw.param import use_in as param_use_in
 from sgn.apps import Pipeline
 from sgn.base import get_sgn_logger
 from sgn.control import HTTPControl
@@ -46,8 +46,8 @@ LOGGER = get_sgn_logger("sgnl")
 torch.set_num_threads(1)
 
 
-@ligolw_array.use_in
-@ligolw_param.use_in
+@array_use_in
+@param_use_in
 @lsctables.use_in
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass

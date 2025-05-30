@@ -18,17 +18,17 @@ from argparse import ArgumentParser
 from collections import defaultdict
 
 import numpy
+from igwn_ligolw import ligolw, lsctables
+from igwn_ligolw.array import use_in as array_use_in
+from igwn_ligolw.param import use_in as param_use_in
 from lal.utils import CacheEntry
-from ligo.lw import array as ligolw_array
-from ligo.lw import ligolw, lsctables
-from ligo.lw import param as ligolw_param
 from strike.stats import far, likelihood_ratio
 
 from sgnl import svd_bank
 
 
-@ligolw_array.use_in
-@ligolw_param.use_in
+@array_use_in
+@param_use_in
 @lsctables.use_in
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass

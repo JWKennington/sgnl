@@ -10,13 +10,16 @@ from dataclasses import dataclass
 import lal
 import numpy
 from confluent_kafka import Producer
+from igwn_ligolw import ligolw, lsctables
+from igwn_ligolw import utils as ligolw_utils
+from igwn_ligolw.array import use_in as array_use_in
+from igwn_ligolw.ligolw import Param as ligolw_param
+from igwn_ligolw.param import use_in as param_use_in
+from igwn_ligolw.utils import process as ligolw_process
+from igwn_ligolw.utils import segments as ligolw_segments
 from lal import LIGOTimeGPS
 from lal import series as lalseries
 from ligo.gracedb.rest import GraceDb
-from ligo.lw import array, ligolw, lsctables, param
-from ligo.lw import utils as ligolw_utils
-from ligo.lw.utils import process as ligolw_process
-from ligo.lw.utils import segments as ligolw_segments
 from sgn.control import HTTPControlSinkElement
 
 from sgnl.strike_object import StrikeObject
@@ -324,8 +327,8 @@ def best_event(events, triggers, snr_ts, thresh, opa_thresh):
 
 
 @lsctables.use_in
-@array.use_in
-@param.use_in
+@array_use_in
+@param_use_in
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass
 
@@ -567,7 +570,7 @@ def event_trigs_to_coinc_xmldoc(
             ts, encoding="base64"
         )
         snr_time_series_element.appendChild(
-            param.Param.from_pyvalue("event_id", row.event_id)
+            ligolw_param.from_pyvalue("event_id", row.event_id)
         )
         xmldoc.childNodes[-1].appendChild(snr_time_series_element)
 

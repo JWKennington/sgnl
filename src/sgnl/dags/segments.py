@@ -1,18 +1,5 @@
-# Copyright (C) 2010--2020  Kipp Cannon, Patrick Godwin, Chad Hanna, Ryan Magee
-#
-# This program is free software; you can redistribute it and/or modify it under
-# the terms of the GNU General Public License as published by the Free Software
-# Foundation; either version 2 of the License, or (at your option) any later
-# version.
-#
-# This program is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-# details.
-#
-# You should have received a copy of the GNU General Public License along with
-# this program; if not, write to the Free Software Foundation, Inc., 51
-# Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+# Copyright (C) 2010-2020  Kipp Cannon, Patrick Godwin, Chad Hanna, Ryan Magee
+# Copyright (C) 2024-2025  Yun-Jing Huang, Cort Posnansky
 
 
 from __future__ import annotations
@@ -26,17 +13,21 @@ import warnings
 from typing import Iterable, Mapping, Union
 
 import dqsegdb2.query
+import igwn_segments as segments
+from igwn_ligolw import ligolw, lsctables
+from igwn_ligolw import utils as ligolw_utils
+from igwn_ligolw.array import use_in as array_use_in
+from igwn_ligolw.param import use_in as param_use_in
+from igwn_segments import utils as segutils
 from lal import LIGOTimeGPS
-from ligo import segments
-from ligo.lw import ligolw, lsctables
-from ligo.lw import utils as ligolw_utils
-from ligo.segments import utils as segutils
 
 DEFAULT_DQSEGDB_SERVER = os.environ.get(
     "DEFAULT_SEGMENT_SERVER", "https://segments.ligo.org"
 )
 
 
+@array_use_in
+@param_use_in
 @lsctables.use_in
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass

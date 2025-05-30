@@ -18,7 +18,7 @@ from typing import Any
 
 import numpy
 import torch
-from ligo.lw import utils as ligolw_utils
+from igwn_ligolw import utils as ligolw_utils
 from strike.stats import far
 from strike.stats.far import RankingStatPDF
 from strike.stats.likelihood_ratio import LnLikelihoodRatio, P_of_Template

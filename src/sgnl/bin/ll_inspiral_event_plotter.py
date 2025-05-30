@@ -1,8 +1,8 @@
 """an executable to upload auxiliary files and plots for GraceDB"""
 
-# Copyright (C) 2019 Alexander Pace, Kipp Cannon, Chad Hanna, Drew Keppel
-# Copyright (C) 2020 Patrick Godwin, Cody Messick
-# Copyright (C) 2024 Yun-Jing Huang
+# Copyright (C) 2019      Alexander Pace, Kipp Cannon, Chad Hanna, Drew Keppel
+# Copyright (C) 2020      Patrick Godwin, Cody Messick
+# Copyright (C) 2024-2025 Yun-Jing Huang
 
 __usage__ = "sgnl-ll-inspiral-event-plotter [--options]"
 
@@ -24,13 +24,14 @@ from enum import Enum
 from xml.sax import SAXParseException
 
 import numpy
+from igwn_ligolw import ligolw, lsctables
+from igwn_ligolw import utils as ligolw_utils
+from igwn_ligolw.array import use_in as array_use_in
+from igwn_ligolw.ligolw import Param as ligolw_param
+from igwn_ligolw.param import use_in as param_use_in
 from lal import LIGOTimeGPS, series
 from ligo.gracedb.rest import DEFAULT_SERVICE_URL as DEFAULT_GRACEDB_URL
 from ligo.gracedb.rest import GraceDb, HTTPError
-from ligo.lw import array as ligolw_array
-from ligo.lw import ligolw, lsctables
-from ligo.lw import param as ligolw_param
-from ligo.lw import utils as ligolw_utils
 from ligo.scald import utils
 from strike.stats.likelihood_ratio import LnLikelihoodRatio
 
@@ -79,8 +80,8 @@ from matplotlib import pyplot as plt  # noqa: E402
 #                Content Handler
 # -------------------------------------------------
 @lsctables.use_in
-@ligolw_array.use_in
-@ligolw_param.use_in
+@array_use_in
+@param_use_in
 class ligolwcontenthandler(ligolw.LIGOLWContentHandler):
     pass
 
@@ -660,7 +661,7 @@ class EventPlotter(events.EventProcessor):
         # contains the template row
         timeseries_ligolw_dict = dict(
             (
-                ligolw_param.get_pyvalue(elem, "event_id"),
+                ligolw_param.get_param(elem, "event_id").value,
                 series.parse_COMPLEX8TimeSeries(elem),
             )
             for elem in event["coinc"].getElementsByTagName(ligolw.LIGO_LW.tagName)

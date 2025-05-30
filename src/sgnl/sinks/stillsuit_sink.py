@@ -9,9 +9,9 @@ from queue import Empty
 from time import asctime
 from typing import Any, Sequence
 
+import igwn_segments as segments
 import stillsuit
 import yaml
-from ligo import segments
 from sgn.subprocess import Parallelize, ParallelizeSinkElement
 from sgnligo.base import now
 from sgnts.base import Offset

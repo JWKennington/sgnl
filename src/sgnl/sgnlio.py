@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy
 import stillsuit
-from ligo.segments import segment, segmentlist, segmentlistdict
+from igwn_segments import segment, segmentlist, segmentlistdict
 
 from sgnl.viz import IFO_COMBO_COLOR
 

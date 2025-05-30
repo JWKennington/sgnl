@@ -7,8 +7,8 @@ time delays and padding for upsampling and downsampling
 
 from dataclasses import dataclass
 
+import igwn_segments as segments
 from lal import LIGOTimeGPS
-from ligo import segments
 from sgn.base import SourcePad
 from sgnts.base import (
     Array,
