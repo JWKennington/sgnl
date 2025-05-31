@@ -175,6 +175,7 @@ def main():
             marg_pdf,
             config.rank.extinct_percent,
             config.rank.fast_burnin,
+            config.rank.calc_pdf_cores,
         )
         dag.attach(layer)
 

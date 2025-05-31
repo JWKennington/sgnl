@@ -59,10 +59,10 @@ def parse_command_line():
         "-j",
         "--num-cores",
         metavar="cores",
-        default=4,
+        default=1,
         type=int,
         help="Number of cores to use when constructing ranking statistic histograms "
-        "(default = 4 cores).",
+        "(default = 1 cores).",
     )
     parser.add_argument(
         "--output-kafka-server",
