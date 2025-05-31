@@ -566,6 +566,7 @@ def event_trigs_to_coinc_xmldoc(
 
         # Add snr time series
         ts = snr_ts[row.ifo]
+        ts = downsample_snr(ts, sngl_inspiral_table)
         snr_time_series_element = lalseries.build_COMPLEX8TimeSeries(
             ts, encoding="base64"
         )
@@ -633,3 +634,42 @@ def write_rankingstat_xmldoc_gracedb(rankingstat_upload, output_filename):
         for history in rankingstat.terms["P_of_tref_Dh"].horizon_history.values():
             del history[:endtime]
     rankingstat.save(output_filename)
+
+
+def downsample_snr(snr_time_series, sngl_inspiral_table):
+    sample_frq = 1 // snr_time_series.deltaT
+    down_frq = ceil_pow_2(2 * sngl_inspiral_table[0].f_final)
+    if sample_frq == down_frq:
+        return snr_time_series
+    else:
+        snr_time_series_array = snr_time_series.data.data
+        q = sample_frq // down_frq
+        N = (len(snr_time_series_array) - 1) // 2
+        assert (
+            sample_frq % down_frq
+        ) == 0, "down-sampling frequency must be a divisor of sample frequency"
+        snr_time_series_downsampled_array = snr_time_series_array[(N % q) :: q]
+        snr_time_series_downsampled = lal.CreateCOMPLEX8TimeSeries(
+            name="snr",
+            epoch=snr_time_series.epoch + (N % q) / sample_frq,
+            f0=snr_time_series.f0,
+            deltaT=1.0 / down_frq,
+            sampleUnits=snr_time_series.sampleUnits,
+            length=len(snr_time_series_downsampled_array),
+        )
+        snr_time_series_downsampled.data.data = snr_time_series_downsampled_array
+        assert (
+            len(snr_time_series_downsampled.data.data) % 2 == 1
+        ), "SNR time series must be odd"
+        return snr_time_series_downsampled
+
+
+def ceil_pow_2(x):
+    """Round a number up to the nearest power of 2"""
+    x = int(math.ceil(x))
+    x -= 1
+    n = 1
+    while n and (x & (x + 1)):
+        x |= x >> n
+        n *= 2
+    return x + 1
