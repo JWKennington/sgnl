@@ -95,12 +95,13 @@ def main():
 
         layer = layers.create_prior(
             config.condor,
+            config.prior,
             config.filter.coincidence_threshold,
-            config.prior.mass_model,
             svd_bank_cache,
             prior_cache,
             config.ifos,
             config.filter.min_instruments_candidates,
+            svd_stats,
             write_empty_zerolag=zerolag_pdf_cache,
             write_empty_marg_zerolag=marg_zerolag_pdf_cache,
         )
