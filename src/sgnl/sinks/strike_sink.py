@@ -181,19 +181,26 @@ class StrikeSink(SnapShotControlSinkElement, ParallelizeSinkElement):
         # FIXME This reduces the ram, but is a mess
         xml = sdict["xml"]
         zerolagxml = sdict["zerolagxml"]
+        bankid = sdict["bankid"]
+        old_xml = self.state_dict["xml"]
+        old_zerolagxml = self.state_dict["zerolagxml"]
+
+        new_xml = {bid: x for bid, x in old_xml.items() if bid != bankid}
+        new_zerolagxml = {bid: x for bid, x in old_zerolagxml.items() if bid != bankid}
+        new_xml[bankid] = xml[bankid]
+        new_zerolagxml[bankid] = zerolagxml[bankid]
         count_tracker = self.state_dict["count_tracker"]
         count_removal_times = self.state_dict["count_removal_times"]
         del self.state_dict
         self.state_dict = {
-            "xml": xml,
-            "zerolagxml": zerolagxml,
+            "xml": new_xml,
+            "zerolagxml": new_zerolagxml,
             "count_tracker": count_tracker,
             "count_removal_times": count_removal_times,
         }
 
         frankenstein = sdict["frankenstein"]
         likelihood_ratio_upload = sdict["likelihood_ratio_upload"]
-        bankid = sdict["bankid"]
         self.strike_object.update_dynamic(
             bankid, frankenstein[bankid], likelihood_ratio_upload[bankid]
         )
