@@ -897,7 +897,7 @@ def calc_pdf(
     condor_config, rank_config, config_svd_bins, lr_cache, pdf_cache, mass_model_file
 ):
     # FIXME: expose this in configuration
-    num_cores = rank_config.calc_pdf_cores if rank_config.calc_pdf_cores else 4
+    num_cores = rank_config.calc_pdf_cores if rank_config.calc_pdf_cores else 1
 
     executable = "strike-calc-rank-pdfs"
     resource_requests = {
@@ -1534,10 +1534,13 @@ def marginalize_online(
     marg_pdf_cache,
     extinct_percent=None,
     fast_burnin=False,
+    calc_pdf_cores=1,
 ):
+    num_cores = calc_pdf_cores if calc_pdf_cores else 1
+
     executable = "sgnl-ll-marginalize-likelihoods-online"
     resource_requests = {
-        "request_cpus": 2,
+        "request_cpus": num_cores,
         "request_memory": "4GB",
         "request_disk": "5GB",
     }
@@ -1575,6 +1578,7 @@ def marginalize_online(
         Option("output-kafka-server", services_config.kafka_server),
         Option("tag", tag),
         Option("verbose"),
+        Option("num-cores", num_cores),
     ]
 
     if fast_burnin:
