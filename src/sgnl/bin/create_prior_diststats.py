@@ -208,6 +208,8 @@ def parse_command_line():
                 "--min-instruments is greater than the number of unique --instrument's"
             )
 
+    template_ids = numpy.unique(template_ids)
+
     return (
         options,
         process_params,
