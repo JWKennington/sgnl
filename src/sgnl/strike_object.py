@@ -443,40 +443,43 @@ class StrikeObject:
                 new_lrs[bankid] = new_lr
                 self.likelihood_ratios = new_lrs
 
-        # replace with new dictionary because this lowers the ram for
-        # some reason, I don't know if the root cause is in the LR class
-        # FIXME: This reduces the ram, but is a mess
-        new_frankensteins = {
-            bid: f for bid, f in self.frankensteins.items() if bid != bankid
-        }
-        new_likelihood_ratio_uploads = {
-            bid: f
-            for bid, f in (self.likelihood_ratio_uploads.items())
-            if bid != bankid
-        }
-        del self.frankensteins
-        del self.likelihood_ratio_uploads
-        if GC:
-            print("gc frank", gc.collect(), flush=True)
+        if frankenstein is not None:
+            # replace with new dictionary because this lowers the ram for
+            # some reason, I don't know if the root cause is in the LR class
+            # FIXME: This reduces the ram, but is a mess
+            new_frankensteins = {
+                bid: f for bid, f in self.frankensteins.items() if bid != bankid
+            }
+            new_likelihood_ratio_uploads = {
+                bid: f
+                for bid, f in (self.likelihood_ratio_uploads.items())
+                if bid != bankid
+            }
+            del self.frankensteins
+            del self.likelihood_ratio_uploads
+            if GC:
+                print("gc frank", gc.collect(), flush=True)
 
-        lr = self.likelihood_ratios[bankid]
-        triggerrates = lr.terms["P_of_tref_Dh"].triggerrates
-        horizon_history = lr.terms["P_of_tref_Dh"].horizon_history
+            lr = self.likelihood_ratios[bankid]
+            triggerrates = lr.terms["P_of_tref_Dh"].triggerrates
+            horizon_history = lr.terms["P_of_tref_Dh"].horizon_history
 
-        likelihood_ratio_upload.terms["P_of_tref_Dh"].triggerrates = triggerrates
-        likelihood_ratio_upload.terms["P_of_tref_Dh"].horizon_history = horizon_history
-        likelihood_ratio_upload.triggerrates = triggerrates
-        likelihood_ratio_upload.horizon_history = horizon_history
-        new_likelihood_ratio_uploads[bankid] = likelihood_ratio_upload
+            likelihood_ratio_upload.terms["P_of_tref_Dh"].triggerrates = triggerrates
+            likelihood_ratio_upload.terms["P_of_tref_Dh"].horizon_history = (
+                horizon_history
+            )
+            likelihood_ratio_upload.triggerrates = triggerrates
+            likelihood_ratio_upload.horizon_history = horizon_history
+            new_likelihood_ratio_uploads[bankid] = likelihood_ratio_upload
 
-        frankenstein.terms["P_of_tref_Dh"].triggerrate = triggerrates
-        frankenstein.terms["P_of_tref_Dh"].horizon_history = horizon_history
-        frankenstein.triggerrates = triggerrates
-        frankenstein.horizon_history = horizon_history
-        new_frankensteins[bankid] = frankenstein
+            frankenstein.terms["P_of_tref_Dh"].triggerrate = triggerrates
+            frankenstein.terms["P_of_tref_Dh"].horizon_history = horizon_history
+            frankenstein.triggerrates = triggerrates
+            frankenstein.horizon_history = horizon_history
+            new_frankensteins[bankid] = frankenstein
 
-        self.frankensteins = new_frankensteins
-        self.likelihood_ratio_uploads = new_likelihood_ratio_uploads
+            self.frankensteins = new_frankensteins
+            self.likelihood_ratio_uploads = new_likelihood_ratio_uploads
 
         # Now clear references manually
         if GC:
@@ -655,14 +658,15 @@ class StrikeObject:
             new_lr.triggerrates = None
             new_lr.horizon_history = None
 
-        frankenstein.terms["P_of_tref_Dh"].triggerrates = None
-        frankenstein.terms["P_of_tref_Dh"].horizon_history = None
-        frankenstein.triggerrates = None
-        frankenstein.horizon_history = None
-        likelihood_ratio_upload.terms["P_of_tref_Dh"].triggerrates = None
-        likelihood_ratio_upload.terms["P_of_tref_Dh"].horizon_history = None
-        likelihood_ratio_upload.triggerrates = None
-        likelihood_ratio_upload.horizon_history = None
+        if frankenstein is not None:
+            frankenstein.terms["P_of_tref_Dh"].triggerrates = None
+            frankenstein.terms["P_of_tref_Dh"].horizon_history = None
+            frankenstein.triggerrates = None
+            frankenstein.horizon_history = None
+            likelihood_ratio_upload.terms["P_of_tref_Dh"].triggerrates = None
+            likelihood_ratio_upload.terms["P_of_tref_Dh"].horizon_history = None
+            likelihood_ratio_upload.triggerrates = None
+            likelihood_ratio_upload.horizon_history = None
         if GC:
             print("gc set triggerrates None", gc.collect(), flush=True)
 
