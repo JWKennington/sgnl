@@ -6,6 +6,7 @@
 import itertools
 import os
 import shutil
+from collections.abc import Mapping
 from math import ceil
 
 from ezdag import Argument, Layer, Node, Option
@@ -644,10 +645,10 @@ def aggregate(filter_config, condor_config, trigger_cache, clustered_triggers_ca
 
 def marginalize_likelihood_ratio(
     condor_config,
+    prior_config,
     lr_cache,
     marg_lr_cache,
     prior_cache=None,
-    mass_model_file=None,
 ):
 
     executable = "strike-marginalize-likelihood"
@@ -670,15 +671,10 @@ def marginalize_likelihood_ratio(
 
     lrs = lr_cache.groupby("bin")
 
-    inputs = []
-    if mass_model_file is not None:
-        inputs.append(Option("mass-model-file", mass_model_file, suppress=True))
-
     for svd_bin, marg_lrs in marg_lr_cache.groupby("bin").items():
         layer += Node(
             arguments=Option("marginalize", "likelihood-ratio"),
-            inputs=inputs
-            + [
+            inputs=[
                 Option(
                     "input",
                     (
@@ -696,12 +692,13 @@ def marginalize_likelihood_ratio(
 
 def create_prior(
     condor_config,
+    prior_config,
     coincidence_threshold,
-    mass_model,
     svd_bank_cache,
     prior_cache,
     ifos,
     min_instruments,
+    svd_stats,
     write_empty_zerolag=None,
     write_empty_marg_zerolag=None,
 ):
@@ -727,7 +724,7 @@ def create_prior(
     for i, (svd_bin, prior) in enumerate(prior_cache.groupby("bin").items()):
         inputs = [
             Option("svd-file", svd_banks[svd_bin].files),
-            Option("mass-model-file", mass_model),
+            *add_likelihood_ratio_file_options(svd_bin, svd_stats, prior_config),
         ]
         outputs = [Option("output-likelihood-file", prior.files)]
         if write_empty_zerolag and write_empty_marg_zerolag:
@@ -839,10 +836,11 @@ def merge_and_reduce(
 def assign_likelihood(
     condor_config,
     filter_config,
+    prior_config,
     trigger_cache,
     lr_cache,
     lr_trigger_cache,
-    mass_model_file,
+    svd_stats,
 ):
     executable = "sgnl-assign-likelihood"
     resource_requests = {
@@ -882,7 +880,9 @@ def assign_likelihood(
                 Option("config-schema", filter_config.event_config_file),
                 Option("input-database-file", triggers.files),
                 Option("input-likelihood-file", lrs[svd_bin].files),
-                Option("mass-model-file", mass_model_file, suppress=True),
+                *add_likelihood_ratio_file_options(
+                    svd_bin, svd_stats, prior_config, transfer_only=True
+                ),
             ],
             outputs=Option(
                 "output-database-file",
@@ -919,7 +919,6 @@ def calc_pdf(
                 arguments=arguments,
                 inputs=[
                     Option("input-likelihood-file", lrs[svd_bin].files),
-                    Option("mass-model-file", mass_model_file, suppress=True),
                 ],
                 outputs=Option("output-rankingstatpdf-file", pdf),
             )
@@ -2067,3 +2066,42 @@ def upload_pastro(
             layer += Node(arguments=arguments)
 
     return layer
+
+
+def add_likelihood_ratio_file_options(
+    svd_bin, svd_stats, prior_config, transfer_only=False
+):
+    """
+    Return a list of options relating to files used for
+    terms in the ranking statistic,
+    including:
+        * dtdphi
+        * iDQ timeseries
+
+    if transfer_only is True, do not add options to programs,
+    instead, only use these files as inputs for Condor file
+    transfer. This is required for jobs that require these files,
+    as their paths are tracked through the ranking stat, so
+    Condor needs to be aware of these files when not relying on
+    a shared file system.
+    """
+    if transfer_only:
+        kwargs = {"track": False, "suppress": True}
+    else:
+        kwargs = {}
+
+    inputs = [Option("mass-model-file", prior_config.mass_model, **kwargs)]
+
+    if prior_config.idq_timeseries:
+        inputs.append(Option("idq-file", prior_config.idq_timeseries, **kwargs))
+
+    if prior_config.dtdphi:
+        if isinstance(prior_config.dtdphi, Mapping):
+            sub_bank = svd_stats.bins[svd_bin]["bank_name"]
+            inputs.append(
+                Option("dtdphi-file", prior_config.dtdphi[sub_bank], **kwargs)
+            )
+        else:
+            inputs.append(Option("dtdphi-file", prior_config.dtdphi, **kwargs))
+
+    return inputs

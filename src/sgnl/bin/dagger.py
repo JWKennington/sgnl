@@ -261,7 +261,10 @@ def main():
             root=config.paths.filter_dir,
         )
         layer = layers.marginalize_likelihood_ratio(
-            config.condor, lr_cache, marg_lr_cache
+            config.condor,
+            lr_cache,
+            marg_lr_cache,
+            svd_stats,
         )
 
         dag.attach(layer)
@@ -360,12 +363,14 @@ def main():
 
         layer = layers.create_prior(
             config.condor,
+            config.prior,
             config.filter.coincidence_threshold,
             config.prior.mass_model,
             svd_bank_cache,
             prior_cache,
             config.ifos,
             config.filter.min_instruments_candidates,
+            svd_stats,
         )
         dag.attach(layer)
 
@@ -439,10 +444,11 @@ def main():
         layer = layers.assign_likelihood(
             config.condor,
             config.filter,
+            config.prior,
             time_clustered_triggers_cache,
             marg_lr_prior_cache,
             lr_triggers_cache,
-            config.prior.mass_model,
+            svd_stats,
         )
         dag.attach(layer)
 
