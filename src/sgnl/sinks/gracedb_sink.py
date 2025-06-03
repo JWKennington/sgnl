@@ -469,6 +469,10 @@ def event_trigs_to_coinc_xmldoc(
                 maxid = numpy.argmax(seq)
 
                 maxsnr = abs(snr_ts_this_ifo_array[idx0 + maxid])
+                if maxsnr == 0:
+                    # FIXME: why does this happen? Because of gaps?
+                    print("warning: maxsnr = 0")
+                    continue
                 phase = math.atan2(
                     snr_ts_this_ifo_array[idx0 + maxid].imag,
                     snr_ts_this_ifo_array[idx0 + maxid].real,
