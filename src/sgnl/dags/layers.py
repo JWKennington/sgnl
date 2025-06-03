@@ -8,8 +8,11 @@ import os
 import shutil
 from collections.abc import Mapping
 from math import ceil
+from typing import Iterable
 
+import numpy
 from ezdag import Argument, Layer, Node, Option
+from lal import rate
 
 from sgnl.dags import util
 from sgnl.dags.util import condor_scratch_space, format_ifo_args, groups, to_ifo_list
@@ -207,30 +210,55 @@ def svd_bank(
         Option("sort-by", svd_config.sort_by),
     ]
 
+    if svd_config.autocorrelation_length:
+        mchirp_to_ac_length = autocorrelation_length_map(
+            svd_config.autocorrelation_length
+        )
+
     split_banks = split_bank_cache.groupby("bin")
     for (ifo, svd_bin), svd_banks in svd_cache.groupby("ifo", "bin").items():
 
         # grab sub-bank specific configuration if available
         if "bank_name" in svd_stats["bins"][svd_bin]:
             bank_name = svd_stats["bins"][svd_bin]["bank_name"]
-            svd_config = svd_config.sub_banks[bank_name]
+            this_svd_config = svd_config.sub_banks[bank_name]
         else:
-            svd_config = svd_config
+            this_svd_config = svd_config
 
         arguments = [
             Option("instrument-override", ifo),
-            Option("flow", svd_config.f_low),
-            Option("samples-min", svd_config.samples_min),
-            Option("samples-max-64", svd_config.samples_max_64),
-            Option("samples-max-256", svd_config.samples_max_256),
-            Option("samples-max", svd_config.samples_max),
-            Option("svd-tolerance", svd_config.tolerance),
-            Option("autocorrelation-length", svd_stats["bins"][svd_bin]["ac_length"]),
+            Option("flow", this_svd_config.f_low),
+            Option("samples-min", this_svd_config.samples_min),
+            Option("samples-max-64", this_svd_config.samples_max_64),
+            Option("samples-max-256", this_svd_config.samples_max_256),
+            Option("samples-max", this_svd_config.samples_max),
+            Option("svd-tolerance", this_svd_config.tolerance),
         ]
-        if "max_duration" in svd_config:
-            arguments.append(Option("max-duration", svd_config.max_duration))
-        if "sample_rate" in svd_config:
-            arguments.append(Option("sample-rate", svd_config.sample_rate))
+
+        # FIXME: in gstlal offline, autocrrelation_length is in the option file,
+        # but in online, it's in the config. Which one should we use?
+        if this_svd_config.autocorrelation_length:
+            bin_mchirp = svd_stats["bins"][svd_bin]["mean_mchirp"]
+            arguments.append(
+                Option("autocorrelation-length", mchirp_to_ac_length(bin_mchirp))
+            )
+            if "ac_length" in svd_stats["bins"][svd_bin]:
+                # FIXME: sanity check autocorrelation length is the same, remove
+                # this once we decide on a single location to get the
+                # autocorrelation length
+                assert svd_stats["bins"][svd_bin] == mchirp_to_ac_length(bin_mchirp)
+        elif "ac_length" in svd_stats["bins"][svd_bin]:
+            arguments.append(
+                Option(
+                    "autocorrelation-length", svd_stats["bins"][svd_bin]["ac_length"]
+                )
+            )
+        else:
+            raise ValueError("Unknown autocorrelation length option")
+        if "max_duration" in this_svd_config:
+            arguments.append(Option("max-duration", this_svd_config.max_duration))
+        if "sample_rate" in this_svd_config:
+            arguments.append(Option("sample-rate", this_svd_config.sample_rate))
         # FIXME figure out where this option should live
         # if 'use_bankchisq' in config.rank and config.rank.use_bankchisq:
         #    arguments.append(Option("use-bankchisq"))
@@ -2105,3 +2133,43 @@ def add_likelihood_ratio_file_options(
             inputs.append(Option("dtdphi-file", prior_config.dtdphi, **kwargs))
 
     return inputs
+
+
+def autocorrelation_length_map(ac_length_range):
+    """
+    Given autocorrelation length ranges (e.g. 0:15:701)
+    or a single autocorrelation value, returns a function that
+    maps a given chirp mass to an autocorrelation length.
+    """
+    if isinstance(ac_length_range, str):
+        ac_length_range = [ac_length_range]
+
+    # handle case with AC length ranges
+    if isinstance(ac_length_range, Iterable):
+        ac_lengths = []
+        min_mchirps = []
+        max_mchirps = []
+        for this_range in ac_length_range:
+            min_mchirp, max_mchirp, ac_length = this_range.split(":")
+            min_mchirps.append(float(min_mchirp))
+            max_mchirps.append(float(max_mchirp))
+            ac_lengths.append(int(ac_length))
+
+        # sanity check inputs
+        for bound1, bound2 in zip(min_mchirps[1:], max_mchirps[:-1]):
+            assert bound1 == bound2, "gaps not allowed in autocorrelation length ranges"
+
+        # convert to binning
+        bins = rate.IrregularBins([min_mchirps[0]] + max_mchirps)
+
+    # handle single value case
+    else:
+        ac_lengths = [ac_length_range]
+        bins = rate.IrregularBins([0.0, numpy.inf])
+
+    # create mapping
+    def mchirp_to_ac_length(mchirp):
+        idx = bins[mchirp]
+        return ac_lengths[idx]
+
+    return mchirp_to_ac_length

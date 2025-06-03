@@ -343,9 +343,15 @@ def build_bank(
     )
     bank_sngl_table = lsctables.SnglInspiralTable.get_table(bank_xmldoc)
     # FIXME Do we want to hardcode the program here?
-    (approximant,) = ligolw_process.get_process_params(
-        bank_xmldoc, "sgnl-inspiral-bank-splitter", "--approximant"
-    )
+    try:
+        (approximant,) = ligolw_process.get_process_params(
+            bank_xmldoc, "sgnl-inspiral-bank-splitter", "--approximant"
+        )
+    except ValueError:
+        (approximant,) = ligolw_process.get_process_params(
+            bank_xmldoc, "gstlal_bank_splitter", "--approximant"
+        )
+
     fhigh = check_ffinal_and_find_max_ffinal(bank_xmldoc)
     flow = cal_higher_f_low(bank_sngl_table, fhigh, flow, approximant, max_duration)
     if instrument_override is not None:
