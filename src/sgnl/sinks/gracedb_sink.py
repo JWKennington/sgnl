@@ -641,7 +641,7 @@ def write_rankingstat_xmldoc_gracedb(rankingstat_upload, output_filename):
 
 
 def downsample_snr(snr_time_series, sngl_inspiral_table):
-    sample_frq = 1 // snr_time_series.deltaT
+    sample_frq = int(1 // snr_time_series.deltaT)
     down_frq = ceil_pow_2(2 * sngl_inspiral_table[0].f_final)
     if sample_frq == down_frq:
         return snr_time_series
