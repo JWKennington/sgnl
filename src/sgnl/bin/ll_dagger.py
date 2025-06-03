@@ -62,18 +62,37 @@ def main():
     dag = DAG(dag_name)
 
     if args.workflow == "setup":
-        # Reference PSD layer
-        # dag.attach(layers.reference_psd(config.psd, config.condor))
+        ref_psd_cache = DataCache.from_files(
+            DataType.REFERENCE_PSD, config.paths.reference_psd
+        )
+        split_bank_cache = DataCache.find(
+            DataType.SPLIT_BANK, svd_bins="*", subtype="*"
+        )
 
-        # Median PSD layer
-        # dag.attach(layers.median_psd(config.psd, config.condor))
-        # ref_psd = DataCache.from_files(DataType.REFERENCE_PSD,
-        # config.paths.reference_psd)
-        # split_bank = DataCache.find(DataType.SPLIT_BANK, svd_bins="*", subtype="*")
-
-        # FIXME: use svds from gstlal for now
-        svd_bank_cache = DataCache.find(DataType.SVD_BANK, root="filter", svd_bins="*")
         svd_bins, svd_stats = load_svd_options(config.svd.option_file, config.svd)
+        svd_bank_cache = DataCache.generate(
+            DataType.SVD_BANK,
+            config.ifos,
+            config.span,
+            svd_bins=svd_bins,
+            root="filter",
+        )
+
+        dag.attach(
+            layers.svd_bank(
+                config.svd,
+                config.condor,
+                list(sorted(config.all_ifos)),
+                split_bank_cache,
+                ref_psd_cache,
+                svd_bank_cache,
+                svd_bins,
+                svd_stats,
+            )
+        )
+        # FIXME when is this used?
+        # if config.svd.checkerboard:
+        #    svd_bank = dag.checkerboard(ref_psd, svd_bank)
 
         prior_cache = DataCache.generate(
             DataType.LIKELIHOOD_RATIO,

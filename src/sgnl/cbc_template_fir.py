@@ -268,7 +268,7 @@ class templates_workspace:
                             7,
                             self.fhigh,
                             0.0,
-                            spawaveform.computechi(
+                            spawaveform.compute_chi(
                                 row.mass1, row.mass2, row.spin1z, row.spin2z
                             ),
                         )
