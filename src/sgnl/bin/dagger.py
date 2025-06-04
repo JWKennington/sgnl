@@ -150,7 +150,10 @@ def main():
 
         dag.attach(
             layers.reference_psd(
-                config.psd, config.source, config.condor, ref_psd_cache
+                psd_config=config.psd,
+                source_config=config.source,
+                condor_config=config.condor,
+                ref_psd_cache=ref_psd_cache,
             )
         )
 
@@ -164,7 +167,10 @@ def main():
 
         dag.attach(
             layers.median_psd(
-                config.psd, config.condor, ref_psd_cache, median_psd_cache
+                psd_config=config.psd,
+                condor_config=config.condor,
+                ref_psd_cache=ref_psd_cache,
+                median_psd_cache=median_psd_cache,
             )
         )
 
@@ -186,14 +192,14 @@ def main():
 
         dag.attach(
             layers.svd_bank(
-                config.svd,
-                config.condor,
-                list(sorted(config.all_ifos)),
-                split_bank_cache,
-                median_psd_cache,
-                svd_cache,
-                svd_bins,
-                svd_stats,
+                svd_config=config.svd,
+                condor_config=config.condor,
+                all_ifos=list(sorted(config.all_ifos)),
+                split_bank_cache=split_bank_cache,
+                median_psd_cache=median_psd_cache,
+                svd_cache=svd_cache,
+                svd_bins=svd_bins,
+                svd_stats=svd_stats,
             )
         )
 
@@ -225,30 +231,17 @@ def main():
         )
 
         layer = layers.filter(
-            config.psd,
-            config.svd,
-            config.filter,
-            config.source,
-            config.condor,
-            ref_psd_cache,
-            svd_bank_cache,
-            lr_cache,
-            trigger_cache,
-            svd_stats,
-            config.filter.min_instruments_candidates,
-        )
-
-        dag.attach(layer)
-
-        clustered_trigger_cache = DataCache.generate(
-            DataType.CLUSTERED_TRIGGERS,
-            config.ifo_combos,
-            config.time_bins,
-            svd_bins=svd_bins,
-            root=config.paths.filter_dir,
-        )
-        layer = layers.aggregate(
-            config.filter, config.condor, trigger_cache, clustered_trigger_cache
+            psd_config=config.psd,
+            svd_config=config.svd,
+            filter_config=config.filter,
+            source_config=config.source,
+            condor_config=config.condor,
+            ref_psd_cache=ref_psd_cache,
+            svd_bank_cache=svd_bank_cache,
+            lr_cache=lr_cache,
+            trigger_cache=trigger_cache,
+            svd_stats=svd_stats,
+            min_instruments=config.filter.min_instruments_candidates,
         )
 
         dag.attach(layer)
@@ -261,10 +254,9 @@ def main():
             root=config.paths.filter_dir,
         )
         layer = layers.marginalize_likelihood_ratio(
-            config.condor,
-            lr_cache,
-            marg_lr_cache,
-            svd_stats,
+            condor_config=config.condor,
+            lr_cache=lr_cache,
+            marg_lr_cache=marg_lr_cache,
         )
 
         dag.attach(layer)
@@ -295,33 +287,17 @@ def main():
             )
 
         layer = layers.injection_filter(
-            config.psd,
-            config.svd,
-            config.filter,
-            config.injections,
-            config.source,
-            config.condor,
-            ref_psd_cache,
-            svd_bank_cache,
-            trigger_cache,
-            svd_stats,
-            config.filter.min_instruments_candidates,
-        )
-
-        dag.attach(layer)
-
-        clustered_trigger_cache = DataCache(DataType.CLUSTERED_TRIGGERS)
-        for inj_name in config.injections.filter:
-            clustered_trigger_cache += DataCache.generate(
-                DataType.CLUSTERED_TRIGGERS,
-                config.ifo_combos,
-                config.time_bins,
-                svd_bins=svd_bins,
-                subtype=inj_name,
-                root=config.paths.injection_dir,
-            )
-        layer = layers.aggregate(
-            config.filter, config.condor, trigger_cache, clustered_trigger_cache
+            psd_config=config.psd,
+            svd_config=config.svd,
+            filter_config=config.filter,
+            injection_config=config.injections,
+            source_config=config.source,
+            condor_config=config.condor,
+            ref_psd_cache=ref_psd_cache,
+            svd_bank_cache=svd_bank_cache,
+            trigger_cache=trigger_cache,
+            svd_stats=svd_stats,
+            min_instruments=config.filter.min_instruments_candidates,
         )
 
         dag.attach(layer)
@@ -332,9 +308,8 @@ def main():
         # initialize empty caches, to which we will
         # add discovered data products
         marg_lr_cache = DataCache(DataType.MARG_LIKELIHOOD_RATIO)
-        clustered_triggers_cache = DataCache(DataType.CLUSTERED_TRIGGERS)
-        clustered_inj_triggers_cache = DataCache(DataType.CLUSTERED_TRIGGERS)
-        # split_bank_cache = DataCache(DataType.SPLIT_BANK)
+        triggers_cache = DataCache(DataType.TRIGGERS)
+        inj_triggers_cache = DataCache(DataType.TRIGGERS)
         prior_cache = DataCache(DataType.PRIOR_LIKELIHOOD_RATIO)
 
         svd_bank_cache = DataCache.find(
@@ -343,11 +318,11 @@ def main():
         marg_lr_cache += DataCache.find(
             DataType.MARG_LIKELIHOOD_RATIO, root=config.paths.filter_dir, svd_bins="*"
         )
-        clustered_triggers_cache += DataCache.find(
-            DataType.CLUSTERED_TRIGGERS, root=config.paths.filter_dir, svd_bins="*"
+        triggers_cache += DataCache.find(
+            DataType.TRIGGERS, root=config.paths.filter_dir, svd_bins="*"
         )
-        clustered_inj_triggers_cache += DataCache.find(
-            DataType.CLUSTERED_TRIGGERS,
+        inj_triggers_cache += DataCache.find(
+            DataType.TRIGGERS,
             root=config.paths.injection_dir,
             svd_bins="*",
             subtype="*",
@@ -362,15 +337,14 @@ def main():
         )
 
         layer = layers.create_prior(
-            config.condor,
-            config.prior,
-            config.filter.coincidence_threshold,
-            config.prior.mass_model,
-            svd_bank_cache,
-            prior_cache,
-            config.ifos,
-            config.filter.min_instruments_candidates,
-            svd_stats,
+            condor_config=config.condor,
+            prior_config=config.prior,
+            coincidence_threshold=config.filter.coincidence_threshold,
+            svd_bank_cache=svd_bank_cache,
+            prior_cache=prior_cache,
+            ifos=config.ifos,
+            min_instruments=config.filter.min_instruments_candidates,
+            svd_stats=svd_stats,
         )
         dag.attach(layer)
 
@@ -383,11 +357,10 @@ def main():
         )
 
         layer = layers.marginalize_likelihood_ratio(
-            config.condor,
-            marg_lr_cache,
-            marg_lr_prior_cache,
-            prior_cache,
-            config.prior.mass_model,
+            condor_config=config.condor,
+            lr_cache=marg_lr_cache,
+            marg_lr_cache=marg_lr_prior_cache,
+            prior_cache=prior_cache,
         )
         dag.attach(layer)
 
@@ -411,16 +384,14 @@ def main():
                 root=config.paths.rank_dir,
             )
 
-        all_clustered_triggers_cache = (
-            clustered_triggers_cache + clustered_inj_triggers_cache
-        )
+        all_clustered_triggers_cache = triggers_cache + inj_triggers_cache
         layer = layers.add_trigger_dbs(
-            config.condor,
-            config.filter,
-            all_clustered_triggers_cache,
-            time_clustered_triggers_cache,
-            "network_chisq_weighted_snr",
-            0.1,
+            condor_config=config.condor,
+            filter_config=config.filter,
+            trigger_cache=all_clustered_triggers_cache,
+            clustered_trigger_cache=time_clustered_triggers_cache,
+            column="network_chisq_weighted_snr",
+            window=0.1,
         )
         dag.attach(layer)
 
@@ -442,13 +413,13 @@ def main():
                 root=config.paths.rank_dir,
             )
         layer = layers.assign_likelihood(
-            config.condor,
-            config.filter,
-            config.prior,
-            time_clustered_triggers_cache,
-            marg_lr_prior_cache,
-            lr_triggers_cache,
-            svd_stats,
+            condor_config=config.condor,
+            filter_config=config.filter,
+            prior_config=config.prior,
+            trigger_cache=time_clustered_triggers_cache,
+            lr_cache=marg_lr_prior_cache,
+            lr_trigger_cache=lr_triggers_cache,
+            svd_stats=svd_stats,
         )
         dag.attach(layer)
 
@@ -469,12 +440,12 @@ def main():
                 root=config.paths.rank_dir,
             )
         layer = layers.merge_and_reduce(
-            config.condor,
-            config.filter,
-            lr_triggers_cache,
-            clustered_lr_triggers_cache,
-            "likelihood",
-            4,
+            condor_config=config.condor,
+            filter_config=config.filter,
+            trigger_cache=lr_triggers_cache,
+            clustered_trigger_cache=clustered_lr_triggers_cache,
+            column="likelihood",
+            window=4,
         )
         dag.attach(layer)
 
@@ -496,12 +467,13 @@ def main():
             root=config.paths.rank_dir,
         )
         layer = layers.calc_pdf(
-            config.condor,
-            config.rank,
-            svd_bins,
-            marg_lr_prior_cache,
-            pdf_cache,
-            config.prior.mass_model,
+            condor_config=config.condor,
+            prior_config=config.prior,
+            rank_config=config.rank,
+            config_svd_bins=svd_bins,
+            lr_cache=marg_lr_prior_cache,
+            pdf_cache=pdf_cache,
+            svd_stats=svd_stats,
         )
         dag.attach(layer)
 
@@ -513,11 +485,11 @@ def main():
             root=config.paths.rank_dir,
         )
         layer = layers.extinct_bin(
-            config.condor,
-            config.filter.event_config_file,
-            pdf_cache,
-            lr_triggers_cache,
-            extinct_pdf_cache,
+            condor_config=config.condor,
+            event_config_file=config.filter.event_config_file,
+            pdf_cache=pdf_cache,
+            trigger_cache=lr_triggers_cache,
+            extinct_cache=extinct_pdf_cache,
         )
         dag.attach(layer)
 
@@ -528,13 +500,13 @@ def main():
             root=config.paths.rank_dir,
         )
         layer_list = layers.marginalize_pdf(
-            config.condor,
-            config.rank,
-            config.paths.rank_dir,
-            config.all_ifos,
-            config.span,
-            extinct_pdf_cache,
-            marg_pdf_cache,
+            condor_config=config.condor,
+            rank_config=config.rank,
+            rank_dir=config.paths.rank_dir,
+            all_ifos=config.all_ifos,
+            span=config.span,
+            pdf_cache=extinct_pdf_cache,
+            marg_pdf_cache=marg_pdf_cache,
         )
         for layer in layer_list:
             dag.attach(layer)
@@ -563,12 +535,12 @@ def main():
             )
 
         layer_list = layers.assign_far(
-            config.condor,
-            config.filter.event_config_file,
-            clustered_lr_triggers_cache,
-            marg_pdf_cache,
-            post_pdf_cache,
-            far_trigger_cache,
+            condor_config=config.condor,
+            event_config_file=config.filter.event_config_file,
+            trigger_cache=clustered_lr_triggers_cache,
+            marg_pdf_cache=marg_pdf_cache,
+            post_pdf_cache=post_pdf_cache,
+            far_trigger_cache=far_trigger_cache,
         )
         for layer in layer_list:
             dag.attach(layer)
@@ -594,14 +566,16 @@ def main():
             os.makedirs(config.summary.webdir)
 
         layer_list = layers.summary_page(
-            config.condor,
-            config.filter.event_config_file,
-            config.source.frame_segments_file,
-            config.source.frame_segments_name,
-            config.summary.webdir,
-            far_trigger_cache,
-            seg_far_trigger_cache,
-            post_pdf_cache,
+            condor_config=config.condor,
+            event_config_file=config.filter.event_config_file,
+            segments_file=config.source.frame_segments_file,
+            segments_name=config.source.frame_segments_name,
+            webdir=config.summary.webdir,
+            far_trigger_cache=far_trigger_cache,
+            seg_far_trigger_cache=seg_far_trigger_cache,
+            post_pdf_cache=post_pdf_cache,
+            marg_lr_prior_cache=marg_lr_prior_cache,
+            mass_model_file=config.prior.mass_model,
         )
         for layer in layer_list:
             dag.attach(layer)
