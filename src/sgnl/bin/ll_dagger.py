@@ -80,14 +80,14 @@ def main():
 
         dag.attach(
             layers.svd_bank(
-                config.svd,
-                config.condor,
-                list(sorted(config.all_ifos)),
-                split_bank_cache,
-                ref_psd_cache,
-                svd_bank_cache,
-                svd_bins,
-                svd_stats,
+                svd_config=config.svd,
+                condor_config=config.condor,
+                all_ifos=list(sorted(config.all_ifos)),
+                split_bank_cache=split_bank_cache,
+                median_psd_cache=ref_psd_cache,
+                svd_cache=svd_bank_cache,
+                svd_bins=svd_bins,
+                svd_stats=svd_stats,
             )
         )
         # FIXME when is this used?
@@ -113,14 +113,14 @@ def main():
         )
 
         layer = layers.create_prior(
-            config.condor,
-            config.prior,
-            config.filter.coincidence_threshold,
-            svd_bank_cache,
-            prior_cache,
-            config.ifos,
-            config.filter.min_instruments_candidates,
-            svd_stats,
+            condor_config=config.condor,
+            prior_config=config.prior,
+            coincidence_threshold=config.filter.coincidence_threshold,
+            svd_bank_cache=svd_bank_cache,
+            prior_cache=prior_cache,
+            ifos=config.ifos,
+            min_instruments=config.filter.min_instruments_candidates,
+            svd_stats=svd_stats,
             write_empty_zerolag=zerolag_pdf_cache,
             write_empty_marg_zerolag=marg_zerolag_pdf_cache,
         )
@@ -150,12 +150,12 @@ def main():
         # generate dag layers
         if config.filter.injections:
             layer = layers.injection_filter_online(
-                config.psd,
-                config.filter,
-                config.upload,
-                config.services,
-                config.source,
-                config.condor,
+                psd_config=config.psd,
+                filter_config=config.filter,
+                upload_config=config.upload,
+                services_config=config.services,
+                source_config=config.source,
+                condor_config=config.condor,
                 ref_psd_cache=ref_psd_cache,
                 svd_bank_cache=svd_banks,
                 lr_cache=lrs,
@@ -168,12 +168,12 @@ def main():
             dag.attach(layer)
 
         layer = layers.filter_online(
-            config.psd,
-            config.filter,
-            config.upload,
-            config.services,
-            config.source,
-            config.condor,
+            psd_config=config.psd,
+            filter_config=config.filter,
+            upload_config=config.upload,
+            services_config=config.services,
+            source_config=config.source,
+            condor_config=config.condor,
             ref_psd_cache=ref_psd_cache,
             svd_bank_cache=svd_banks,
             lr_cache=lrs,
@@ -187,63 +187,63 @@ def main():
         dag.attach(layer)
 
         layer = layers.marginalize_online(
-            config.condor,
-            config.filter,
-            config.services,
-            lrs,
-            config.tag,
-            marg_pdf,
-            config.rank.extinct_percent,
-            config.rank.fast_burnin,
-            config.rank.calc_pdf_cores,
+            condor_config=config.condor,
+            filter_config=config.filter,
+            services_config=config.services,
+            lr_cache=lrs,
+            tag=config.tag,
+            marg_pdf_cache=marg_pdf,
+            extinct_percent=config.rank.extinct_percent,
+            fast_burnin=config.rank.fast_burnin,
+            calc_pdf_cores=config.rank.calc_pdf_cores,
         )
         dag.attach(layer)
 
         layer = layers.track_noise(
-            config.condor,
-            config.source,
-            config.filter,
-            config.psd,
-            config.metrics,
-            config.services,
-            config.ifos,
-            config.tag,
-            ref_psd_cache,
+            condor_config=config.condor,
+            source_config=config.source,
+            filter_config=config.filter,
+            psd_config=config.psd,
+            metrics_config=config.metrics,
+            services_config=config.services,
+            ifos=config.ifos,
+            tag=config.tag,
+            ref_psd=ref_psd_cache,
         )
         dag.attach(layer)
 
         if config.filter.injections:
             layer = layers.track_noise(
-                config.condor,
-                config.source,
-                config.filter,
-                config.psd,
-                config.metrics,
-                config.services,
-                config.ifos,
-                config.tag,
-                ref_psd_cache,
+                condor_config=config.condor,
+                source_config=config.source,
+                filter_config=config.filter,
+                psd_config=config.psd,
+                metrics_config=config.metrics,
+                services_config=config.services,
+                ifos=config.ifos,
+                tag=config.tag,
+                ref_psd=ref_psd_cache,
                 injection=True,
             )
             dag.attach(layer)
 
         if config.services.kafka_server:
             layer = layers.count_events(
-                config.condor,
-                config.services,
-                config.upload,
-                config.tag,
-                marg_zerolag_pdf,
+                condor_config=config.condor,
+                services_config=config.services,
+                upload_config=config.upload,
+                tag=config.tag,
+                zerolag_pdf=marg_zerolag_pdf,
             )
             dag.attach(layer)
 
             layer = layers.upload_events(
-                config.condor,
-                config.upload,
-                config.services,
-                config.metrics,
-                svd_bins,
-                config.tag,
+                condor_config=config.condor,
+                upload_config=config.upload,
+                services_config=config.services,
+                metrics_config=config.metrics,
+                svd_bins=svd_bins,
+                tag=config.tag,
             )
             dag.attach(layer)
 
@@ -254,38 +254,40 @@ def main():
 
             # FIXME: uncomment once we have pastro working
             layer = layers.upload_pastro(
-                config.condor,
-                config.services,
-                config.upload,
-                config.pastro,
-                config.tag,
-                marg_pdf,
+                condor_config=config.condor,
+                services_config=config.services,
+                upload_config=config.upload,
+                pastro_config=config.pastro,
+                tag=config.tag,
+                marg_pdf_cache=marg_pdf,
             )
             dag.attach(layer)
 
             layer = layers.plot_events(
-                config.condor, config.upload, config.services, config.tag
+                condor_config=config.condor,
+                upload_config=config.upload,
+                services_config=config.services,
+                tag=config.tag,
             )
             dag.attach(layer)
 
             layer = layers.collect_metrics(
-                dag,
-                config.condor,
-                config.metrics,
-                config.services,
-                config.filter,
-                config.tag,
-                config.ifos,
-                svd_bins,
+                condor_config=config.condor,
+                metrics_config=config.metrics,
+                services_config=config.services,
+                filter_config=config.filter,
+                tag=config.tag,
+                ifos=config.ifos,
+                svd_bins=svd_bins,
             )
             dag.attach(layer)
 
             layer = layers.collect_metrics_event(
-                config.condor,
-                config.metrics,
-                config.services,
-                config.filter,
-                config.tag,
+                condor_config=config.condor,
+                metrics_config=config.metrics,
+                services_config=config.services,
+                filter_config=config.filter,
+                tag=config.tag,
             )
             dag.attach(layer)
     else:

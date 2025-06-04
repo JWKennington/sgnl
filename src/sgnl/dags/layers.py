@@ -673,7 +673,6 @@ def aggregate(filter_config, condor_config, trigger_cache, clustered_triggers_ca
 
 def marginalize_likelihood_ratio(
     condor_config,
-    prior_config,
     lr_cache,
     marg_lr_cache,
     prior_cache=None,
@@ -922,7 +921,13 @@ def assign_likelihood(
 
 
 def calc_pdf(
-    condor_config, rank_config, config_svd_bins, lr_cache, pdf_cache, mass_model_file
+    condor_config,
+    prior_config,
+    rank_config,
+    config_svd_bins,
+    lr_cache,
+    pdf_cache,
+    svd_stats,
 ):
     # FIXME: expose this in configuration
     num_cores = rank_config.calc_pdf_cores if rank_config.calc_pdf_cores else 1
@@ -947,6 +952,9 @@ def calc_pdf(
                 arguments=arguments,
                 inputs=[
                     Option("input-likelihood-file", lrs[svd_bin].files),
+                    *add_likelihood_ratio_file_options(
+                        svd_bin, svd_stats, prior_config, transfer_only=True
+                    ),
                 ],
                 outputs=Option("output-rankingstatpdf-file", pdf),
             )
@@ -1130,6 +1138,8 @@ def summary_page(
     far_trigger_cache,
     seg_far_trigger_cache,
     post_pdf_cache,
+    marg_lr_prior_cache,
+    mass_model_file,
 ):
     executable = "sgnl-add-segments"
     resource_requests = {
@@ -1175,6 +1185,10 @@ def summary_page(
                     Option("config-schema", event_config_file),
                     Option("input-db", seg_triggers.files),
                     Option("input-rank-stat-pdf", post_pdf_cache.files),
+                    Option("input-likelihood-file", marg_lr_prior_cache.files),
+                    Option(
+                        "mass-model-file", mass_model_file, suppress=True, track=False
+                    ),
                 ],
                 outputs=Option("output-html", webdir + "/sgnl-results-page.html"),
             )
@@ -1821,7 +1835,6 @@ def plot_events(condor_config, upload_config, services_config, tag):
 
 
 def collect_metrics(
-    dag,
     condor_config,
     metrics_config,
     services_config,
@@ -1982,11 +1995,6 @@ def collect_metrics(
                 raise ValueError("not implemented")
                 # metric_layer += Node(arguments=arguments) # FIXME
 
-    # if metric_layer.nodes:
-    #    dag.attach(metric_leader_layer)
-    #    dag.attach(metric_layer)
-    # else:
-    #    dag.attach(metric_leader_layer)
     return metric_leader_layer
 
 

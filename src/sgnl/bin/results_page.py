@@ -1,7 +1,9 @@
 import argparse
 import os
+from collections import defaultdict
 
 from strike.stats import far
+from strike.stats.likelihood_ratio import LnLikelihoodRatio as LR
 
 from sgnl import sgnlio, viz
 
@@ -15,6 +17,9 @@ def parse_command_line():
     parser.add_argument("-s", "--config-schema", help="config schema yaml file")
     parser.add_argument("--input-db", help="the input database.")
     parser.add_argument("--input-rank-stat-pdf", help="the input rank stat pdf file.")
+    parser.add_argument(
+        "--input-likelihood-file", help="the input rank stat pdf file.", action="append"
+    )
     parser.add_argument(
         "--output-html", help="The output html page", default="plot-sim.html"
     )
@@ -98,7 +103,37 @@ def main():
             }
         )
 
-    html_content = viz.page([tables_section, ifar_section])
+    sections = [tables_section, ifar_section]
+    if args.input_likelihood_file:
+        bk_plots = defaultdict(list)
+        for lr_file in args.input_likelihood_file:
+            lr = LR.load(lr_file)
+            lr.finish()
+            plots = lr.terms["P_of_SNR_chisq"].create_plots()
+            for k, v in plots.items():
+                k = k.replace("/", "")
+                if "SNRCHI2_BACKGROUND_PDF" in k:
+                    ifo = k.split("-")[0]
+                    bk_plots[ifo].append(v)
+
+        background_sections = []
+        bk_plots = dict(sorted(bk_plots.items()))
+        for ifo, plots in bk_plots.items():
+            sec = viz.Section(
+                ifo + " Background SNR-chisq", ifo + " background snr-chisq"
+            )
+            for i, plot in enumerate(plots):
+                sec.append(
+                    {
+                        "img": viz.b64(plot),
+                        "title": i,
+                        "caption": "",
+                    }
+                )
+            background_sections.append(sec)
+        sections.extend(background_sections)
+
+    html_content = viz.page(sections)
     # Save the HTML content to a file
     with open(args.output_html, "w") as f:
         f.write(html_content)
