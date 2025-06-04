@@ -201,19 +201,37 @@ def main():
     misseddict, founddict = indb.missed_found_by_on_ifos(
         far_threshold=args.far_threshold, segments_name=args.segments_name
     )
+    founddict_ifos = {c: {c: [] for c in founddict} for c in founddict}
+    for c, events in founddict.items():
+        for event in events:
+            found_ifos = frozenset(t["ifo"] for t in event["trigger"])
+            founddict_ifos[c][found_ifos].append(event)
 
+    combos = founddict_ifos.keys()
+    combos = sorted(combos, key=lambda x: (-len(x), sorted(x)))
     # Summary Tables
     tables_section = viz.Section("Injection Summary Tables", "summary tables")
+    table = [
+        {
+            "on ifos": ",".join(sorted(combo)),
+            **dict((",".join(sorted(c)), len(v[c])) for c in combos),
+            "missed": len(misseddict[combo]),
+            "found": len(founddict[combo]),
+        }
+        for combo, v in founddict_ifos.items()
+    ]
+    table = sorted(table, key=lambda x: (-len(x["on ifos"]), x["on ifos"]))
+    table += [
+        {
+            "on ifos": "total",
+            **dict((",".join(sorted(c)), "") for c in combos),
+            "missed": "",
+            "found": sum(len(f) for combo, f in founddict.items()),
+        }
+    ]
     tables_section.append(
         {
-            "table": [
-                {
-                    "on ifos": ",".join(sorted(combo)),
-                    "missed": len(misseddict[combo]),
-                    "found": len(founddict[combo]),
-                }
-                for combo in founddict
-            ],
+            "table": table,
             "title": "Missed / Found Summary Statistics",
             "caption": "Missed and found for different on ifo combinations",
         }
