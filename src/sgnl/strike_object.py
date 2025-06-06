@@ -19,9 +19,12 @@ from typing import Any
 import numpy
 import torch
 from igwn_ligolw import utils as ligolw_utils
+from strike.config import get_analysis_config
 from strike.stats import far
 from strike.stats.far import RankingStatPDF
 from strike.stats.likelihood_ratio import LnLikelihoodRatio, P_of_Template
+
+default_config = get_analysis_config()["default"]
 
 GC = False
 
@@ -91,6 +94,11 @@ class StrikeObject:
     bankids_map: dict[str, list] = None
     cap_singles: bool = False
     coincidence_threshold: float = None
+    chi2_over_snr2_min: float = default_config["chi2_over_snr2_min"]
+    chi2_over_snr2_max: float = default_config["chi2_over_snr2_max"]
+    chi_bin_min: float = default_config["chi_bin_min"]
+    chi_bin_max: float = default_config["chi_bin_max"]
+    chi_bin_num: int = default_config["chi_bin_num"]
     compress_likelihood_ratio: bool = False
     compress_likelihood_ratio_threshold: float = 0.03
     FAR_trialsfactor: float = 1
@@ -131,6 +139,11 @@ class StrikeObject:
                         instruments=self.ifos,
                         min_instruments=self.min_instruments,
                         delta_t=self.coincidence_threshold,
+                        chi2_over_snr2_min=self.chi2_over_snr2_min,
+                        chi2_over_snr2_max=self.chi2_over_snr2_max,
+                        chi_bin_min=self.chi_bin_min,
+                        chi_bin_max=self.chi_bin_max,
+                        chi_bin_num=self.chi_bin_num,
                     )
         else:
             # load input files
