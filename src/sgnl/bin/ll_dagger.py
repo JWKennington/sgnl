@@ -126,6 +126,42 @@ def main():
         )
         dag.attach(layer)
 
+    elif args.workflow == "setup-prior":
+        svd_bank_cache = DataCache.find(DataType.SVD_BANK, root="filter", svd_bins="*")
+
+        prior_cache = DataCache.generate(
+            DataType.LIKELIHOOD_RATIO,
+            config.all_ifos,
+            config.span,
+            svd_bins=svd_bins,
+        )
+
+        zerolag_pdf_cache = DataCache.generate(
+            DataType.ZEROLAG_RANK_STAT_PDFS,
+            config.all_ifos,
+            svd_bins=svd_bins,
+        )
+
+        marg_zerolag_pdf_cache = DataCache.generate(
+            DataType.ZEROLAG_RANK_STAT_PDFS,
+            config.all_ifos,
+        )
+
+        layer = layers.create_prior(
+            condor_config=config.condor,
+            prior_config=config.prior,
+            coincidence_threshold=config.filter.coincidence_threshold,
+            svd_bank_cache=svd_bank_cache,
+            prior_cache=prior_cache,
+            ifos=config.ifos,
+            min_instruments=config.filter.min_instruments_candidates,
+            svd_stats=svd_stats,
+            write_empty_zerolag=zerolag_pdf_cache,
+            write_empty_marg_zerolag=marg_zerolag_pdf_cache,
+        )
+        dag.attach(layer)
+
+
     elif args.workflow == "inspiral":
         # input data products
         ref_psd_cache = config.paths.reference_psd
