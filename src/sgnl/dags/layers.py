@@ -112,7 +112,9 @@ def test(echo_config, condor_config):
     return layer
 
 
-def reference_psd(psd_config, source_config, condor_config, ref_psd_cache):
+def reference_psd(
+    filter_config, psd_config, source_config, condor_config, ref_psd_cache
+):
     executable = "sgnl-reference-psd"
     resource_requests = {
         "request_cpus": 2,
@@ -126,6 +128,9 @@ def reference_psd(psd_config, source_config, condor_config, ref_psd_cache):
         Option("psd-fft-length", psd_config.fft_length),
         Option("frame-segments-name", source_config.frame_segments_name),
     ]
+
+    if filter_config.search:
+        common_opts.append(Option("search", filter_config.search))
 
     for (ifo_combo, span), psds in ref_psd_cache.groupby("ifo", "time").items():
         ifos = to_ifo_list(ifo_combo)
@@ -321,6 +326,9 @@ def filter(
     if filter_config.all_triggers_to_background:
         common_opts.append(Option("all-triggers-to-background"))
 
+    if filter_config.search:
+        common_opts.append(Option("search", filter_config.search))
+
     common_inputs = [
         Option("event-config", filter_config.event_config_file),
     ]
@@ -484,6 +492,9 @@ def injection_filter(
     common_inputs = [
         Option("event-config", filter_config.event_config_file),
     ]
+
+    if filter_config.search:
+        common_opts.append(Option("search", filter_config.search))
 
     # Set torch-dtype
     if filter_config.torch_dtype:
@@ -718,6 +729,7 @@ def marginalize_likelihood_ratio(
 
 
 def create_prior(
+    filter_config,
     condor_config,
     prior_config,
     coincidence_threshold,
@@ -743,6 +755,8 @@ def create_prior(
         Option("min-instruments", min_instruments),
         Option("coincidence-threshold", coincidence_threshold),
     ]
+    if filter_config.search:
+        arguments.append(Option("search", filter_config.search))
     if write_empty_zerolag:
         zerolag_pdf = write_empty_zerolag.groupby("bin")
     if write_empty_marg_zerolag:
@@ -1289,6 +1303,9 @@ def filter_online(
     if filter_config.all_triggers_to_background:
         common_opts.append(Option("all-triggers-to-background"))
 
+    if filter_config.search:
+        common_opts.append(Option("search", filter_config.search))
+
     # Set torch-dtype
     if filter_config.torch_dtype:
         torch_dtype = filter_config.torch_dtype
@@ -1476,6 +1493,9 @@ def injection_filter_online(
     #     common_opts.append(Option("snapshot-delay", filter_config.snapshot_delay))
 
     common_opts.append(Option("min-instruments-candidates", min_instruments))
+
+    if filter_config.search:
+        common_opts.append(Option("search", filter_config.search))
 
     # Set torch-dtype
     if filter_config.torch_dtype:

@@ -22,6 +22,7 @@ from igwn_ligolw import ligolw, lsctables
 from igwn_ligolw.array import use_in as array_use_in
 from igwn_ligolw.param import use_in as param_use_in
 from lal.utils import CacheEntry
+from strike.config import get_analysis_config
 from strike.stats import far, likelihood_ratio
 
 from sgnl import svd_bank
@@ -61,6 +62,14 @@ def parse_command_line():
         default=2,
         help="Set the minimum number of instruments that must contribute triggers to "
         "form a candidate (default = 2).",
+    )
+    parser.add_argument(
+        "--search",
+        type=str,
+        default=None,
+        choices=["ew", None],
+        help="Set the search, if you want search-specific changes to be implemented "
+        "while creating the RankingStat. Allowed choices: ['ew', None].",
     )
     parser.add_argument(
         "--output-likelihood-file",
@@ -190,8 +199,8 @@ def parse_command_line():
     if options.seed_likelihood:
         warnings.warn(
             "--seed-likelihood given, the following options  will be ignored: "
-            + "--coincidence-threshold, --min-instruments, --instrument, and "
-            + "--background-prior",
+            + "--coincidence-threshold, --min-instruments, --instrument,"
+            + "--background-prior, --search",
             stacklevel=2,
         )
         options.coincidence_threshold = None
@@ -247,6 +256,8 @@ def main():
     #
 
     if not options.seed_likelihood:
+        config = get_analysis_config()
+        config = config[options.search] if options.search else config["default"]
         #
         # add the denominator if starting from scratch
         #
@@ -259,6 +270,11 @@ def main():
             delta_t=options.coincidence_threshold,
             horizon_factors=horizon_factors,
             idq_file=options.idq_file,
+            chi2_over_snr2_min=config["chi2_over_snr2_min"],
+            chi2_over_snr2_max=config["chi2_over_snr2_max"],
+            chi_bin_min=config["chi_bin_min"],
+            chi_bin_max=config["chi_bin_max"],
+            chi_bin_num=config["chi_bin_num"],
         )
     else:
         #

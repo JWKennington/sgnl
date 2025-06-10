@@ -113,6 +113,7 @@ def main():
         )
 
         layer = layers.create_prior(
+            filter_config=config.filter,
             condor_config=config.condor,
             prior_config=config.prior,
             coincidence_threshold=config.filter.coincidence_threshold,

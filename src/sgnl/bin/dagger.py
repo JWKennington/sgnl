@@ -150,6 +150,7 @@ def main():
 
         dag.attach(
             layers.reference_psd(
+                filter_config=config.filter,
                 psd_config=config.psd,
                 source_config=config.source,
                 condor_config=config.condor,
@@ -337,6 +338,7 @@ def main():
         )
 
         layer = layers.create_prior(
+            filter_config=config.filter,
             condor_config=config.condor,
             prior_config=config.prior,
             coincidence_threshold=config.filter.coincidence_threshold,

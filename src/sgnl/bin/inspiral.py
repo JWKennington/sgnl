@@ -27,6 +27,7 @@ from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, Latency, condition
 from sgnts.sinks import DumpSeriesSink
+from strike.config import get_analysis_config
 
 from sgnl import simulation
 from sgnl.control import SnapShotControl
@@ -155,6 +156,15 @@ def parse_command_line():
 
     group = parser.add_argument_group(
         "Ranking Statistic Options", "Adjust ranking statistic behaviour"
+    )
+    group.add_argument(
+        "--search",
+        type=str,
+        default=None,
+        choices=["ew", None],
+        help="Set the search, if you want search-specific changes to be implemented "
+        "while creating the RankingStat, and data whitening. "
+        "Allowed choices: ['ew', None].",
     )
     group.add_argument(
         "--snapshot-interval",
@@ -387,6 +397,7 @@ def inspiral(
     compress_likelihood_ratio_threshold: float = 0.03,
     event_config: str = None,
     fake_sink: bool = False,
+    search: str = None,
     far_trials_factor: float = 1.0,
     gracedb_far_threshold: float = -1,
     gracedb_group: str = "Test",
@@ -581,10 +592,17 @@ def inspiral(
     #
     # Initialize strike data object
     #
+    config = get_analysis_config()
+    config = config[search] if search else config["default"]
     strike_object = StrikeObject(
         all_template_ids=sorted_bank.template_ids.numpy(),
         bankids_map=sorted_bank.bankids_map,
         coincidence_threshold=coincidence_threshold,
+        chi2_over_snr2_min=config["chi2_over_snr2_min"],
+        chi2_over_snr2_max=config["chi2_over_snr2_max"],
+        chi_bin_min=config["chi_bin_min"],
+        chi_bin_max=config["chi_bin_max"],
+        chi_bin_num=config["chi_bin_num"],
         compress_likelihood_ratio=compress_likelihood_ratio,
         compress_likelihood_ratio_threshold=compress_likelihood_ratio_threshold,
         FAR_trialsfactor=far_trials_factor,
@@ -613,6 +631,7 @@ def inspiral(
             input_links=source_out_links,
             whiten_sample_rate=template_maxrate,
             whiten_latency=output_kafka_server is not None,
+            highpass_filter=config["highpass_filter"],
         )
     else:
         spectrum_out_links = None
@@ -1070,6 +1089,7 @@ def main():
         compress_likelihood_ratio_threshold=options.compress_likelihood_ratio_threshold,
         event_config=options.event_config,
         fake_sink=options.fake_sink,
+        search=options.search,
         far_trials_factor=options.far_trials_factor,
         gracedb_far_threshold=options.gracedb_far_threshold,
         gracedb_group=options.gracedb_group,
