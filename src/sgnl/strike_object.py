@@ -121,7 +121,7 @@ class StrikeObject:
                 for bankid, ids in self.bankids_map.items():
                     # offline mode, so initialize a LnLikelihoodRatio instance
                     bank_template_ids = self.all_template_ids[ids]
-                    bank_template_ids = tuple(
+                    bank_template_ids = numpy.array(
                         bank_template_ids[bank_template_ids != -1]
                     )
 
