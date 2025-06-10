@@ -11,6 +11,7 @@ from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, condition
 from sgnts.sinks import NullSeriesSink
+from strike.config import get_analysis_config
 
 from sgnl.psd import HorizonDistance
 from sgnl.transforms import HorizonDistanceTracker
@@ -64,6 +65,14 @@ def parse_command_line():
         help="Whether the program is processing injection channels.",
     )
     parser.add_argument(
+        "--search",
+        type=str,
+        default=None,
+        choices=["ew", None],
+        help="Set the search, if you want search-specific changes to be implemented "
+        "while data whitening. Allowed choices: ['ew', None].",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true", help="Be verbose (optional)."
     )
 
@@ -81,6 +90,7 @@ def ll_dq(
     horizon_f_min,
     horizon_f_max,
     injections,
+    highpass_filter,
     verbose,
 ):
     #
@@ -125,6 +135,7 @@ def ll_dq(
         data_source=data_source_info.data_source,
         input_sample_rate=data_source_info.input_sample_rate,
         input_links=source_out_links,
+        highpass_filter=highpass_filter,
     )
 
     pipeline.insert(
@@ -177,6 +188,9 @@ def main():
     data_source_info = DataSourceInfo.from_options(options)
     condition_info = ConditionInfo.from_options(options)
 
+    config = get_analysis_config()
+    config = config[options.search] if options.search else config["default"]
+
     ll_dq(
         data_source_info,
         condition_info,
@@ -186,6 +200,7 @@ def main():
         options.horizon_f_min,
         options.horizon_f_max,
         options.injections,
+        config["highpass_filter"],
         options.verbose,
     )
 

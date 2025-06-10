@@ -163,7 +163,8 @@ def parse_command_line():
         default=None,
         choices=["ew", None],
         help="Set the search, if you want search-specific changes to be implemented "
-        "while creating the RankingStat. Allowed choices: ['ew', None].",
+        "while creating the RankingStat, and data whitening. "
+        "Allowed choices: ['ew', None].",
     )
     group.add_argument(
         "--snapshot-interval",
@@ -630,6 +631,7 @@ def inspiral(
             input_links=source_out_links,
             whiten_sample_rate=template_maxrate,
             whiten_latency=output_kafka_server is not None,
+            highpass_filter=config["highpass_filter"],
         )
     else:
         spectrum_out_links = None

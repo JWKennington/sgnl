@@ -150,6 +150,7 @@ def main():
 
         dag.attach(
             layers.reference_psd(
+                filter_config=config.filter,
                 psd_config=config.psd,
                 source_config=config.source,
                 condor_config=config.condor,

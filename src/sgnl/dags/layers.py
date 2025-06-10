@@ -112,7 +112,9 @@ def test(echo_config, condor_config):
     return layer
 
 
-def reference_psd(psd_config, source_config, condor_config, ref_psd_cache):
+def reference_psd(
+    filter_config, psd_config, source_config, condor_config, ref_psd_cache
+):
     executable = "sgnl-reference-psd"
     resource_requests = {
         "request_cpus": 2,
@@ -126,6 +128,9 @@ def reference_psd(psd_config, source_config, condor_config, ref_psd_cache):
         Option("psd-fft-length", psd_config.fft_length),
         Option("frame-segments-name", source_config.frame_segments_name),
     ]
+
+    if filter_config.search:
+        common_opts.append(Option("search", filter_config.search))
 
     for (ifo_combo, span), psds in ref_psd_cache.groupby("ifo", "time").items():
         ifos = to_ifo_list(ifo_combo)

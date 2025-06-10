@@ -12,8 +12,11 @@ from sgn.apps import Pipeline
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, condition
 from sgnts.sinks import DumpSeriesSink, NullSeriesSink
+from strike.config import get_analysis_config
 
 from sgnl.sinks import PSDSink
+
+default_config = get_analysis_config()["default"]
 
 
 def parse_command_line():
@@ -24,6 +27,14 @@ def parse_command_line():
 
     # add our own options
 
+    parser.add_argument(
+        "--search",
+        type=str,
+        default=None,
+        choices=["ew", None],
+        help="Set the search, if you want search-specific changes to be implemented "
+        "while data whitening. Allowed choices: ['ew', None].",
+    )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Be verbose (optional)."
     )
@@ -48,6 +59,7 @@ def parse_command_line():
 def reference_psd(
     data_source_info: DataSourceInfo,
     condition_info: ConditionInfo,
+    highpass_filter=default_config["highpass_filter"],
     output_name=None,
     whitened_data_output_name=None,
     verbose=None,
@@ -89,6 +101,7 @@ def reference_psd(
         data_source=data_source_info.data_source,
         input_sample_rate=data_source_info.input_sample_rate,
         input_links=source_out_links,
+        highpass_filter=highpass_filter,
     )
 
     for ifo in ifos:
@@ -138,9 +151,13 @@ def main():
     data_source_info = DataSourceInfo.from_options(options)
     condition_info = ConditionInfo.from_options(options)
 
+    config = get_analysis_config()
+    config = config[options.search] if options.search else config["default"]
+
     reference_psd(
         data_source_info=data_source_info,
         condition_info=condition_info,
+        highpass_filter=config["highpass_filter"],
         output_name=options.output_name,
         whitened_data_output_name=options.whitened_data_output_name,
         verbose=options.verbose,
