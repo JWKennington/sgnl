@@ -49,7 +49,9 @@ Currently the supported online workflows are:
 
 1. `setup`
     - setup pre-generated files
-2. `inspiral`
+2. `setup-prior`
+    - assume svd bank already available, setup prior diststats files only
+3. `inspiral`
     - the online analysis
 
 ## Launch workflow

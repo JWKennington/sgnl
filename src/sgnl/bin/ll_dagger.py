@@ -128,6 +128,7 @@ def main():
         dag.attach(layer)
 
     elif args.workflow == "setup-prior":
+        svd_bins, svd_stats = load_svd_options(config.svd.option_file, config.svd)
         svd_bank_cache = DataCache.find(DataType.SVD_BANK, root="filter", svd_bins="*")
 
         prior_cache = DataCache.generate(
@@ -149,6 +150,7 @@ def main():
         )
 
         layer = layers.create_prior(
+            filter_config=config.filter,
             condor_config=config.condor,
             prior_config=config.prior,
             coincidence_threshold=config.filter.coincidence_threshold,
