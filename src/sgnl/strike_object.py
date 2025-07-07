@@ -22,7 +22,12 @@ from igwn_ligolw import utils as ligolw_utils
 from strike.config import get_analysis_config
 from strike.stats import far
 from strike.stats.far import RankingStatPDF
-from strike.stats.likelihood_ratio import LnLikelihoodRatio, P_of_Template
+from strike.stats.likelihood_ratio import (
+    LnLikelihoodRatio,
+    P_of_dt_dphi_given_tref_Template,
+    P_of_ifos_given_tref,
+    P_of_Template,
+)
 
 default_config = get_analysis_config()["default"]
 
@@ -181,6 +186,16 @@ class StrikeObject:
                 ]
             )
             assert len(dtdphi_file) == 1, "Can only support banks with same dtdphi file"
+
+            # load strike files here because there is a problem for multiprocessing
+            # snapshotting where the updated class variables are not propagated to the
+            # main thread
+            # FIXME consider a better way of loading in strike files
+            P_of_dt_dphi_given_tref_Template.load_time_phase_snr(
+                next(iter(dtdphi_file)), self.ifos
+            )
+
+            P_of_ifos_given_tref.load_p_of_ifos(self.ifos, self.min_instruments)
 
             self.frankensteins = {}
             self.likelihood_ratio_uploads = {}
