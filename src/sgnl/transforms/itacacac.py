@@ -887,10 +887,10 @@ class Itacacac(TSTransform):
 
         out_events = [
             {
-                "time": sorted(
+                "time": max(
                     [t for t in out_triggers[j] if t is not None],
-                    key=lambda d: d["ifo"],
-                )[0]["time"],
+                    key=lambda d: d["snr"],
+                )["time"],
                 "network_snr": clustered_coinc["clustered_snr"][j].item(),
                 "bankid": clustered_coinc["clustered_bankids"][j],
             }

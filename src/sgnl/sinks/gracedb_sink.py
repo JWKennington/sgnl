@@ -530,8 +530,8 @@ def event_trigs_to_coinc_xmldoc(
         except Exception as e:
             print(f"Subthreshold search failed with error:\n{e}")
     event["network_snr_subthresh"] = sum(trig["snr"] ** 2 for trig in trigs) ** 0.5
-    event["time_subthresh"] = sorted((trig["ifo"], trig["time"]) for trig in trigs)[0][
-        1
+    event["time_subthresh"] = max([trig for trig in trigs], key=lambda d: d["snr"])[
+        "time"
     ]
 
     for n, ifo in enumerate(analysis_ifos):
