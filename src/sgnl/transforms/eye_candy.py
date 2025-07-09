@@ -97,7 +97,11 @@ class EyeCandy(TransformElement):
         # ifo snr history
         #
         frame = self.frames[self.event_pad]
-        max_snrs = frame["max_snr_histories"].data
+        max_snrs = {}
+        for event in frame.events:
+            if event["max_snr_histories"] is not None:
+                max_snrs.update(event["max_snr_histories"])
+        max_snrs = max_snrs if max_snrs else None
 
         if max_snrs is not None:
             # FIXME: this is different from gstlal
@@ -107,18 +111,26 @@ class EyeCandy(TransformElement):
                     "data": [float(data["snr"])],
                 }
 
-        events = frame["event"].data
-        framets = frame["event"].ts
-        framete = frame["event"].te
+        events = []
+        for event in frame.events:
+            if event["event"] is not None:
+                events.extend(event["event"])
+        events = events if events else None
+        framets = frame.start
+        framete = frame.end
         EOS = frame.EOS
         if events is None:
             self.outframe = EventFrame(
-                events={"kafka": EventBuffer(framets, framete, data=kafka_data)},
+                data=[EventBuffer.from_span(framets, framete, data=[kafka_data])],
                 EOS=EOS,
             )
             return
 
-        triggers = frame["trigger"].data
+        triggers = []
+        for event in frame.events:
+            if event["trigger"] is not None:
+                triggers.extend(event["trigger"])
+        triggers = triggers if triggers else None
 
         #
         # coinc snr history
@@ -205,7 +217,7 @@ class EyeCandy(TransformElement):
         #
 
         self.outframe = EventFrame(
-            events={"kafka": EventBuffer(framets, framete, data=kafka_data)}, EOS=EOS
+            data=[EventBuffer.from_span(framets, framete, data=[kafka_data])], EOS=EOS
         )
 
     def new(self, pad):

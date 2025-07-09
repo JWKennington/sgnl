@@ -369,11 +369,18 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
 
         pad_name = self.rsnks[pad]
         if pad_name == self.itacacac_pad_name:
-            if frame.events["event"].data is not None:
+            all_events = []
+            all_triggers = []
+            for buf_event in frame.events:
+                if buf_event["trigger"] is None:
+                    continue
+                all_events.extend(buf_event["event"])
+                all_triggers.extend(buf_event["trigger"])
+            if all_events:
                 data = {
                     "event_dict": {
-                        "trigger": frame.events["trigger"].data,
-                        "event": frame.events["event"].data,
+                        "trigger": all_triggers,
+                        "event": all_events,
                     }
                 }
                 self.in_queue.put(data)

@@ -33,15 +33,13 @@ class StrikeTransform(TransformElement):
         compute LR and FAR
         """
         frame = self.frame
-        events = self.frame.events
-        event_data = events["event"].data
-        trigger_data = events["trigger"].data
-
-        if event_data is not None:
-            for e, t in zip(event_data, trigger_data):
-                #
+        assert isinstance(frame, EventFrame)
+        for event in frame.events:
+            if event is None or event["event"] is None:
+                # no events/triggers in this block
+                continue
+            for e, t in zip(event["event"], event["trigger"]):
                 # Assign likelihoods and FARs!
-                #
                 bankid = e["bankid"]
                 if self.strike_object.frankensteins[bankid] is not None:
                     # update triggers
@@ -99,7 +97,7 @@ class StrikeTransform(TransformElement):
                     e["combined_far"] = None
 
         self.output_frame = EventFrame(
-            events=events,
+            data=frame.data,
             EOS=frame.EOS,
         )
 
