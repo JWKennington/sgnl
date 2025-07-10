@@ -1154,6 +1154,7 @@ def summary_page(
     post_pdf_cache,
     marg_lr_prior_cache,
     mass_model_file,
+    injections,
 ):
     executable = "sgnl-add-segments"
     resource_requests = {
@@ -1163,14 +1164,15 @@ def summary_page(
     }
     seg_layer = create_layer(executable, condor_config, resource_requests)
 
-    executable = "sgnl-sim-page"
-    resource_requests = {
-        "request_cpus": 1,
-        "request_memory": "6GB",
-        "request_disk": "10GB",
-    }
+    if injections:
+        executable = "sgnl-sim-page"
+        resource_requests = {
+            "request_cpus": 1,
+            "request_memory": "6GB",
+            "request_disk": "10GB",
+        }
 
-    sim_layer = create_layer(executable, condor_config, resource_requests)
+        sim_layer = create_layer(executable, condor_config, resource_requests)
 
     executable = "sgnl-results-page"
     resource_requests = {
@@ -1207,17 +1209,22 @@ def summary_page(
                 outputs=Option("output-html", webdir + "/sgnl-results-page.html"),
             )
         else:
-            sim_layer += Node(
-                inputs=[
-                    Option("config-schema", event_config_file),
-                    Option("input-db", seg_triggers.files),
-                ],
-                outputs=Option(
-                    "output-html", webdir + "/sgnl-sim-page-" + subtype + ".html"
-                ),
-            )
+            if injections:
+                sim_layer += Node(
+                    inputs=[
+                        Option("config-schema", event_config_file),
+                        Option("input-db", seg_triggers.files),
+                    ],
+                    outputs=Option(
+                        "output-html", webdir + "/sgnl-sim-page-" + subtype + ".html"
+                    ),
+                )
 
-    return [seg_layer, sim_layer, results_layer]
+    return (
+        [seg_layer, sim_layer, results_layer]
+        if injections
+        else [seg_layer, results_layer]
+    )
 
 
 def filter_online(

@@ -310,7 +310,8 @@ def main():
         # add discovered data products
         marg_lr_cache = DataCache(DataType.MARG_LIKELIHOOD_RATIO)
         triggers_cache = DataCache(DataType.TRIGGERS)
-        inj_triggers_cache = DataCache(DataType.TRIGGERS)
+        if config.injections:
+            inj_triggers_cache = DataCache(DataType.TRIGGERS)
         prior_cache = DataCache(DataType.PRIOR_LIKELIHOOD_RATIO)
 
         svd_bank_cache = DataCache.find(
@@ -322,12 +323,13 @@ def main():
         triggers_cache += DataCache.find(
             DataType.TRIGGERS, root=config.paths.filter_dir, svd_bins="*"
         )
-        inj_triggers_cache += DataCache.find(
-            DataType.TRIGGERS,
-            root=config.paths.injection_dir,
-            svd_bins="*",
-            subtype="*",
-        )
+        if config.injections:
+            inj_triggers_cache += DataCache.find(
+                DataType.TRIGGERS,
+                root=config.paths.injection_dir,
+                svd_bins="*",
+                subtype="*",
+            )
 
         prior_cache = DataCache.generate(
             DataType.PRIOR_LIKELIHOOD_RATIO,
@@ -374,19 +376,22 @@ def main():
             svd_bins=svd_bins,
             root=config.paths.rank_dir,
         )
-        for inj_name, inj_args in config.injections.filter.items():
-            min_mchirp, max_mchirp = map(float, inj_args["range"].split(":"))
-            svd_bins_inj = mchirp_range_to_bins(min_mchirp, max_mchirp, svd_stats)
-            time_clustered_triggers_cache += DataCache.generate(
-                DataType.CLUSTERED_TRIGGERS,
-                config.all_ifos,
-                config.span,
-                svd_bins=svd_bins_inj,
-                subtype=inj_name,
-                root=config.paths.rank_dir,
-            )
+        if config.injections:
+            for inj_name, inj_args in config.injections.filter.items():
+                min_mchirp, max_mchirp = map(float, inj_args["range"].split(":"))
+                svd_bins_inj = mchirp_range_to_bins(min_mchirp, max_mchirp, svd_stats)
+                time_clustered_triggers_cache += DataCache.generate(
+                    DataType.CLUSTERED_TRIGGERS,
+                    config.all_ifos,
+                    config.span,
+                    svd_bins=svd_bins_inj,
+                    subtype=inj_name,
+                    root=config.paths.rank_dir,
+                )
 
-        all_clustered_triggers_cache = triggers_cache + inj_triggers_cache
+        all_clustered_triggers_cache = (
+            triggers_cache + inj_triggers_cache if config.injections else triggers_cache
+        )
         layer = layers.add_trigger_dbs(
             condor_config=config.condor,
             filter_config=config.filter,
@@ -405,15 +410,16 @@ def main():
             svd_bins=svd_bins,
             root=config.paths.rank_dir,
         )
-        for inj_name in config.injections.filter:
-            lr_triggers_cache += DataCache.generate(
-                DataType.LR_TRIGGERS,
-                config.all_ifos,
-                config.span,
-                svd_bins=svd_bins,
-                subtype=inj_name,
-                root=config.paths.rank_dir,
-            )
+        if config.injections:
+            for inj_name in config.injections.filter:
+                lr_triggers_cache += DataCache.generate(
+                    DataType.LR_TRIGGERS,
+                    config.all_ifos,
+                    config.span,
+                    svd_bins=svd_bins,
+                    subtype=inj_name,
+                    root=config.paths.rank_dir,
+                )
         layer = layers.assign_likelihood(
             condor_config=config.condor,
             filter_config=config.filter,
@@ -432,15 +438,16 @@ def main():
             svd_bins=f"{min(svd_bins)}_{max(svd_bins)}",
             root=config.paths.rank_dir,
         )
-        for inj_name in config.injections.filter:
-            clustered_lr_triggers_cache += DataCache.generate(
-                DataType.LR_TRIGGERS,
-                config.all_ifos,
-                config.span,
-                svd_bins=f"{min(svd_bins)}_{max(svd_bins)}",
-                subtype=inj_name,
-                root=config.paths.rank_dir,
-            )
+        if config.injections:
+            for inj_name in config.injections.filter:
+                clustered_lr_triggers_cache += DataCache.generate(
+                    DataType.LR_TRIGGERS,
+                    config.all_ifos,
+                    config.span,
+                    svd_bins=f"{min(svd_bins)}_{max(svd_bins)}",
+                    subtype=inj_name,
+                    root=config.paths.rank_dir,
+                )
         layer = layers.merge_and_reduce(
             condor_config=config.condor,
             filter_config=config.filter,
@@ -526,15 +533,16 @@ def main():
             svd_bins=f"{min(svd_bins)}_{max(svd_bins)}",
             root=config.paths.rank_dir,
         )
-        for inj_name in config.injections.filter:
-            far_trigger_cache += DataCache.generate(
-                DataType.FAR_TRIGGERS,
-                config.all_ifos,
-                config.span,
-                svd_bins=f"{min(svd_bins)}_{max(svd_bins)}",
-                subtype=inj_name,
-                root=config.paths.rank_dir,
-            )
+        if config.injections:
+            for inj_name in config.injections.filter:
+                far_trigger_cache += DataCache.generate(
+                    DataType.FAR_TRIGGERS,
+                    config.all_ifos,
+                    config.span,
+                    svd_bins=f"{min(svd_bins)}_{max(svd_bins)}",
+                    subtype=inj_name,
+                    root=config.paths.rank_dir,
+                )
 
         layer_list = layers.assign_far(
             condor_config=config.condor,
@@ -554,15 +562,16 @@ def main():
             svd_bins=f"{min(svd_bins)}_{max(svd_bins)}",
             root=config.paths.rank_dir,
         )
-        for inj_name in config.injections.filter:
-            seg_far_trigger_cache += DataCache.generate(
-                DataType.SEGMENTS_FAR_TRIGGERS,
-                config.all_ifos,
-                config.span,
-                svd_bins=f"{min(svd_bins)}_{max(svd_bins)}",
-                subtype=inj_name,
-                root=config.paths.rank_dir,
-            )
+        if config.injections:
+            for inj_name in config.injections.filter:
+                seg_far_trigger_cache += DataCache.generate(
+                    DataType.SEGMENTS_FAR_TRIGGERS,
+                    config.all_ifos,
+                    config.span,
+                    svd_bins=f"{min(svd_bins)}_{max(svd_bins)}",
+                    subtype=inj_name,
+                    root=config.paths.rank_dir,
+                )
 
         if not os.path.exists(config.summary.webdir):
             os.makedirs(config.summary.webdir)
@@ -578,6 +587,7 @@ def main():
             post_pdf_cache=post_pdf_cache,
             marg_lr_prior_cache=marg_lr_prior_cache,
             mass_model_file=config.prior.mass_model,
+            injections=bool(config.injections),
         )
         for layer in layer_list:
             dag.attach(layer)
