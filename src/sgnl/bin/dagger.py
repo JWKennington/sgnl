@@ -411,12 +411,14 @@ def main():
             root=config.paths.rank_dir,
         )
         if config.injections:
-            for inj_name in config.injections.filter:
+            for inj_name, inj_args in config.injections.filter.items():
+                min_mchirp, max_mchirp = map(float, inj_args["range"].split(":"))
+                svd_bins_inj = mchirp_range_to_bins(min_mchirp, max_mchirp, svd_stats)
                 lr_triggers_cache += DataCache.generate(
                     DataType.LR_TRIGGERS,
                     config.all_ifos,
                     config.span,
-                    svd_bins=svd_bins,
+                    svd_bins=svd_bins_inj,
                     subtype=inj_name,
                     root=config.paths.rank_dir,
                 )
@@ -439,12 +441,14 @@ def main():
             root=config.paths.rank_dir,
         )
         if config.injections:
-            for inj_name in config.injections.filter:
+            for inj_name, inj_args in config.injections.filter.items():
+                min_mchirp, max_mchirp = map(float, inj_args["range"].split(":"))
+                svd_bins_inj = mchirp_range_to_bins(min_mchirp, max_mchirp, svd_stats)
                 clustered_lr_triggers_cache += DataCache.generate(
                     DataType.LR_TRIGGERS,
                     config.all_ifos,
                     config.span,
-                    svd_bins=f"{min(svd_bins)}_{max(svd_bins)}",
+                    svd_bins=f"{min(svd_bins_inj)}_{max(svd_bins_inj)}",
                     subtype=inj_name,
                     root=config.paths.rank_dir,
                 )
