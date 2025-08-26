@@ -1261,15 +1261,13 @@ def filter_online(
 
     layer = create_layer(executable, condor_config, resource_requests, retries=1000)
 
-    assert source_config.data_source == "devshm"
+    assert (source_config.data_source in {"devshm", "arrakis"},
+    "Supported data source options are: devshm, arrakis")
 
     # set up common options
     common_opts = [
-        Option("data-source", "devshm"),
+        Option("data-source", source_config.data_source),
         Option("source-queue-timeout", source_config.source_queue_timeout),
-        Option(
-            "shared-memory-dir", format_ifo_args(ifos, source_config.shared_memory_dir)
-        ),
         Option("track-psd"),
         Option("psd-fft-length", psd_config.fft_length),
         Option("channel-name", format_ifo_args(ifos, source_config.channel_name)),
@@ -1306,6 +1304,11 @@ def filter_online(
     #     common_opts.append(Option("snapshot-delay", filter_config.snapshot_delay))
 
     common_opts.append(Option("min-instruments-candidates", min_instruments))
+
+    # Set shared-memory-dir for devshm
+    if source_config.data_source == "devshm":
+        common_opts.append(Option(
+        "shared-memory-dir", format_ifo_args(ifos, source_config.shared_memory_dir)))
 
     if filter_config.all_triggers_to_background:
         common_opts.append(Option("all-triggers-to-background"))
@@ -1453,16 +1456,13 @@ def injection_filter_online(
         name=executable + "-inj",
     )
 
-    assert source_config.data_source == "devshm"
+    assert (source_config.data_source in {"devshm", "arrakis"},
+    "Supported data source options are: devshm, arrakis")
 
     # set up common options
     common_opts = [
-        Option("data-source", "devshm"),
+        Option("data-source", source_config.data_source),
         Option("source-queue-timeout", source_config.source_queue_timeout),
-        Option(
-            "shared-memory-dir",
-            format_ifo_args(ifos, source_config.inj_shared_memory_dir),
-        ),
         Option("track-psd"),
         Option("psd-fft-length", psd_config.fft_length),
         Option("channel-name", format_ifo_args(ifos, source_config.inj_channel_name)),
@@ -1500,6 +1500,11 @@ def injection_filter_online(
     #     common_opts.append(Option("snapshot-delay", filter_config.snapshot_delay))
 
     common_opts.append(Option("min-instruments-candidates", min_instruments))
+
+    # Set shared-memory-dir for devshm
+    if source_config.data_source == "devshm":
+        common_opts.append(Option(
+        "shared-memory-dir", format_ifo_args(ifos, source_config.shared_memory_dir)))
 
     if filter_config.search:
         common_opts.append(Option("search", filter_config.search))
@@ -1687,7 +1692,9 @@ def track_noise(
         executable, condor_config, resource_requests, retries=1000, name=name
     )
 
-    assert source_config.data_source == "devshm"
+    assert (source_config.data_source in {"devshm", "arrakis"},
+    "Supported data source options are: devshm, arrakis")
+
     for ifo in ifos:
         if injection is True:
             channel_names = [source_config.inj_channel_name[ifo]]
@@ -1695,13 +1702,9 @@ def track_noise(
             channel_names = [source_config.channel_name[ifo]]
         for channel in channel_names:
             # set up datasource options
-            if injection is True:
-                memory_location = source_config.inj_shared_memory_dir[ifo]
-            else:
-                memory_location = source_config.shared_memory_dir[ifo]
             arguments = [
-                Option("data-source", "devshm"),
-                Option("shared-memory-dir", f"{ifo}={memory_location}"),
+                Option("data-source", source_config.data_source),
+                Option("source-queue-timeout", source_config.source_queue_timeout),
             ]
             if injection is True:
                 arguments.append(Option("injections"))
@@ -1722,6 +1725,16 @@ def track_noise(
                     Option("reference-psd", ref_psd),
                 ]
             )
+
+            # Set shared-memory-dir for devshm
+            if source_config.data_source == "devshm":
+                if injection is True:
+                    memory_location = source_config.inj_shared_memory_dir[ifo]
+                else:
+                    memory_location = source_config.shared_memory_dir[ifo]
+                arguments.extend(
+                    [Option("shared-memory-dir", f"{ifo}={memory_location}")]
+                )
 
             if services_config.kafka_server:
                 arguments.extend(

@@ -248,8 +248,8 @@ def parse_command_line():
         metavar="filename",
         help="Set the URL from which to load the ranking statistic PDF.  This is used "
         "to compute false-alarm probabilities and false-alarm rates and is required "
-        "for online operation (when --data-source is devshm or white-realtime).  It "
-        "is forbidden for offline operation (all other data sources)",
+        "for online operation (when --data-source is arrakis, devshm, or white-realtime). "  
+	"It is forbidden for offline operation (all other data sources)",
     )
     group.add_argument(
         "--zerolag-rank-stat-pdf-file",
@@ -259,9 +259,9 @@ def parse_command_line():
         "assigned to zero-lag candidates in this XML file.  This is used to construct "
         "the extinction model and set the overall false-alarm rate normalization "
         "during online running.  Counts will be added to the file's contents. "
-        "Required when --data-source is devshm or white-realtime; forbidden otherwise. "
-        "If given, exactly as many must be provided as there are --svd-bank options "
-        "and they will be used in order.",
+        "Required when --data-source is arrakis, devshm, or white-realtime; forbidden " 
+	"otherwise. If given, exactly as many must be provided as there are --svd-bank " 
+	"options and they will be used in order.",
     )
 
     group = parser.add_argument_group("GracedB Options", "Adjust GracedB interaction")
@@ -437,7 +437,7 @@ def inspiral(
     # Decide if we are online or offline
     #
 
-    IS_ONLINE = data_source_info.data_source in ["devshm", "white-realtime"]
+    IS_ONLINE = data_source_info.data_source in ["arrakis", "devshm", "white-realtime"]
     if snapshot_multiprocess and not IS_ONLINE:
         raise ValueError("snapshot_multiprocess is only allowed for online mode")
 
@@ -483,11 +483,11 @@ def inspiral(
 
     if (
         fake_sink is False
-        and data_source_info.data_source not in ["devshm", "impulse", "white-realtime"]
+        and data_source_info.data_source not in ["arrakis", "devshm", "impulse", "white-realtime"]
     ) and trigger_output is None:
         raise ValueError(
             "Must supply trigger_output when fake_sink is False and "
-            "data_source != 'devshm' or 'impulse', 'white-realtime'"
+            "data_source != 'arrakis', 'devshm' or 'impulse', 'white-realtime'"
         )
     elif trigger_output is not None and event_config is None:
         raise ValueError("Must supply event_config when trigger_output is specified")
