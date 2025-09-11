@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 import re
@@ -19,7 +20,6 @@ from igwn_ligolw import utils as ligolw_utils
 from igwn_ligolw.array import use_in as array_use_in
 from igwn_ligolw.param import use_in as param_use_in
 from sgn.apps import Pipeline
-from sgn.base import get_sgn_logger
 from sgn.control import HTTPControl
 from sgn.sinks import NullSink
 from sgn.subprocess import Parallelize
@@ -42,7 +42,7 @@ from sgnl.transforms import (
     lloid,
 )
 
-LOGGER = get_sgn_logger("sgnl")
+logger = logging.getLogger("sgn.sgnl")
 
 torch.set_num_threads(1)
 
@@ -446,7 +446,7 @@ def inspiral(
     #
     if trigger_output is not None:
         if IS_ONLINE:
-            LOGGER.warning(
+            logger.warning(
                 "warning: trigger_output will not be produced in online mode"
             )
         else:
