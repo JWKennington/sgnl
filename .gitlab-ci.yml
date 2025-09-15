@@ -49,6 +49,13 @@ sdist:
 wheel:
   cache: []
 
+flake8-code_quality:
+  before_script:
+    - echo "Installing SGN Family libraries"
+    - |
+      pip install --no-cache-dir -r build_requirements.txt
+      
+
 python_test:
   before_script:
     - echo "Manually installing system dependencies"
@@ -58,11 +65,11 @@ python_test:
     - echo "Manually installing dependencies"
     - |
       pip install lalsuite
-      pip install torch
-      pip install gwpy
+      pip install --no-cache-dir torch
+      pip install --no-cache-dir gwpy
     - echo "Installing SGN Family libraries excluding Strike"
     - |
-      pip install -r build_requirements.txt
+      pip install --no-cache-dir -r build_requirements.txt
     - echo "Setting up strike data"
     - |
       strike-config set --setup
@@ -72,12 +79,14 @@ mkdocs:
   before_script:
     - echo "Manually installing dependencies"
     - |
-      pip install lalsuite
-      pip install torch
-      pip install gwpy
+      pip install --no-cache-dir lalsuite
+      pip install --no-cache-dir torch
+      pip install --no-cache-dir gwpy
     - echo "Installing SGN Family libraries"
     - |
-      pip install -r build_requirements.txt
+      pip install --no-cache-dir -r build_requirements.txt
+
+
 
 ##
 ## This is requred by git.ligo.org/computing/gitlab/components/docker/push
