@@ -50,6 +50,7 @@ wheel:
   cache: []
 
 flake8-code_quality:
+  image: python:3.12
   before_script:
     - echo "Installing SGN Family libraries"
     - |
