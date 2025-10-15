@@ -3,8 +3,10 @@
 """
 
 # Copyright (C) 2009-2013 Kipp Cannon, Chad Hanna, Drew Keppel
-# Copyright (C) 2021 Patrick Godwin
-# Copyright (C) 2024 Yun-Jing Huang
+# Copyright (C) 2021      Patrick Godwin
+# Copyright (C) 2024-2025 Yun-Jing Huang
+
+from math import ceil
 
 from sgnts.base import AdapterConfig, Offset
 from sgnts.base.array_ops import TorchBackend
@@ -99,6 +101,9 @@ def lloid(
             for to_rate, rate_group in sorted_rates[from_rate].items():
                 segments = rate_group["segments"]
                 uppad = rate_group["uppad"]
+                uppad = Offset.fromsamples(
+                    ceil(uppad / Offset.MAX_RATE * from_rate), from_rate
+                )
                 downpad = rate_group["downpad"]
                 delays = []
                 for segment in segments:
