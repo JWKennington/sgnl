@@ -405,7 +405,7 @@ def split_bank(
                 row.mass1, row.mass2, row.spin1z, row.spin2z, mu="mu2"
             )
         )
-        num_group = group_by_mu
+        num_group = group_by_mu if group_by_mu is not None else 20
     else:
         # First partitioning by chi
         sngl_inspiral_table.sort(
@@ -413,7 +413,7 @@ def split_bank(
                 row.mass1, row.mass2, row.spin1z, row.spin2z
             )
         )
-        num_group = group_by_chi
+        num_group = group_by_chi if group_by_chi is not None else 1
 
     for chirows in group_templates(
         sngl_inspiral_table, len(sngl_inspiral_table) / num_group, overlap=0
