@@ -288,7 +288,7 @@ class EventPlotter(events.EventProcessor):
             self.client = GraceDb(gracedb_service_url)
 
         # initialize event storage
-        self.events = OrderedDict()
+        self.events: OrderedDict = OrderedDict()
 
         # initialize plotting options
         self.to_upload = plot

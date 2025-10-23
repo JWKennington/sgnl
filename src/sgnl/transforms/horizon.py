@@ -17,8 +17,8 @@ class HorizonDistanceTracker(TSTransform):
     Compute horizon distance for an incoming PSD and a given waveform model
     """
 
-    horizon_distance_funcs: Callable | dict[str, Callable] = None
-    ifo: str = None
+    horizon_distance_funcs: Callable | dict[str, Callable] | None = None
+    ifo: str | None = None
     range: bool = False
 
     def __post_init__(self):

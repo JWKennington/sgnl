@@ -297,8 +297,8 @@ def movingaverage(psd: numpy.ndarray, window_size: int) -> numpy.ndarray:
 
 def taperzero_fseries(
     fseries: lal.REAL8FrequencySeries,
-    minfs: Optional[Tuple[float, float]] = (35.0, 40.0),
-    maxfs: Optional[Tuple[float, float]] = (1800.0, 2048.0),
+    minfs: Tuple[float, float] = (35.0, 40.0),
+    maxfs: Tuple[float, float] = (1800.0, 2048.0),
 ) -> lal.REAL8FrequencySeries:
     """Taper the PSD to infinity for given min/max frequencies.
 
@@ -371,10 +371,10 @@ def taperzero_fseries(
 def condition_psd(
     psd: lal.REAL8FrequencySeries,
     newdeltaF: int,
-    minfs: Optional[Tuple[int, int]] = (35.0, 40.0),
-    maxfs: Optional[Tuple[int, int]] = (1800.0, 2048.0),
-    smoothing_frequency: Optional[float] = 4.0,
-    fir_whiten: Optional[bool] = False,
+    minfs: Tuple[float, float] = (35.0, 40.0),
+    maxfs: Tuple[float, float] = (1800.0, 2048.0),
+    smoothing_frequency: float = 4.0,
+    fir_whiten: bool = False,
 ) -> lal.REAL8FrequencySeries:
     """Condition a PSD suitable for whitening waveforms.
 

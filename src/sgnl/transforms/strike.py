@@ -16,7 +16,7 @@ class StrikeTransform(TransformElement):
     Compute LR and FAR
     """
 
-    strike_object: StrikeObject = None
+    strike_object: StrikeObject = None  # type: ignore[assignment]
 
     def __post_init__(self):
         assert len(self.sink_pad_names) == 1

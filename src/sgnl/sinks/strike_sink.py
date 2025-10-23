@@ -59,14 +59,14 @@ def on_snapshot(data, shutdown=False, reset_dynamic=True):
 
 @dataclass
 class StrikeSink(SnapShotControlSinkElement, ParallelizeSinkElement):
-    ifos: list[str] = None
+    ifos: list[str] = None  # type: ignore[assignment]
+    strike_object: StrikeObject = None  # type: ignore[assignment]
+    bankids_map: dict[str, list] = None  # type: ignore[assignment]
+    background_pad: str = None  # type: ignore[assignment]
+    horizon_pads: list[str] = None  # type: ignore[assignment]
     is_online: bool = False
     injections: bool = False
-    strike_object: StrikeObject = None
-    bankids_map: dict[str, list] = None
-    background_pad: str = None
-    horizon_pads: list[str] = None
-    count_removal_times: list[int] = None
+    count_removal_times: list[int] | None = None
 
     def __post_init__(self):
         assert isinstance(self.ifos, list)

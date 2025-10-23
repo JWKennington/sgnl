@@ -94,7 +94,7 @@ def lloid(
 
     # time segment shift
     for ifo in ifos:
-        snr_slices = {r1: {} for r1 in reversed(unique_rates)}
+        snr_slices: dict = {r1: {} for r1 in reversed(unique_rates)}
         final_adder_addslices_map = {}
 
         for from_rate in reversed(unique_rates):

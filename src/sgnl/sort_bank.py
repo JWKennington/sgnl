@@ -17,7 +17,7 @@ from sgnl.svd_bank import Bank, parse_bank_files
 
 def group_and_read_banks(
     svd_bank: list[str],
-    source_ifos: list[str] = None,
+    source_ifos: list[str] | None = None,
     nsubbank_pretend: int = 0,
     nslice=-1,
     verbose=False,
@@ -62,7 +62,7 @@ def group_and_read_banks(
             f"Data source ifos: {source_ifos} must be the same as svd bank ifos: {ifos}"
         )
 
-    banks = {ifo: [] for ifo in ifos}
+    banks: dict[str, list] = {ifo: [] for ifo in ifos}
     if nsubbank_pretend:
         # Pretend we are filtering multiple banks by copying the first bank
         #   many times

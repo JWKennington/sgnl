@@ -95,10 +95,15 @@ class StrikeObject:
                         - segments
     """
 
-    all_template_ids: Sequence[Any] = None
-    bankids_map: dict[str, list] = None
+    bankids_map: dict[str, list]
+    coincidence_threshold: float
+    ifos: list[str]
+    input_likelihood_file: list[str]
+    output_likelihood_file: list[str]
+    rank_stat_pdf_file: str
+    zerolag_rank_stat_pdf_file: list[str]
+    all_template_ids: Sequence[Any] | None = None
     cap_singles: bool = False
-    coincidence_threshold: float = None
     chi2_over_snr2_min: float = default_config["chi2_over_snr2_min"]
     chi2_over_snr2_max: float = default_config["chi2_over_snr2_max"]
     chi_bin_min: float = default_config["chi_bin_min"]
@@ -107,15 +112,10 @@ class StrikeObject:
     compress_likelihood_ratio: bool = False
     compress_likelihood_ratio_threshold: float = 0.03
     FAR_trialsfactor: float = 1
-    ifos: list = None
     injections: bool = False
-    input_likelihood_file: list[str] = None
     is_online: bool = False
     min_instruments: int = 1
-    output_likelihood_file: list[str] = None
-    rank_stat_pdf_file: str = None
     verbose: bool = False
-    zerolag_rank_stat_pdf_file: list[str] = None
     nsubbank_pretend: bool = False
     dtype: torch.dtype = torch.float32
     device: str = "cpu"
@@ -312,7 +312,10 @@ class StrikeObject:
                 # noninj
                 # if --output-likelihood-file is not set, likelihood file won't be
                 # created
-                if self.output_likelihood_file is not None:
+                if (
+                    self.output_likelihood_file is not None
+                    and len(self.output_likelihood_file) > 0
+                ):
                     self.output_likelihood_file = {
                         k: self.output_likelihood_file[i]
                         for i, k in enumerate(self.bankids_map)

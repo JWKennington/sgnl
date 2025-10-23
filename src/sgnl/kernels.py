@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Optional, Tuple
+from typing import Optional, Tuple
 
 import lal
 import numpy
@@ -14,10 +13,10 @@ from sgnl.psd import HorizonDistance
 
 @dataclass
 class PSDFirKernel:
-    revplan: str = None
-    fwdplan: str = None
-    target_phase: float = None
-    target_phase_mask: Sequence[Any] = None
+    revplan: str | None = None
+    fwdplan: str | None = None
+    target_phase: numpy.ndarray | None = None
+    target_phase_mask: numpy.ndarray | None = None
 
     def set_phase(
         self,
@@ -65,8 +64,8 @@ class PSDFirKernel:
         unit_snr2_density /= unit_snr2_density.max()
 
         # record phase vector and SNR^2 density vector
-        self.target_phase = phase
-        self.target_phase_mask = unit_snr2_density
+        self.target_phase = phase  # type: ignore[assignment]
+        self.target_phase_mask = unit_snr2_density  # type: ignore[assignment]
 
     def psd_to_linear_phase_whitening_fir_kernel(
         self,

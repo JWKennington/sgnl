@@ -189,7 +189,7 @@ class PAstroUploader(events.EventProcessor):
         self.add_rankstat_to_model()
 
         # start a list of events
-        self.events = deque(maxlen=100)
+        self.events: deque = deque(maxlen=100)
 
     def ingest(self, message):
         # load the message value

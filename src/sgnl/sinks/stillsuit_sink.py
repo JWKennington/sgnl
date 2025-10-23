@@ -143,29 +143,37 @@ def append_segment(data, temp_segments):
 
 @dataclass
 class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
-    ifos: list = None
-    config_name: str = None
-    bankids_map: dict[str, list] = None
-    trigger_output: dict[str, str] = None
-    template_ids: Sequence[Any] = None
-    template_sngls: list = None
-    subbankids: Sequence[Any] = None
-    itacacac_pad_name: str = None
-    segments_pad_map: dict[str, str] = None
-    process_params: dict = None
+    ifos: list = None  # type: ignore[assignment]
+    config_name: str = None  # type: ignore[assignment]
+    bankids_map: dict[str, list] = None  # type: ignore[assignment]
+    template_ids: Sequence[Any] = None  # type: ignore[assignment]
+    template_sngls: list = None  # type: ignore[assignment]
+    subbankids: Sequence[Any] = None  # type: ignore[assignment]
+    itacacac_pad_name: str = None  # type: ignore[assignment]
+    segments_pad_map: dict[str, str] = None  # type: ignore[assignment]
+    trigger_output: dict[str, str] = None  # type: ignore[assignment]
+    process_params: dict = None  # type: ignore[assignment]
     program: str = ""
-    injection_list: list = None
+    injection_list: list = None  # type: ignore[assignment]
     is_online: bool = False
     jobid: int = 0
     nsubbank_pretend: bool = False
     verbose: bool = False
     injections: bool = False
-    strike_object: int = None
+    strike_object: StrikeObject | None = None
 
     def __post_init__(self):
+        # Initialize mutable defaults
+        if self.trigger_output is None:
+            self.trigger_output = {}
+        if self.process_params is None:
+            self.process_params = {}
+        if self.injection_list is None:
+            self.injection_list = []
+
         if self.config_name is None:
             raise ValueError("Must provide config_name")
-        if not self.is_online and self.trigger_output is None:
+        if not self.is_online and not self.trigger_output:
             raise ValueError("Must provide trigger_output")
 
         SnapShotControlSinkElement.__post_init__(self)

@@ -159,15 +159,15 @@ class Bank:
     time_slices: Sequence[Any]
     snr_threshold: float
     tolerance: float
-    clipleft: int = None
-    clipright: int = None
+    clipleft: int | None = None
+    clipright: int | None = None
     flow: float = 40.0
-    autocorrelation_length: int = None
-    logname: str = None
+    autocorrelation_length: int | None = None
+    logname: str | None = None
     identity_transform: bool = False
     verbose: bool = False
-    bank_id: int = None
-    fhigh: float = None
+    bank_id: int | None = None
+    fhigh: float | None = None
 
     def __post_init__(self):
         self.template_bank_filename = None

@@ -263,7 +263,7 @@ class EventUploader(events.EventProcessor):
         self.upload_cadence_factor = upload_cadence_factor
 
         # initialize event store
-        self.events = OrderedDict()
+        self.events: OrderedDict = OrderedDict()
 
         # favored event settings
         if selection_criteria == "MAXSNR":
@@ -510,7 +510,7 @@ class EventUploader(events.EventProcessor):
 
         return updated, event
 
-    def construct_composite_candidate(self, candidates, favored):
+    def construct_composite_candidate(self, candidates, favored=None):
         """
         Construct composite event. Replace far and likelihood
         in maxsnr candidate with those in the minfar candidate.

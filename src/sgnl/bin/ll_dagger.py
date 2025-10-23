@@ -12,7 +12,7 @@ from sgnl.dags.config import build_config
 from sgnl.dags.util import DataCache, DataType, load_svd_options
 
 
-def parse_command_line(args: list[str] = None) -> argparse.Namespace:
+def parse_command_line(args: list[str] | None = None) -> argparse.Namespace:
     if args is None:
         args = sys.argv[1:]
 
@@ -32,21 +32,21 @@ def parse_command_line(args: list[str] = None) -> argparse.Namespace:
         help="The directory in which to write the dag",
     )
     parser.add_argument("--dag-name", type=str, default=None, help="A name for the dag")
-    args = parser.parse_args(args)
+    parsed_args = parser.parse_args(args)
 
-    if args.dag_name:
-        if "/" in args.dag_name:
+    if parsed_args.dag_name:
+        if "/" in parsed_args.dag_name:
             raise ValueError(
                 "The dag name must not be a path. Use --dag-dir to put the dag in a"
                 " different directory."
             )
-        if args.dag_name.endswith(".dag"):
+        if parsed_args.dag_name.endswith(".dag"):
             raise ValueError(
                 'The given dag name ends with ".dag". This is unnecessary because it'
                 " will be appended to the file name automatically."
             )
 
-    return args
+    return parsed_args
 
 
 def main():
@@ -163,7 +163,6 @@ def main():
             write_empty_marg_zerolag=marg_zerolag_pdf_cache,
         )
         dag.attach(layer)
-
 
     elif args.workflow == "inspiral":
         # input data products

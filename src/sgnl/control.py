@@ -9,7 +9,7 @@ class SnapShotControl(HTTPControl):
     """Adds snapshot functionality on top of HTTPControl which is on top of SignalEOS"""
 
     snapshot_interval = 14400
-    last_snapshot = {}
+    last_snapshot: dict[str, float] = {}
     snapshots_enabled = False
     # delay = 0
     startup_delay = 0

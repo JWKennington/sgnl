@@ -15,10 +15,10 @@ from sgnts.base import EventBuffer, EventFrame
 @dataclass
 class EyeCandy(TransformElement):
 
-    template_sngls: list = None
-    event_pad: str = None
-    state_vector_pads: dict[str, str] = None
-    ht_gate_pads: dict[str, str] = None
+    template_sngls: list | None = None
+    event_pad: str | None = None
+    state_vector_pads: dict[str, str] | None = None
+    ht_gate_pads: dict[str, str] | None = None
 
     def __post_init__(self):
         self.sink_pad_names = (
