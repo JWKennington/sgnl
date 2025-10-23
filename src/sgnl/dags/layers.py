@@ -1261,8 +1261,10 @@ def filter_online(
 
     layer = create_layer(executable, condor_config, resource_requests, retries=1000)
 
-    assert (source_config.data_source in {"devshm", "arrakis"},
-    "Supported data source options are: devshm, arrakis")
+    assert source_config.data_source in {
+        "devshm",
+        "arrakis",
+    }, "Supported data source options are: devshm, arrakis"
 
     # set up common options
     common_opts = [
@@ -1307,8 +1309,12 @@ def filter_online(
 
     # Set shared-memory-dir for devshm
     if source_config.data_source == "devshm":
-        common_opts.append(Option(
-        "shared-memory-dir", format_ifo_args(ifos, source_config.shared_memory_dir)))
+        common_opts.append(
+            Option(
+                "shared-memory-dir",
+                format_ifo_args(ifos, source_config.shared_memory_dir),
+            )
+        )
 
     if filter_config.all_triggers_to_background:
         common_opts.append(Option("all-triggers-to-background"))
@@ -1456,8 +1462,10 @@ def injection_filter_online(
         name=executable + "-inj",
     )
 
-    assert (source_config.data_source in {"devshm", "arrakis"},
-    "Supported data source options are: devshm, arrakis")
+    assert source_config.data_source in {
+        "devshm",
+        "arrakis",
+    }, "Supported data source options are: devshm, arrakis"
 
     # set up common options
     common_opts = [
@@ -1503,8 +1511,12 @@ def injection_filter_online(
 
     # Set shared-memory-dir for devshm
     if source_config.data_source == "devshm":
-        common_opts.append(Option(
-        "shared-memory-dir", format_ifo_args(ifos, source_config.shared_memory_dir)))
+        common_opts.append(
+            Option(
+                "shared-memory-dir",
+                format_ifo_args(ifos, source_config.shared_memory_dir),
+            )
+        )
 
     if filter_config.search:
         common_opts.append(Option("search", filter_config.search))
@@ -1692,8 +1704,10 @@ def track_noise(
         executable, condor_config, resource_requests, retries=1000, name=name
     )
 
-    assert (source_config.data_source in {"devshm", "arrakis"},
-    "Supported data source options are: devshm, arrakis")
+    assert source_config.data_source in {
+        "devshm",
+        "arrakis",
+    }, "Supported data source options are: devshm, arrakis"
 
     for ifo in ifos:
         if injection is True:

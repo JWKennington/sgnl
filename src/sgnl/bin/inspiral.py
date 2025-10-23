@@ -169,7 +169,7 @@ def parse_command_line():
     group.add_argument(
         "--snapshot-interval",
         metavar="seconds",
-        type=float,
+        type=int,
         default=14400,
         help="The interval at which to procude snapshots of trigger, likelihood, and "
         "zerolag files",
@@ -248,8 +248,9 @@ def parse_command_line():
         metavar="filename",
         help="Set the URL from which to load the ranking statistic PDF.  This is used "
         "to compute false-alarm probabilities and false-alarm rates and is required "
-        "for online operation (when --data-source is arrakis, devshm, or white-realtime). "  
-	"It is forbidden for offline operation (all other data sources)",
+        "for online operation (when --data-source is arrakis, devshm, or "
+        "white-realtime). It is forbidden for offline operation (all other data "
+        "sources)",
     )
     group.add_argument(
         "--zerolag-rank-stat-pdf-file",
@@ -259,9 +260,9 @@ def parse_command_line():
         "assigned to zero-lag candidates in this XML file.  This is used to construct "
         "the extinction model and set the overall false-alarm rate normalization "
         "during online running.  Counts will be added to the file's contents. "
-        "Required when --data-source is arrakis, devshm, or white-realtime; forbidden " 
-	"otherwise. If given, exactly as many must be provided as there are --svd-bank " 
-	"options and they will be used in order.",
+        "Required when --data-source is arrakis, devshm, or white-realtime; forbidden "
+        "otherwise. If given, exactly as many must be provided as there are --svd-bank "
+        "options and they will be used in order.",
     )
 
     group = parser.add_argument_group("GracedB Options", "Adjust GracedB interaction")
@@ -395,49 +396,54 @@ def inspiral(
     coincidence_threshold: float = 0.005,
     compress_likelihood_ratio: bool = False,
     compress_likelihood_ratio_threshold: float = 0.03,
-    event_config: str = None,
+    event_config: str | None = None,
     fake_sink: bool = False,
-    search: str = None,
+    search: str | None = None,
     far_trials_factor: float = 1.0,
     gracedb_far_threshold: float = -1,
     gracedb_group: str = "Test",
-    gracedb_label: list[str] = None,
+    gracedb_label: list[str] | None = None,
     gracedb_pipeline: str = "SGNL",
     gracedb_search: str = "MOCK",
-    gracedb_service_url: str = None,
-    graph_name: str = None,
-    impulse_bank: str = None,
-    impulse_bankno: int = None,
-    impulse_ifo: str = None,
+    gracedb_service_url: str | None = None,
+    graph_name: str | None = None,
+    impulse_bank: str | None = None,
+    impulse_bankno: int | None = None,
+    impulse_ifo: str | None = None,
     injections: bool = False,
-    injection_file: str = None,
-    input_likelihood_file: List[str] = None,
-    job_tag: str = None,
+    injection_file: str | None = None,
+    input_likelihood_file: List[str] | None = None,
+    job_tag: str | None = None,
     min_instruments_candidates: int = 1,
     nslice: int = -1,
-    nsubbank_pretend: int = None,
-    output_kafka_server: str = None,
-    output_likelihood_file: List[str] = None,
-    process_params: dict = None,
-    rank_stat_pdf_file: List[str] = None,
+    nsubbank_pretend: int | None = None,
+    output_kafka_server: str | None = None,
+    output_likelihood_file: List[str] | None = None,
+    process_params: dict | None = None,
+    rank_stat_pdf_file: List[str] | None = None,
     reconstruct_inj_segments: bool = False,
     # snapshot_delay: float = 0,
-    snapshot_interval: float = 14400,
+    snapshot_interval: int = 14400,
     snapshot_multiprocess: bool = False,
     snr_min: float = 4,
-    snr_timeseries_output: str = None,
+    snr_timeseries_output: str | None = None,
     torch_device: str = "cpu",
     torch_dtype: str = "float32",
-    trigger_output: List[str] = None,
+    trigger_output: List[str] | None = None,
     trigger_finding_duration: float = 1,
     verbose: bool = False,
-    zerolag_rank_stat_pdf_file: List[str] = None,
+    zerolag_rank_stat_pdf_file: List[str] | None = None,
 ):
     #
     # Decide if we are online or offline
     #
 
-    IS_ONLINE = data_source_info.data_source in ["arrakis", "devshm", "white-realtime"]
+    IS_ONLINE = data_source_info.data_source in [
+        "arrakis",
+        "devshm",
+        "white-realtime",
+        "gwdata-noise-realtime",
+    ]
     if snapshot_multiprocess and not IS_ONLINE:
         raise ValueError("snapshot_multiprocess is only allowed for online mode")
 
@@ -471,23 +477,31 @@ def inspiral(
         raise ValueError("min_instruments_candidates > 2 not supported")
 
     # check pytorch data type
-    dtype = torch_dtype
-    if dtype == "float64":
+    dtype_str = torch_dtype
+    if dtype_str == "float64":
         dtype = torch.float64
-    elif dtype == "float32":
+    elif dtype_str == "float32":
         dtype = torch.float32
-    elif dtype == "float16":
+    elif dtype_str == "float16":
         dtype = torch.float16
     else:
         raise ValueError("Unknown data type")
 
     if (
         fake_sink is False
-        and data_source_info.data_source not in ["arrakis", "devshm", "impulse", "white-realtime"]
+        and data_source_info.data_source
+        not in [
+            "arrakis",
+            "devshm",
+            "impulse",
+            "white-realtime",
+            "gwdata-noise-realtime",
+        ]
     ) and trigger_output is None:
         raise ValueError(
             "Must supply trigger_output when fake_sink is False and "
-            "data_source != 'arrakis', 'devshm' or 'impulse', 'white-realtime'"
+            "data_source not in ['arrakis', 'devshm', 'impulse', "
+            "'white-realtime', 'gwdata-noise-realtime']"
         )
     elif trigger_output is not None and event_config is None:
         raise ValueError("Must supply event_config when trigger_output is specified")
@@ -542,7 +556,7 @@ def inspiral(
     banks = group_and_read_banks(
         svd_bank=svd_bank,
         source_ifos=ifos,
-        nsubbank_pretend=nsubbank_pretend,
+        nsubbank_pretend=nsubbank_pretend if nsubbank_pretend else 0,
         nslice=nslice,
         verbose=True,
     )
@@ -581,7 +595,7 @@ def inspiral(
         banks=banks,
         device=torch_device,
         dtype=dtype,
-        nsubbank_pretend=nsubbank_pretend,
+        nsubbank_pretend=nsubbank_pretend if nsubbank_pretend else 0,
         nslice=nslice,
         verbose=True,
     )
@@ -608,14 +622,16 @@ def inspiral(
         FAR_trialsfactor=far_trials_factor,
         ifos=data_source_info.all_analysis_ifos,
         injections=injections,
-        input_likelihood_file=input_likelihood_file,
+        input_likelihood_file=input_likelihood_file if input_likelihood_file else [],
         is_online=IS_ONLINE,
         min_instruments=min_instruments_candidates,
-        output_likelihood_file=output_likelihood_file,
-        rank_stat_pdf_file=rank_stat_pdf_file,
+        output_likelihood_file=output_likelihood_file if output_likelihood_file else [],
+        rank_stat_pdf_file=rank_stat_pdf_file[0] if rank_stat_pdf_file else "",
         verbose=verbose,
-        zerolag_rank_stat_pdf_file=zerolag_rank_stat_pdf_file,
-        nsubbank_pretend=nsubbank_pretend,
+        zerolag_rank_stat_pdf_file=(
+            zerolag_rank_stat_pdf_file if zerolag_rank_stat_pdf_file else []
+        ),
+        nsubbank_pretend=bool(nsubbank_pretend),
         dtype=dtype,
         device=torch_device,
     )
@@ -662,6 +678,11 @@ def inspiral(
 
     # make the sink
     if data_source_info.data_source == "impulse":
+        # Note: impulse_ifo, impulse_bank, and impulse_bankno are validated
+        # to be non-None/non-empty at lines 468-474
+        assert impulse_ifo is not None
+        assert impulse_bank is not None
+        assert impulse_bankno is not None
         pipeline.insert(
             ImpulseSink(
                 name="imsink0",
@@ -691,12 +712,12 @@ def inspiral(
         # connect itacacac
         #
 
-        itacacac_pads = ("stillsuit",)
         if output_likelihood_file is not None or (IS_ONLINE and injections):
-            strike_pad = "strike"
-            itacacac_pads += (strike_pad,)
+            strike_pad: str = "strike"
+            itacacac_pads: tuple[str, ...] = ("stillsuit", strike_pad)
         else:
-            strike_pad = None
+            strike_pad = ""  # type: ignore[assignment]
+            itacacac_pads = ("stillsuit",)
 
         pipeline.insert(
             Itacacac(
@@ -765,10 +786,10 @@ def inspiral(
                 gracedb_sink = GraceDBSink(
                     name="gracedb",
                     event_pad="event",
-                    spectrum_pads=tuple(ifo for ifo in ifos),
+                    spectrum_pads=list(ifo for ifo in ifos),
                     template_sngls=sorted_bank.sngls,
                     analysis_ifos=ifos,
-                    process_params=process_params,
+                    process_params=process_params if process_params else {},
                     output_kafka_server=output_kafka_server,
                     far_thresh=gracedb_far_threshold,
                     aggregator_far_thresh=aggregator_far_threshold,
@@ -776,10 +797,12 @@ def inspiral(
                     gracedb_group=gracedb_group,
                     gracedb_pipeline=gracedb_pipeline,
                     gracedb_search=gracedb_search,
-                    gracedb_label=gracedb_label,
-                    gracedb_service_url=gracedb_service_url,
+                    gracedb_label=gracedb_label if gracedb_label else [],
+                    gracedb_service_url=(
+                        gracedb_service_url if gracedb_service_url else ""
+                    ),
                     analysis_tag=analysis_tag,
-                    job_type=job_tag.split("_")[-1],
+                    job_type=job_tag.split("_")[-1] if job_tag else "",
                     delta_t=coincidence_threshold,
                     strike_object=strike_object,
                     channel_dict=data_source_info.channel_dict,
@@ -862,21 +885,21 @@ def inspiral(
                         (k, trigger_output[i])
                         for i, k in enumerate(sorted_bank.bankids_map.keys())
                     )
-                    if trigger_output
-                    else None
+                    if trigger_output is not None
+                    else {}  # type: ignore[arg-type]
                 ),
                 template_ids=sorted_bank.template_ids.numpy(),
                 template_sngls=sorted_bank.sngls,
                 subbankids=sorted_bank.subbankids,
                 itacacac_pad_name="trigs",
                 segments_pad_map={"segments_" + ifo: ifo for ifo in ifos},
-                process_params=process_params,
+                process_params=process_params if process_params else {},
                 program="sgnl-inspiral",
-                injection_list=injection_list,
+                injection_list=injection_list if injection_list else [],
                 is_online=IS_ONLINE,
                 nsubbank_pretend=bool(nsubbank_pretend),
                 injections=injections,
-                strike_object=strike_object,
+                strike_object=strike_object,  # type: ignore[arg-type]
                 queue_maxsize=0,
             )
             pipeline.insert(stillsuit_sink)
@@ -994,7 +1017,7 @@ def inspiral(
                         prefix="sgnl."
                         + analysis_tag
                         + "."
-                        + ("inj_" if "_inj" in job_tag else ""),
+                        + ("inj_" if job_tag and "_inj" in job_tag else ""),
                         interval=3,
                     ),
                     link_map={
@@ -1020,16 +1043,17 @@ def inspiral(
 
     # Plot pipeline
     if graph_name:
-        pipeline.visualize(graph_name, pads=False)
+        pipeline.visualize(graph_name)  # type: ignore[call-arg]
 
     # Run pipeline
     if IS_ONLINE:
-        if re.match(r"^\d{4}", job_tag):
+        if job_tag and re.match(r"^\d{4}", job_tag):
             if injections:
-                HTTPControl.port = "6%s" % job_tag[:4]
+                HTTPControl.port = int("6%s" % job_tag[:4])
             else:
-                HTTPControl.port = "5%s" % job_tag[:4]
-        HTTPControl.tag = analysis_tag
+                HTTPControl.port = int("5%s" % job_tag[:4])
+        if analysis_tag:
+            HTTPControl.tag = analysis_tag  # type: ignore[assignment]
         registry_file = "%s_registry.txt" % job_tag
         if snapshot_multiprocess:
             with (

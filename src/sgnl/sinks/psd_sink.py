@@ -24,7 +24,7 @@ class PSDSink(SinkElement):
     A sink element that dumps a PSD to an LIGOLW XML file
     """
 
-    fname: str = None
+    fname: str | None = None
 
     def __post_init__(self):
         super().__post_init__()

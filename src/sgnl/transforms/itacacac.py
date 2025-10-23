@@ -91,29 +91,29 @@ class Itacacac(TSTransform):
             str, the source pad name to output background triggers to strike
     """
 
-    sample_rate: int = None
-    trigger_finding_duration: float = None
+    sample_rate: int = None  # type: ignore[assignment]
+    trigger_finding_duration: float = None  # type: ignore[assignment]
+    autocorrelation_banks: Array = None  # type: ignore[assignment]
+    autocorrelation_length_mask: Array = None  # type: ignore[assignment]
+    autocorrelation_lengths: Array = None  # type: ignore[assignment]
+    template_ids: Array = None  # type: ignore[assignment]
+    bankids_map: Dict[int, list[int]] = None  # type: ignore[assignment]
+    end_time_delta: Sequence[Any] = None  # type: ignore[assignment]
+    template_durations: Array = None  # type: ignore[assignment]
+    stillsuit_pad: str = None  # type: ignore[assignment]
     snr_min: float = 4
-    autocorrelation_banks: Array = None
-    autocorrelation_length_mask: Array = None
-    autocorrelation_lengths: Array = None
-    template_ids: Array = None
-    bankids_map: Dict[int, list[int]] = None
-    end_time_delta: Sequence[Any] = None
-    template_durations: Array = None
     device: str = "cpu"
     coincidence_threshold: float = 0
     min_instruments_candidates: int = 1
     all_triggers_to_background: bool = False
-    strike_pad: str = None
-    stillsuit_pad: str = None
+    strike_pad: str = ""
     is_online: bool = False
 
     def __post_init__(self):
 
         assert isinstance(self.stillsuit_pad, str)
         self.source_pad_names = (self.stillsuit_pad,)
-        if self.strike_pad is not None:
+        if self.strike_pad:
             self.source_pad_names += (self.strike_pad,)
         self.trigger_finding_samples = self.trigger_finding_duration * self.sample_rate
         assert self.trigger_finding_samples == int(
@@ -216,7 +216,7 @@ class Itacacac(TSTransform):
         #    + self.trigger_finding_overlap_samples * 2
         # )
         idf = -padding
-        triggers = {
+        triggers: dict = {
             "peak_locations": OrderedDict(),
             "snrs": OrderedDict(),
             "chisqs": OrderedDict(),
@@ -275,7 +275,7 @@ class Itacacac(TSTransform):
             triggers["chisqs"][ifo] = autocorrelation_chisq
             triggers["snr_ts_snippet"][ifo] = real_imag_time_series
 
-        return triggers
+        return triggers  # type: ignore[return-value]
 
     def make_coincs(self, triggers):
         on_ifos = list(triggers["snrs"].keys())

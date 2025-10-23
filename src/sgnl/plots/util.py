@@ -26,7 +26,7 @@ def set_matplotlib_cache_directory():
 
 def colour_from_instruments(
     instruments: list,
-    colours: dict = None,
+    colours: dict | None = None,
 ):
     """Get the color for a list of instruments.
 
@@ -94,7 +94,10 @@ def latexnumber(s: str):
 
     if "e" not in s and "E" not in s:
         return s
-    m, e = floatpattern.match(s).groups()
+    match = floatpattern.match(s)
+    if match is None:
+        return s
+    m, e = match.groups()
     return r"$%s \times 10^{%d}$" % (m, int(e))
 
 

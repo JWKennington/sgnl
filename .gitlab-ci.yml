@@ -20,7 +20,6 @@ include:
     inputs:
       install_extra: test
       python_versions:
-        - "3.10"
         - "3.11"
         - "3.12"
   - component: git.ligo.org/computing/gitlab/components/mkdocs/build@1

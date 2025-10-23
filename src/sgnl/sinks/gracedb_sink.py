@@ -33,30 +33,44 @@ class GraceDBSink(HTTPControlSinkElement):
     the threshold
     """
 
+    strike_object: StrikeObject = None  # type: ignore[assignment]
+    event_pad: str = None  # type: ignore[assignment]
+    spectrum_pads: list[str] = None  # type: ignore[assignment]
     far_thresh: float = -1
     aggregator_far_thresh: float = 3.84e-07
     aggregator_far_trials_factor: int = 1
-    output_kafka_server: str = None
-    gracedb_service_url: str = None
+    output_kafka_server: str = ""
+    gracedb_service_url: str = ""
     gracedb_group: str = "Test"
     gracedb_pipeline: str = "SGNL"
     gracedb_search: str = "MOCK"
-    gracedb_label: list[str] = None
+    gracedb_label: list[str] = None  # type: ignore[assignment]
     gracedb_cred_reload: bool = True
     gracedb_reload_buffer: int = 300
-    template_sngls: list = None
+    template_sngls: list = None  # type: ignore[assignment]
     analysis_tag: str = "mockery"
-    job_type: str = None
-    analysis_ifos: list = None
-    process_params: dict = None
-    event_pad: str = None
-    spectrum_pads: list[str] = None
+    job_type: str = ""
+    analysis_ifos: list = None  # type: ignore[assignment]
+    process_params: dict = None  # type: ignore[assignment]
     delta_t: float = 0.005
-    strike_object: StrikeObject = None
-    channel_dict: dict[str, str] = None
-    autocorrelation_lengths: dict[str, int] = None
+    channel_dict: dict[str, str] = None  # type: ignore[assignment]
+    autocorrelation_lengths: dict[str, int] = None  # type: ignore[assignment]
 
     def __post_init__(self):
+        # Initialize mutable defaults
+        if self.gracedb_label is None:
+            self.gracedb_label = []
+        if self.template_sngls is None:
+            self.template_sngls = []
+        if self.analysis_ifos is None:
+            self.analysis_ifos = []
+        if self.process_params is None:
+            self.process_params = {}
+        if self.channel_dict is None:
+            self.channel_dict = {}
+        if self.autocorrelation_lengths is None:
+            self.autocorrelation_lengths = {}
+
         self.sink_pad_names = (self.event_pad,) + self.spectrum_pads
         super().__post_init__()
         self.events = None

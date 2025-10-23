@@ -152,10 +152,10 @@ class templates_workspace:
     time_slices: Sequence[Any]
     autocorrelation_length: int
     fhigh: float
-    sample_rate_max: float = None
-    duration: float = None
-    length_max: int = None
-    FIR_WHITENER: bool = 0
+    sample_rate_max: float | None = None
+    duration: float | None = None
+    length_max: int | None = None
+    FIR_WHITENER: int = 0
 
     def __post_init__(self):
         if self.sample_rate_max is None:

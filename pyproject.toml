@@ -26,7 +26,7 @@ dependencies = [
     "ligo-scald",
 ]
 
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     { name = "Chad Hanna", email = "crh184@psu.edu" },
     { name = "Yun-Jing Huang", email = "yzh5436@psu.edu" },
@@ -81,6 +81,7 @@ test = [
     "lalsuite",
     "torch<=2.5.1",
     "gwpy",
+    "sgnl-test-data @ git+https://git.ligo.org/greg/sgnl-test-data.git",
 ]
 docs = [
     "mkdocs",

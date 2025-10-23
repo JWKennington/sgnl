@@ -45,11 +45,12 @@ class LLOIDCorrelate(TSTransform):
     backend: type[ArrayBackend] = NumpyBackend
     uppad: int = 0
     downpad: int = 0
-    delays: list[int] = None
-    reconstruction_segment_list: list[segments.segment] = None
+    delays: list[int] = None  # type: ignore[assignment]
+    reconstruction_segment_list: segments.segmentlist | None = None
 
     def __post_init__(self):
         assert self.filters is not None
+        assert self.delays is not None, "delays must be provided"
         self.shape = self.filters.shape
         self.filters = self.filters.view(-1, 1, self.shape[-1])
         super().__post_init__()
@@ -193,16 +194,16 @@ class LLOIDCorrelate(TSTransform):
 
                     # fill in zeros arrays
                     if copied_data is True:
-                        outs = []
                         # Now stack the output array
                         if len(self.unique_delays) == 1:
                             delay = self.unique_delays[0]
                             out = outs_map[delay]
                             if out is not None:
-                                outs = outs_map[delay].unsqueeze(0)
+                                outs: Array | None = outs_map[delay].unsqueeze(0)
                             else:
                                 outs = None
                         else:
+                            outs_list: list[Array] = []
                             for delay in self.delays:
                                 out = outs_map[delay]
                                 if out is None:
@@ -214,8 +215,8 @@ class LLOIDCorrelate(TSTransform):
                                             ),
                                         )
                                     )
-                                outs.append(out)
-                            outs = self.backend.stack(outs)
+                                outs_list.append(out)
+                            outs = self.backend.stack(outs_list)
                     else:
                         outs = None
 

@@ -361,13 +361,13 @@ def split_bank(
         raise ValueError(
             "There are duplicated template ids in the entire sngl_inspiral_table"
         )
-    temp_id_output = set()
+    temp_id_output: set[int] = set()
     # Add a fake bandwidth column
     for row in sngl_inspiral_table:
         # FIXME don't hard code
         row.f_final = f_final
         if psd_xml:
-            row.bandwidth = templates.bandwidth(
+            row.bandwidth = templates.bandwidth(  # type: ignore[attr-defined]
                 row.mass1,
                 row.mass2,
                 row.spin1z,
@@ -409,7 +409,7 @@ def split_bank(
     else:
         # First partitioning by chi
         sngl_inspiral_table.sort(
-            key=lambda row: spawaveform.computechi(
+            key=lambda row: spawaveform.compute_chi(  # type: ignore[attr-defined]
                 row.mass1, row.mass2, row.spin1z, row.spin2z
             )
         )
@@ -444,7 +444,7 @@ def split_bank(
         banks_subbins += [outputrows]
 
     svd_groups = []
-    metadata = {}
+    metadata: dict = {}
     name_num_banks = 0
     for outputrows in banks_subbins:
         for ind, (first_row, rows) in enumerate(outputrows):
