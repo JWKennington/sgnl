@@ -251,7 +251,7 @@ def svd_bank(
                 # FIXME: sanity check autocorrelation length is the same, remove
                 # this once we decide on a single location to get the
                 # autocorrelation length
-                assert svd_stats["bins"][svd_bin] == mchirp_to_ac_length(bin_mchirp)
+                assert svd_stats["bins"][svd_bin]["ac_length"] == mchirp_to_ac_length(bin_mchirp)
         elif "ac_length" in svd_stats["bins"][svd_bin]:
             arguments.append(
                 Option(

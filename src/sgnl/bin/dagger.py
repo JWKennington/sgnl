@@ -90,12 +90,6 @@ def main():
             "f_final": config.svd.max_f_final,
             "f_low": config.svd.f_low,
             "filename": config.paths.template_bank,
-            "group_by_chi": (
-                config.svd.num_chi_bins if config.svd.sort_by == "chi" else None
-            ),
-            "group_by_mu": (
-                config.svd.num_mu_bins if config.svd.sort_by == "mu" else None
-            ),
             "instrument": config.instruments,
             "n": config.svd.num_split_templates,
             "num_banks": (
@@ -104,11 +98,22 @@ def main():
                 else [config.svd.num_banks]
             ),
             "output_path": os.path.join(config.paths.input_data, "split_bank"),
-            "overlap": config.svd.overlap,
-            "sort_by": config.svd.sort_by,
             "stats_file": config.svd.option_file,
             "verbose": True,
         }
+
+        if config.svd.sort_by:
+            arguments['sort_by'] = config.svd.sort_by
+
+        if config.svd.sort_by == 'chi':
+            arguments['group_by_chi'] = config.svd.num_chi_bins
+
+        if config.svd.sort_by == 'mu':
+            arguments['group_by_mu'] = config.svd.num_mu_bins
+
+        if config.svd.overlap:
+            arguments['overlap'] = config.svd.overlap
+
         inspiral_bank_splitter.split_bank(
             **arguments,
             approximants=inspiral_bank_splitter.split_approximant_strings(

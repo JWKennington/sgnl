@@ -30,6 +30,11 @@ from sgnl.psd import HorizonDistance, harmonic_mean, read_psd
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass
 
+DEFAULT_GROUP_BY_CHI = 1
+DEFAULT_GROUP_BY_MU = 20
+DEFAULT_OVERLAP = 0
+DEFAULT_SORT_BY = "mu"
+DEFAULT_OUTPUT_PATH = "."
 
 def T050017_filename(instruments, description, seg, extension, path=None):
     """
@@ -95,7 +100,7 @@ def calc_mu(mass1, mass2, spin1z, spin2z, mu="mu1"):
         raise ValueError("%s is not implemented, so cannnot be computed." % mu)
 
 
-def group_templates(templates, n, overlap=0):
+def group_templates(templates, n, overlap=DEFAULT_OVERLAP):
     """
     break up the template table into sub tables of length n with overlap
     overlap.  n must be less than the number of templates and overlap must be less
@@ -153,7 +158,7 @@ def parse_command_line():
     )
     parser.add_argument(
         "--overlap",
-        default=0,
+        default=DEFAULT_OVERLAP,
         metavar="count",
         type=int,
         help="overlap the templates in each file by this amount, must be even",
@@ -197,16 +202,16 @@ def parse_command_line():
         "--group-by-chi",
         type=int,
         metavar="N",
-        default=1,
-        help="group templates into N groups of chi - helps with SVD. Default 1",
+        default=DEFAULT_GROUP_BY_CHI,
+        help=f"group templates into N groups of chi - helps with SVD. Default {DEFAULT_GROUP_BY_CHI}",
     )
     parser.add_argument(
         "--group-by-mu",
         type=int,
         metavar="N",
-        default=20,
+        default=DEFAULT_GROUP_BY_MU,
         help="group templates into N groups of mu2, one of the orthogonalized"
-        " PN-phase coefficients, to help with SVD. Default 20",
+        f" PN-phase coefficients, to help with SVD. Default {DEFAULT_GROUP_BY_MU}",
     )
     parser.add_argument(
         "--num-banks",
@@ -312,13 +317,13 @@ def split_bank(
     psd=None,
     output_full_bank_file=None,
     sort_by=None,
-    group_by_mu=None,
-    group_by_chi=None,
+    group_by_mu=DEFAULT_GROUP_BY_MU,
+    group_by_chi=DEFAULT_GROUP_BY_CHI,
     n=None,
-    overlap: int = 0,
+    overlap: int = DEFAULT_OVERLAP,
     num_banks=None,
     instrument=None,
-    output_path=None,
+    output_path=DEFAULT_OUTPUT_PATH,
     approximants=None,
     argument_dict=None,
 ):
