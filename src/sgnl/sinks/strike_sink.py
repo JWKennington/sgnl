@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from queue import Empty
 
-from sgn.subprocess import Parallelize, ParallelizeSinkElement
+from sgn.subprocess import ParallelizeSinkElement, WorkerContext
 
 from sgnl.control import SnapShotControlSinkElement
 from sgnl.strike_object import StrikeObject, xml_string
@@ -65,10 +65,12 @@ class StrikeSink(SnapShotControlSinkElement, ParallelizeSinkElement):
     background_pad: str = None  # type: ignore[assignment]
     horizon_pads: list[str] = None  # type: ignore[assignment]
     is_online: bool = False
+    multiprocess: bool = False
     injections: bool = False
     count_removal_times: list[int] | None = None
 
     def __post_init__(self):
+        self._use_threading_override = not self.multiprocess
         assert isinstance(self.ifos, list)
         assert isinstance(self.background_pad, str)
         assert isinstance(self.horizon_pads, list)
@@ -217,7 +219,7 @@ class StrikeSink(SnapShotControlSinkElement, ParallelizeSinkElement):
         if self.injections:
             return
         if self.is_online:
-            if Parallelize.enabled:
+            if self.multiprocess:
                 # FIXME: is this the correct logic?
                 ParallelizeSinkElement.internal(self)
             self.get_state_from_queue()
@@ -228,12 +230,11 @@ class StrikeSink(SnapShotControlSinkElement, ParallelizeSinkElement):
 
         if self.at_eos:
             if self.is_online:
-                if Parallelize.enabled:
-                    if self.terminated.is_set():
-                        print("At EOS and subprocess is terminated")
-                    else:
-                        drained_outq = self.sub_process_shutdown(600)
-                        print("after shutdown", len(drained_outq))
+                if self.terminated.is_set():
+                    print("At EOS and subprocess is terminated")
+                else:
+                    drained_outq = self.sub_process_shutdown(600)
+                    print("after shutdown", len(drained_outq))
 
                 # Do this in the main thread
                 # no reason to put this in subprocess
@@ -243,7 +244,7 @@ class StrikeSink(SnapShotControlSinkElement, ParallelizeSinkElement):
                     fn = self.snapshot_filenames(desc)
                     self.strike_object.update_array_data(bankid)
                     data = self.strike_object.prepare_inq_data(fn, bankid)
-                    sdict = on_snapshot(data, shutdown=True, reset_dynamic=False)
+                    on_snapshot(data, shutdown=True, reset_dynamic=False)
             else:
                 for bankid in self.bankids_map:
                     self.strike_object.update_array_data(bankid)
@@ -258,13 +259,7 @@ class StrikeSink(SnapShotControlSinkElement, ParallelizeSinkElement):
                         fn = self.snapshot_filenames(desc)
                         self.strike_object.update_array_data(bankid)
                         data = self.strike_object.prepare_inq_data(fn, bankid)
-                        if Parallelize.enabled:
-                            self.in_queue.put(data)
-                        else:
-                            sdict = on_snapshot(
-                                data, shutdown=False, reset_dynamic=False
-                            )
-                            self.process_outqueue(sdict)
+                        self.in_queue.put(data)
 
                         if i == 0:
                             self.strike_object.load_rank_stat_pdf()
@@ -301,14 +296,12 @@ class StrikeSink(SnapShotControlSinkElement, ParallelizeSinkElement):
         self.state_dict["count_tracker"] = 0
 
     @staticmethod
-    def sub_process_internal(**kwargs):
-        inq, outq = kwargs["inq"], kwargs["outq"]
-
+    def worker_process(context: WorkerContext):
         try:
-            data = inq.get(timeout=2)
-            sdict = on_snapshot(data, kwargs["worker_shutdown"].is_set(), True)
+            data = context.input_queue.get(timeout=2)
+            sdict = on_snapshot(data, context.should_shutdown(), True)
             if sdict is not None:
-                outq.put(sdict)
+                context.output_queue.put(sdict)
                 time.sleep(10)
         except Empty:
             return

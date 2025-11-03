@@ -22,7 +22,6 @@ from igwn_ligolw.param import use_in as param_use_in
 from sgn.apps import Pipeline
 from sgn.control import HTTPControl
 from sgn.sinks import NullSink
-from sgn.subprocess import Parallelize
 from sgnligo.sinks import KafkaSink
 from sgnligo.sources import DataSourceInfo, datasource
 from sgnligo.transforms import ConditionInfo, Latency, condition
@@ -897,6 +896,7 @@ def inspiral(
                 program="sgnl-inspiral",
                 injection_list=injection_list if injection_list else [],
                 is_online=IS_ONLINE,
+                multiprocess=snapshot_multiprocess,
                 nsubbank_pretend=bool(nsubbank_pretend),
                 injections=injections,
                 strike_object=strike_object,  # type: ignore[arg-type]
@@ -935,6 +935,7 @@ def inspiral(
                     ifos=data_source_info.all_analysis_ifos,
                     strike_object=strike_object,
                     is_online=IS_ONLINE,
+                    multiprocess=snapshot_multiprocess,
                     injections=injections,
                     bankids_map=sorted_bank.bankids_map,
                     background_pad="trigs",
@@ -1055,15 +1056,8 @@ def inspiral(
         if analysis_tag:
             HTTPControl.tag = analysis_tag  # type: ignore[assignment]
         registry_file = "%s_registry.txt" % job_tag
-        if snapshot_multiprocess:
-            with (
-                SnapShotControl(registry_file=registry_file),
-                Parallelize(pipeline) as parallelize,
-            ):
-                parallelize.run()
-        else:
-            with SnapShotControl(registry_file=registry_file):
-                pipeline.run()
+        with SnapShotControl(registry_file=registry_file):
+            pipeline.run()
     else:
         pipeline.run()
 

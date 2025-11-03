@@ -12,7 +12,7 @@ from typing import Any, Sequence
 import igwn_segments as segments
 import stillsuit
 import yaml
-from sgn.subprocess import Parallelize, ParallelizeSinkElement
+from sgn.subprocess import Parallelize, ParallelizeSinkElement, WorkerContext
 from sgnligo.base import now
 from sgnts.base import Offset
 
@@ -27,14 +27,15 @@ def init_config_row(table, extra=None):
     return out
 
 
-def init_dbs(argdict):
-    bankids = argdict["bankids"]
-    config_name = argdict["config_name"]
-    filters = argdict["filters"]
-    process = argdict["process"]
-    process_params = argdict["process_params"]
-    sim = argdict["sim"]
-    ifos = argdict["ifos"]
+def init_dbs(
+    ifos: list,
+    config_name: str,
+    bankids: list,
+    process: dict,
+    process_params: list,
+    sim: list,
+    filters: dict,
+):
     dbs = {}
     temp_segments = {}
     for bankid in bankids:
@@ -156,6 +157,7 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
     program: str = ""
     injection_list: list = None  # type: ignore[assignment]
     is_online: bool = False
+    multiprocess: bool = False
     jobid: int = 0
     nsubbank_pretend: bool = False
     verbose: bool = False
@@ -171,6 +173,7 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
         if self.injection_list is None:
             self.injection_list = []
 
+        self._use_threading_override = not self.multiprocess
         if self.config_name is None:
             raise ValueError("Must provide config_name")
         if not self.is_online and not self.trigger_output:
@@ -315,20 +318,13 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
         else:
             self.sims = None
 
-        self.worker_argdict = {
-            "injections": self.injections,
-            "bankids": list(self.bankids),
-            "config_name": self.config_name,
-            "filters": self.filters,
-            "process": self.process_row,
-            "process_params": self.params,
-            "sim": None if self.injection_list is None else self.sims,
-            "config_segment": self.config["segment"],
-            "ifos": self.ifos,
-            "subproc_init": False,
-            "dbs": None,
-            "temp_segments": None,
-        }
+        # Derived parameters needed by worker_process
+        self.bankids = list(self.bankids)
+        self.process = self.process_row
+        self.process_params = self.params
+        self.sim = None if self.injection_list is None else self.sims
+        self.config_segment = self.config["segment"]
+
         ParallelizeSinkElement.__post_init__(self)
 
         # FIXME Parallelize.enabled is only enabled once the
@@ -373,7 +369,15 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
         # pipeline starts, so delay initializing the dbs to here
         # if not in subprocess mode
         if not self.init and not Parallelize.enabled:
-            self.dbs, self.temp_segments = init_dbs(self.worker_argdict)
+            self.dbs, self.temp_segments = init_dbs(
+                self.ifos,
+                self.config_name,
+                self.bankids,
+                self.process,
+                self.process_params,
+                self.sim,
+                self.filters,
+            )
             self.init = True
 
         if frame.EOS:
@@ -388,10 +392,7 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
                         "event": frame.events["event"].data,
                     }
                 }
-                if Parallelize.enabled:
-                    self.in_queue.put(data)
-                else:
-                    insert_event(data, self.dbs)
+                self.in_queue.put(data)
         else:
             for buf in frame:
                 if buf.data is not None:
@@ -403,10 +404,7 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
                             )
                         }
                     }
-                    if Parallelize.enabled:
-                        self.in_queue.put(data)
-                    else:
-                        append_segment(data, self.temp_segments)
+                    self.in_queue.put(data)
 
     def internal(self):
         super().internal()
@@ -425,28 +423,12 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
                             "bankid": bankid,
                         }
                     }
-                    if Parallelize.enabled:
-                        self.in_queue.put(sdict)
-                    else:
-                        lr_dict = on_snapshot(
-                            sdict,
-                            self.temp_segments,
-                            self.dbs,
-                            self.ifos,
-                            self.config_name,
-                            self.config["segment"],
-                            self.process_row,
-                            self.params,
-                            self.filters,
-                            self.sims,
-                            True,
-                        )
-                if Parallelize.enabled:
-                    if self.terminated.is_set():
-                        print("At EOS and subprocess is terminated")
-                    else:
-                        drained_outq = self.sub_process_shutdown(600)
-                        print("after shutdown", len(drained_outq))
+                    self.in_queue.put(sdict)
+                if self.terminated.is_set():
+                    print("At EOS and subprocess is terminated")
+                else:
+                    drained_outq = self.sub_process_shutdown(600)
+                    print("after shutdown", len(drained_outq))
             else:
                 for bankid, fn in self.trigger_output.items():
                     sdict = {
@@ -455,7 +437,7 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
                             "bankid": bankid,
                         }
                     }
-                    lr_dict = on_snapshot(
+                    on_snapshot(
                         sdict,
                         self.temp_segments,
                         self.dbs,
@@ -494,55 +476,44 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
                                 bankid
                             ]
                             sdict["snapshot"]["in_lr_file"] = in_lr_file
-                        if Parallelize.enabled:
-                            self.in_queue.put(sdict)
-                        else:
-                            lr_dict = on_snapshot(
-                                sdict,
-                                self.temp_segments,
-                                self.dbs,
-                                self.ifos,
-                                self.config_name,
-                                self.config["segment"],
-                                self.process_row,
-                                self.params,
-                                self.filters,
-                                self.sims,
-                                False,
-                            )
-                            if lr_dict is not None:
-                                self.process_outqueue(lr_dict)
+                        self.in_queue.put(sdict)
 
     @staticmethod
-    def sub_process_internal(**kwargs):
-        inq, outq, argdict = kwargs["inq"], kwargs["outq"], kwargs["worker_argdict"]
-        subproc_init = argdict["subproc_init"]
-        config_name = argdict["config_name"]
-        filters = argdict["filters"]
-        process = argdict["process"]
-        process_params = argdict["process_params"]
-        sim = argdict["sim"]
-        ifos = argdict["ifos"]
-        config_segment = argdict["config_segment"]
-
-        if not subproc_init:
-            argdict["dbs"], argdict["temp_segments"] = init_dbs(argdict)
-            argdict["subproc_init"] = True
-
-        dbs = argdict["dbs"]
-        temp_segments = argdict["temp_segments"]
+    def worker_process(
+        context: WorkerContext,
+        ifos: list,
+        config_name: str,
+        bankids: list,
+        process: dict,
+        process_params: list,
+        sim: list,
+        config_segment: dict,
+        filters: dict,
+    ):
+        # Initialize worker state if needed
+        if not context.state.get("subproc_init", False):
+            context.state["dbs"], context.state["temp_segments"] = init_dbs(
+                ifos,
+                config_name,
+                bankids,
+                process,
+                process_params,
+                sim,
+                filters,
+            )
+            context.state["subproc_init"] = True
 
         try:
-            data = inq.get(timeout=1)
+            data = context.input_queue.get(timeout=1)
             if "segment" in data:
-                append_segment(data, temp_segments)
+                append_segment(data, context.state["temp_segments"])
             elif "event_dict" in data:
-                insert_event(data, dbs)
+                insert_event(data, context.state["dbs"])
             elif "snapshot" in data:
                 lr_dict = on_snapshot(
                     data,
-                    temp_segments,
-                    dbs,
+                    context.state["temp_segments"],
+                    context.state["dbs"],
                     ifos,
                     config_name,
                     config_segment,
@@ -550,10 +521,10 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
                     process_params,
                     filters,
                     sim,
-                    kwargs["worker_shutdown"].is_set(),
+                    context.should_shutdown(),
                 )
                 if lr_dict is not None:
-                    outq.put(lr_dict)
+                    context.output_queue.put(lr_dict)
             else:
                 raise ValueError("Unknown data")
         except Empty:
