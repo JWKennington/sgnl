@@ -12,6 +12,7 @@ import os
 from dataclasses import dataclass, field
 from enum import Enum
 
+from ezdag import Option
 from igwn_segments import segment, segmentlist, segmentlistdict
 from lal.utils import CacheEntry
 
@@ -495,6 +496,263 @@ def T050017_filename(instruments, description, seg, extension, path=None):
         )
     else:
         return "%s-%s-%d-%d.%s" % (instruments, description, start, duration, extension)
+
+
+def estimate_osdf_frame_GB(uri_list):
+    """
+    Given a list of OSDF frame file URIs, return the estimated total file
+    size as a float in units of gigabytes.
+    """
+    # Hardcode file size since we don't have access to pelican for OSDF
+    # metadata. The following values were determined from O4b and O4c frames.
+    HL_frame_file_size_GB = 1.6
+    V_frame_file_size_GB = 0.11
+    inj_frame_file_size_GB = 0.15
+
+    num_HL_frames = sum(f.startswith("osdf:///igwn/ligo") for f in uri_list)
+    num_V_frames = sum(f.startswith("osdf:///igwn/virgo") for f in uri_list)
+    num_inj_frames = sum(f.startswith("osdf:///igwn/shared") for f in uri_list)
+    if len(uri_list) > num_HL_frames + num_V_frames + num_inj_frames:
+        raise ValueError("Couldn't estimate OSDF frame file size")
+
+    total_size_GB = (
+        HL_frame_file_size_GB * num_HL_frames
+        + V_frame_file_size_GB * num_V_frames
+        + inj_frame_file_size_GB * num_inj_frames
+    )
+    return total_size_GB
+
+
+def osdf_flatten_frame_cache(
+    input_cache_file, new_frame_dir="/srv", new_cache_name=None
+):
+    """
+    Given a frame cache, write a new cache with any OSDF uris changed to
+    {new_frame_dir}/{filename}. If the cache does not contain OSDF uris, don't
+    write anything. Return whether the cache contained OSDF uris, and the path
+    to the frame cache which should be used.
+    """
+
+    # Process inputs
+    if not os.path.isabs(new_frame_dir):
+        raise ValueError("new_frame_dir must be an absolute path")
+
+    input_cache_basename = os.path.basename(input_cache_file)
+    if new_cache_name is None:
+        output_cache_file = "flat_" + input_cache_basename
+    else:
+        output_cache_file = new_cache_name
+
+    with open(input_cache_file, "r") as file:
+        input_cache = list(map(CacheEntry, file))
+
+    # Loop through cache
+    has_osdf_frames = False
+    output_cache_lines = []
+    for entry in input_cache:
+        if entry.scheme == "osdf":
+            if not has_osdf_frames:
+                has_osdf_frames = True
+            filename = os.path.basename(entry.path)
+            new_path = os.path.join(new_frame_dir, filename)
+            entry.url = "file://localhost" + new_path
+        output_cache_lines.append(str(entry) + "\n")
+
+    # Write file and return
+    if has_osdf_frames:
+        with open(output_cache_file, "w") as file:
+            file.writelines(output_cache_lines)
+        return True, output_cache_file
+    else:
+        return False, input_cache_file
+
+
+def lookup_osdf_frames_for_segment(frame_cache_entries, start, end):
+    """
+    Filter pre-loaded cache entries for a time segment and return OSDF frame info.
+
+    Args:
+        frame_cache_entries: List of CacheEntry objects (already parsed from file)
+        start: Job start time
+        end: Job end time
+
+    Returns:
+        tuple: (osdf_frame_uris list, size_GB float)
+    """
+    seg = segment(start, end)
+
+    # Filter entries that intersect with this segment and are OSDF
+    osdf_entries = [
+        entry
+        for entry in frame_cache_entries
+        if seg.intersects(entry.segment) and entry.scheme == "osdf"
+    ]
+
+    if not osdf_entries:
+        return [], 0.0
+
+    osdf_frame_uris = DataCache(DataType.FRAMES, osdf_entries).urls
+    size_GB = estimate_osdf_frame_GB(osdf_frame_uris)
+    return osdf_frame_uris, size_GB
+
+
+def add_osdf_frames_to_node(
+    node, osdf_frame_uris, transfer_cache_file, cache_option_name, osdf_option_name
+):
+    """
+    Modify a node's inputs to use OSDF frames.
+
+    Args:
+        node: The ezdag Node to modify
+        osdf_frame_uris: List of OSDF frame URIs for this node
+        transfer_cache_file: Path to flattened cache file for HTCondor transfer
+        cache_option_name: Name of the cache option to replace (e.g., "frame-cache")
+        osdf_option_name: Name of the OSDF option to add (e.g., "osdf-frame-files")
+    """
+    # Find and delete original frame cache option
+    cache_position = None
+    for j, node_input in enumerate(node.inputs):
+        if node_input.name == cache_option_name:
+            cache_position = j
+            del node.inputs[j]
+            break
+
+    if cache_position is not None:
+        # Insert at the same position to maintain input order across nodes
+        node.inputs.insert(
+            cache_position, Option(cache_option_name, transfer_cache_file, track=False)
+        )
+        node.inputs.insert(
+            cache_position + 1,
+            Option(osdf_option_name, osdf_frame_uris, track=False, suppress=True),
+        )
+
+
+def adjust_layer_disk_for_osdf(layer, *osdf_sizes_GB):
+    """
+    Adjust layer disk request to account for OSDF frame files.
+
+    Args:
+        layer: The ezdag Layer to adjust
+        *osdf_sizes_GB: Variable number of OSDF size estimates in GB
+    """
+    total_osdf_size_GB = sum(osdf_sizes_GB)
+    if total_osdf_size_GB == 0:
+        return
+
+    request_disk = layer.submit_description["request_disk"]
+    if not (isinstance(request_disk, str) and request_disk.endswith("GB")):
+        raise ValueError(
+            f"The default request_disk should be in GB. "
+            f"Current value: {request_disk}"
+        )
+
+    request_disk_GB = float(request_disk.rstrip(" GB"))
+    new_request_disk = str(round(request_disk_GB + total_osdf_size_GB, 1)) + "GB"
+    layer.submit_description["request_disk"] = new_request_disk
+
+
+def add_osdf_support_to_layer(layer, source_config, is_injection_workflow=False):
+    """
+    Add OSDF frame support to a layer by modifying its nodes and disk
+    requirements.
+
+    Call this immediately after creating a layer that uses frame data.
+    This keeps all OSDF-specific code in dagger.py/util.py rather than
+    spread across layers.
+
+    Args:
+        layer: The ezdag Layer to modify
+        source_config: Source configuration with frame cache info
+        is_injection_workflow: If True, also handle injection frame caches
+
+    Example:
+        layer = layers.reference_psd(...)
+        util.add_osdf_support_to_layer(layer, config.source)
+        dag.attach(layer)
+    """
+    if not (source_config and source_config.frame_cache):
+        return
+
+    # Read and parse cache files once (if using OSDF)
+    frame_cache_entries = None
+    inj_cache_entries = None
+
+    if source_config.frames_in_osdf:
+        with open(source_config.frame_cache, "r") as f:
+            frame_cache_entries = [CacheEntry(line) for line in f]
+
+    if is_injection_workflow and source_config.inj_frames_in_osdf:
+        with open(source_config.inj_frame_cache, "r") as f:
+            inj_cache_entries = [CacheEntry(line) for line in f]
+
+    # Create lookup caches for (start, end) -> (uris, size)
+    osdf_lookup_cache = {}
+    inj_osdf_lookup_cache = {}
+
+    osdf_frame_max_size_GB = 0
+    osdf_inj_frame_max_size_GB = 0
+
+    # Iterate through all nodes in the layer
+    for node in layer.nodes:
+        # Extract start/end times from node's arguments
+        start = None
+        end = None
+        for arg in node.arguments:
+            if arg.name == "gps-start-time":
+                start = int(arg.argument[0])
+            elif arg.name == "gps-end-time":
+                end = int(arg.argument[0])
+
+        if start is None or end is None:
+            raise ValueError(
+                f"Could not find gps-start-time and gps-end-time "
+                f"in node arguments. "
+                f"Found: {[arg.name for arg in node.arguments]}"
+            )
+
+        # Handle regular frames
+        if frame_cache_entries is not None:
+            # Lookup or compute OSDF frames for this segment
+            if (start, end) not in osdf_lookup_cache:
+                osdf_lookup_cache[(start, end)] = lookup_osdf_frames_for_segment(
+                    frame_cache_entries, start, end
+                )
+            osdf_frame_uris, osdf_size = osdf_lookup_cache[(start, end)]
+
+            # Modify node inputs
+            add_osdf_frames_to_node(
+                node,
+                osdf_frame_uris,
+                source_config.transfer_frame_cache,
+                "frame-cache",
+                "osdf-frame-files",
+            )
+            osdf_frame_max_size_GB = max(osdf_size, osdf_frame_max_size_GB)
+
+        # Handle injection frames
+        if inj_cache_entries is not None:
+            # Lookup or compute injection OSDF frames for this segment
+            if (start, end) not in inj_osdf_lookup_cache:
+                inj_osdf_lookup_cache[(start, end)] = lookup_osdf_frames_for_segment(
+                    inj_cache_entries, start, end
+                )
+            osdf_inj_frame_uris, osdf_inj_size = inj_osdf_lookup_cache[(start, end)]
+
+            # Modify node inputs
+            add_osdf_frames_to_node(
+                node,
+                osdf_inj_frame_uris,
+                source_config.transfer_inj_frame_cache,
+                "noiseless-inj-frame-cache",
+                "osdf-inj-frame-files",
+            )
+            osdf_inj_frame_max_size_GB = max(osdf_inj_size, osdf_inj_frame_max_size_GB)
+
+    # Adjust layer disk requirements
+    adjust_layer_disk_for_osdf(
+        layer, osdf_frame_max_size_GB, osdf_inj_frame_max_size_GB
+    )
 
 
 def groups(lt, n):
