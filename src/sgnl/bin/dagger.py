@@ -25,7 +25,14 @@ from ezdag import DAG
 from sgnl.bin import inspiral_bank_splitter, inspiral_set_svdbin_option
 from sgnl.dags import layers
 from sgnl.dags.config import build_config, create_time_bins
-from sgnl.dags.util import DataCache, DataType, load_svd_options, mchirp_range_to_bins
+from sgnl.dags.util import (
+    DataCache,
+    DataType,
+    add_osdf_support_to_layer,
+    load_svd_options,
+    mchirp_range_to_bins,
+    osdf_flatten_frame_cache,
+)
 
 
 def parse_command_line(args: list[str] | None = None) -> argparse.Namespace:
@@ -77,6 +84,34 @@ def parse_command_line(args: list[str] | None = None) -> argparse.Namespace:
     return parsed_args
 
 
+# FIXME We're planning to handle OSDF support better later, this function can
+# be replaced or removed then
+def prepare_osdf_support(config, dag_dir):
+    """
+    Prepare config for OSDF frame support by flattening any OSDF frame caches.
+    Call this once after loading config, before any workflow generation.
+    """
+    if config.source and config.source.frame_cache:
+        flat_cache_path = os.path.join(dag_dir, "flat_frame_cache.cache")
+        result = osdf_flatten_frame_cache(
+            config.source.frame_cache, new_cache_name=flat_cache_path
+        )
+        (
+            config.source.frames_in_osdf,
+            config.source.transfer_frame_cache,
+        ) = result
+
+    if config.source and config.source.inj_frame_cache:
+        flat_inj_cache_path = os.path.join(dag_dir, "flat_inj_frame_cache.cache")
+        result = osdf_flatten_frame_cache(
+            config.source.inj_frame_cache, new_cache_name=flat_inj_cache_path
+        )
+        (
+            config.source.inj_frames_in_osdf,
+            config.source.transfer_inj_frame_cache,
+        ) = result
+
+
 def main():
     args = parse_command_line()
     config = build_config(args.config, args.dag_dir)
@@ -103,16 +138,16 @@ def main():
         }
 
         if config.svd.sort_by:
-            arguments['sort_by'] = config.svd.sort_by
+            arguments["sort_by"] = config.svd.sort_by
 
-        if config.svd.sort_by == 'chi':
-            arguments['group_by_chi'] = config.svd.num_chi_bins
+        if config.svd.sort_by == "chi":
+            arguments["group_by_chi"] = config.svd.num_chi_bins
 
-        if config.svd.sort_by == 'mu':
-            arguments['group_by_mu'] = config.svd.num_mu_bins
+        if config.svd.sort_by == "mu":
+            arguments["group_by_mu"] = config.svd.num_mu_bins
 
         if config.svd.overlap:
-            arguments['overlap'] = config.svd.overlap
+            arguments["overlap"] = config.svd.overlap
 
         inspiral_bank_splitter.split_bank(
             **arguments,
@@ -132,6 +167,11 @@ def main():
     max_duration = max(svd_bin["max_dur"] for svd_bin in svd_stats.bins.values())
     filter_start_pad = 16 * config.psd.fft_length + max_duration
     create_time_bins(config, start_pad=filter_start_pad)
+
+    # Prepare OSDF support once for all workflows
+    # FIXME We're planning to handle OSDF support better later, this function
+    # can be replaced or removed then
+    prepare_osdf_support(config, args.dag_dir)
 
     if args.dag_name:
         dag_name = args.dag_name
@@ -153,15 +193,20 @@ def main():
             root=config.paths.input_data,
         )
 
-        dag.attach(
-            layers.reference_psd(
-                filter_config=config.filter,
-                psd_config=config.psd,
-                source_config=config.source,
-                condor_config=config.condor,
-                ref_psd_cache=ref_psd_cache,
-            )
+        ref_psd_layer = layers.reference_psd(
+            filter_config=config.filter,
+            psd_config=config.psd,
+            source_config=config.source,
+            condor_config=config.condor,
+            ref_psd_cache=ref_psd_cache,
         )
+
+        # Add OSDF support if needed
+        # FIXME We're planning to handle OSDF support better later, this
+        # function can be replaced or removed then
+        add_osdf_support_to_layer(ref_psd_layer, config.source)
+
+        dag.attach(ref_psd_layer)
 
         # Median PSD layer
         median_psd_cache = DataCache.generate(
@@ -236,7 +281,7 @@ def main():
             root=config.paths.filter_dir,
         )
 
-        layer = layers.filter(
+        filter_layer = layers.filter(
             psd_config=config.psd,
             svd_config=config.svd,
             filter_config=config.filter,
@@ -250,7 +295,12 @@ def main():
             min_instruments=config.filter.min_instruments_candidates,
         )
 
-        dag.attach(layer)
+        # Add OSDF support if needed
+        # FIXME We're planning to handle OSDF support better later, this
+        # function can be replaced or removed then
+        add_osdf_support_to_layer(filter_layer, config.source)
+
+        dag.attach(filter_layer)
 
         marg_lr_cache = DataCache.generate(
             DataType.MARG_LIKELIHOOD_RATIO,
@@ -292,7 +342,7 @@ def main():
                 root=config.paths.injection_dir,
             )
 
-        layer = layers.injection_filter(
+        injection_filter_layer = layers.injection_filter(
             psd_config=config.psd,
             svd_config=config.svd,
             filter_config=config.filter,
@@ -306,7 +356,14 @@ def main():
             min_instruments=config.filter.min_instruments_candidates,
         )
 
-        dag.attach(layer)
+        # Add OSDF support if needed
+        # FIXME We're planning to handle OSDF support better later, this
+        # function can be replaced or removed then
+        add_osdf_support_to_layer(
+            injection_filter_layer, config.source, is_injection_workflow=True
+        )
+
+        dag.attach(injection_filter_layer)
 
     elif args.workflow == "rank":
         # FIXME: add online chunks
