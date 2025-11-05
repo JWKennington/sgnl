@@ -40,14 +40,6 @@ include:
       pull_image_tag:  $CI_COMMIT_SHA
       stage:           publish
 
-debug_pipeline_type:
-  stage: .pre
-  script:
-    - echo "CI_COMMIT_BRANCH=$CI_COMMIT_BRANCH"
-    - echo "CI_COMMIT_TAG=$CI_COMMIT_TAG"
-    - echo "CI_PIPELINE_SOURCE=$CI_PIPELINE_SOURCE"
-    - echo "CI_PROJECT_PATH=$CI_PROJECT_PATH"
-
 sdist:
   cache: []
   before_script:
