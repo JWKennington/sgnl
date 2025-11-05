@@ -30,15 +30,23 @@ include:
   - component: git.ligo.org/computing/gitlab/components/mkdocs/pages@1
     inputs:
       pages_when: "default"
-  - component: git.ligo.org/computing/cicd-components/docker/build@2
+  - component: git.ligo.org/computing/gitlab/components/docker/build@2
     inputs:
       stage:      container
       dockerfile: container/Dockerfile
       image_tag:  $CI_COMMIT_SHA
   - component: git.ligo.org/computing/gitlab/components/docker/push@2
     inputs:
-      pull_image_tag: $CI_COMMIT_SHA
-      push_image_tag: $CI_COMMIT_TAG
+      pull_image_tag:  $CI_COMMIT_SHA
+      stage:           publish
+
+debug_pipeline_type:
+  stage: .pre
+  script:
+    - echo "CI_COMMIT_BRANCH=$CI_COMMIT_BRANCH"
+    - echo "CI_COMMIT_TAG=$CI_COMMIT_TAG"
+    - echo "CI_PIPELINE_SOURCE=$CI_PIPELINE_SOURCE"
+    - echo "CI_PROJECT_PATH=$CI_PROJECT_PATH"
 
 sdist:
   cache: []
@@ -85,3 +93,15 @@ mkdocs:
     - echo "Installing SGN Family libraries"
     - |
       pip install --no-cache-dir -r build_requirements.txt
+
+##
+## This is requred by git.ligo.org/computing/gitlab/components/docker/push
+## to add a docker tag corresponding to the gitlab tag and "latest"
+## when a tag is committed.
+##
+docker_push_gitlab:
+  rules:
+    # Run on all branches
+    - if: $CI_COMMIT_BRANCH
+    # Run on all tags
+    - if: $CI_COMMIT_TAG
