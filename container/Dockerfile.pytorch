@@ -23,6 +23,13 @@ RUN git lfs install && \
     (cd sgn-ts && pip3 --no-cache-dir install .) && \
     (cd sgn-ligo && pip3 --no-cache-dir install .) && \
     WHEEL=$(ls /tmp/sgnl-*.whl) && pip3 --no-cache-dir install "${WHEEL}[dag]" && \
+    echo "Git commit SHAs at build time:" > /usr/local/src/build_versions.txt && \
+    (cd /usr/local/src/strike && echo "strike: $(git rev-parse HEAD)" >> /usr/local/src/build_versions.txt) && \
+    (cd /usr/local/src/stillsuit && echo "stillsuit: $(git rev-parse HEAD)" >> /usr/local/src/build_versions.txt) && \
+    (cd /usr/local/src/sgn && echo "sgn: $(git rev-parse HEAD)" >> /usr/local/src/build_versions.txt) && \
+    (cd /usr/local/src/sgn-event && echo "sgn-event: $(git rev-parse HEAD)" >> /usr/local/src/build_versions.txt) && \
+    (cd /usr/local/src/sgn-ts && echo "sgn-ts: $(git rev-parse HEAD)" >> /usr/local/src/build_versions.txt) && \
+    (cd /usr/local/src/sgn-ligo && echo "sgn-ligo: $(git rev-parse HEAD)" >> /usr/local/src/build_versions.txt) && \
     rm -rf /usr/local/src/stillsuit /usr/local/src/strike /usr/local/src/sgn \
            /usr/local/src/sgn-ts /usr/local/src/sgn-ligo /usr/local/src/sgn-event \
            /tmp/*.whl
