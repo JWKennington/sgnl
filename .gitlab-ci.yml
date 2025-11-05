@@ -9,14 +9,14 @@ stages:
 
 
 include:
-  - component: git.ligo.org/computing/gitlab/components/python/sdist@1
-  - component: git.ligo.org/computing/gitlab/components/python/wheel@1
-  - component: git.ligo.org/computing/gitlab/components/python/code-quality@1
+  - component: git.ligo.org/computing/gitlab/components/python/sdist@2
+  - component: git.ligo.org/computing/gitlab/components/python/wheel@2
+  - component: git.ligo.org/computing/gitlab/components/python/code-quality@2
     inputs:
       requirements: ".[lint]"
-  - component: git.ligo.org/computing/gitlab/components/python/dependency-scanning@1
-#  - component: git.ligo.org/computing/gitlab/components/python/type-checking@1
-  - component: git.ligo.org/computing/gitlab/components/python/test@1
+  - component: git.ligo.org/computing/gitlab/components/python/dependency-scanning@2
+#  - component: git.ligo.org/computing/gitlab/components/python/type-checking@2
+  - component: git.ligo.org/computing/gitlab/components/python/test@2
     inputs:
       install_extra: test
       python_versions:
@@ -30,15 +30,15 @@ include:
   - component: git.ligo.org/computing/gitlab/components/mkdocs/pages@1
     inputs:
       pages_when: "default"
-  - component: git.ligo.org/computing/cicd-components/docker/build@1
+  - component: git.ligo.org/computing/gitlab/components/docker/build@2
     inputs:
       stage:      container
       dockerfile: container/Dockerfile
       image_tag:  $CI_COMMIT_SHA
-  - component: git.ligo.org/computing/gitlab/components/docker/push@1
+  - component: git.ligo.org/computing/gitlab/components/docker/push@2
     inputs:
-      pull_image_tag: $CI_COMMIT_SHA
-      push_image_tag: $CI_COMMIT_TAG
+      pull_image_tag:  $CI_COMMIT_SHA
+      stage:           publish
 
 sdist:
   cache: []
@@ -86,14 +86,14 @@ mkdocs:
     - |
       pip install --no-cache-dir -r build_requirements.txt
 
-
-
 ##
 ## This is requred by git.ligo.org/computing/gitlab/components/docker/push
 ## to add a docker tag corresponding to the gitlab tag and "latest"
 ## when a tag is committed.
 ##
 docker_push_gitlab:
-  when: always
   rules:
+    # Run on all branches
+    - if: $CI_COMMIT_BRANCH
+    # Run on all tags
     - if: $CI_COMMIT_TAG
