@@ -508,15 +508,24 @@ def estimate_osdf_frame_GB(uri_list):
     HL_frame_file_size_GB = 1.6
     V_frame_file_size_GB = 0.11
     inj_frame_file_size_GB = 0.15
+    # GWOSC size determined from O4a frames
+    gwosc_frame_file_size_GB = 0.5
 
+    # FIXME Assume gwosc frames don't include V1. Hardcoding to O4a directory
+    # in the hopes that by the time we need O4b this code will be replaced with
+    # something better
+    num_gwosc_frames = sum(f.startswith("osdf:///gwdata/O4a") for f in uri_list)
     num_HL_frames = sum(f.startswith("osdf:///igwn/ligo") for f in uri_list)
     num_V_frames = sum(f.startswith("osdf:///igwn/virgo") for f in uri_list)
     num_inj_frames = sum(f.startswith("osdf:///igwn/shared") for f in uri_list)
     if len(uri_list) > num_HL_frames + num_V_frames + num_inj_frames:
         raise ValueError("Couldn't estimate OSDF frame file size")
 
+    assert not (num_gwosc_frames > 0) and (num_HL_frames > 0 or num_V_frames > 0)
+
     total_size_GB = (
-        HL_frame_file_size_GB * num_HL_frames
+        num_gwosc_frames * gwosc_frame_file_size_GB
+        + HL_frame_file_size_GB * num_HL_frames
         + V_frame_file_size_GB * num_V_frames
         + inj_frame_file_size_GB * num_inj_frames
     )
