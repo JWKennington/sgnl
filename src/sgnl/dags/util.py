@@ -518,10 +518,10 @@ def estimate_osdf_frame_GB(uri_list):
     num_HL_frames = sum(f.startswith("osdf:///igwn/ligo") for f in uri_list)
     num_V_frames = sum(f.startswith("osdf:///igwn/virgo") for f in uri_list)
     num_inj_frames = sum(f.startswith("osdf:///igwn/shared") for f in uri_list)
-    if len(uri_list) > num_HL_frames + num_V_frames + num_inj_frames:
+    if len(uri_list) > num_gwosc_frames + num_HL_frames + num_V_frames + num_inj_frames:
         raise ValueError("Couldn't estimate OSDF frame file size")
 
-    assert not (num_gwosc_frames > 0) and (num_HL_frames > 0 or num_V_frames > 0)
+    assert not ((num_gwosc_frames > 0) and (num_HL_frames > 0 or num_V_frames > 0))
 
     total_size_GB = (
         num_gwosc_frames * gwosc_frame_file_size_GB
