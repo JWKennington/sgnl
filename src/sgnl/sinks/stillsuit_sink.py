@@ -368,7 +368,9 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
         # FIXME Parallelize.enabled is only enabled once the
         # pipeline starts, so delay initializing the dbs to here
         # if not in subprocess mode
-        if not self.init and not Parallelize.enabled:
+        # for offline mode, we need to initialize even in multiprocess
+        # mode because the main process needs these attrs at EOS
+        if not self.init and (not Parallelize.enabled or not self.is_online):
             self.dbs, self.temp_segments = init_dbs(
                 self.ifos,
                 self.config_name,
