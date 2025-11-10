@@ -188,16 +188,15 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
         with open(self.config_name) as f:
             self.config = yaml.safe_load(f)
 
-        if self.is_online:
-            for bankid in self.bankids:
-                # FIXME: use job_tag?? but what to use with multi-bank mode?
-                if self.injections:
-                    fn_bankid = bankid + "_inj"
-                else:
-                    fn_bankid = bankid + "_noninj"
+        for bankid in self.bankids:
+            # FIXME: use job_tag?? but what to use with multi-bank mode?
+            if self.injections:
+                fn_bankid = bankid + "_inj"
+            else:
+                fn_bankid = bankid + "_noninj"
 
-                self.add_snapshot_filename("%s_SGNL_TRIGGERS" % fn_bankid, "sqlite.gz")
-            self.register_snapshot()
+            self.add_snapshot_filename("%s_SGNL_TRIGGERS" % fn_bankid, "sqlite.gz")
+        self.register_snapshot()
 
         #
         # Process
@@ -365,23 +364,6 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
             return
 
     def pull(self, pad, frame):
-        # FIXME Parallelize.enabled is only enabled once the
-        # pipeline starts, so delay initializing the dbs to here
-        # if not in subprocess mode
-        # for offline mode, we need to initialize even in multiprocess
-        # mode because the main process needs these attrs at EOS
-        if not self.init and (not Parallelize.enabled or not self.is_online):
-            self.dbs, self.temp_segments = init_dbs(
-                self.ifos,
-                self.config_name,
-                self.bankids,
-                self.process,
-                self.process_params,
-                self.sim,
-                self.filters,
-            )
-            self.init = True
-
         if frame.EOS:
             self.mark_eos(pad)
 
@@ -411,47 +393,25 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
     def internal(self):
         super().internal()
         if self.at_eos:
-            if self.is_online:
-                for bankid in self.bankids:
-                    if self.injections:
-                        fn_bankid = bankid + "_inj"
-                    else:
-                        fn_bankid = bankid + "_noninj"
-                    desc = "%s_SGNL_TRIGGERS" % fn_bankid
-                    fn = self.snapshot_filenames(desc)
-                    sdict = {
-                        "snapshot": {
-                            "fn": fn,
-                            "bankid": bankid,
-                        }
-                    }
-                    self.in_queue.put(sdict)
-                if self.terminated.is_set():
-                    print("At EOS and subprocess is terminated")
+            for bankid in self.bankids:
+                if self.injections:
+                    fn_bankid = bankid + "_inj"
                 else:
-                    drained_outq = self.sub_process_shutdown(600)
-                    print("after shutdown", len(drained_outq))
-            else:
-                for bankid, fn in self.trigger_output.items():
-                    sdict = {
-                        "snapshot": {
-                            "fn": fn,
-                            "bankid": bankid,
-                        }
+                    fn_bankid = bankid + "_noninj"
+                desc = "%s_SGNL_TRIGGERS" % fn_bankid
+                fn = self.snapshot_filenames(desc)
+                sdict = {
+                    "snapshot": {
+                        "fn": fn,
+                        "bankid": bankid,
                     }
-                    on_snapshot(
-                        sdict,
-                        self.temp_segments,
-                        self.dbs,
-                        self.ifos,
-                        self.config_name,
-                        self.config["segment"],
-                        self.process_row,
-                        self.params,
-                        self.filters,
-                        self.sims,
-                        True,
-                    )
+                }
+                self.in_queue.put(sdict)
+            if self.terminated.is_set():
+                print("At EOS and subprocess is terminated")
+            else:
+                drained_outq = self.sub_process_shutdown(600)
+                print("after shutdown", len(drained_outq))
         else:
             if self.is_online:
                 self.get_state_from_queue()
