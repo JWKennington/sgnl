@@ -17,5 +17,5 @@ RUN git clone --depth 1 https://git.ligo.org/greg/strike.git && \
     (cd sgn-event && pip3 --no-cache-dir install .) && \
     (cd sgn-ts && pip3 --no-cache-dir install .) && \
     (cd sgn-ligo && pip3 --no-cache-dir install .) && \
-    (cd sgnl && pip3 --no-cache-dir install .)
+    (cd sgnl && pip3 --no-cache-dir install .[dag])
 RUN (strike-config set --path /src/strike/data --setup)
