@@ -394,12 +394,16 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
         super().internal()
         if self.at_eos:
             for bankid in self.bankids:
-                if self.injections:
-                    fn_bankid = bankid + "_inj"
+                if self.is_online:
+                    if self.injections:
+                        fn_bankid = bankid + "_inj"
+                    else:
+                        fn_bankid = bankid + "_noninj"
+                    desc = "%s_SGNL_TRIGGERS" % fn_bankid
+                    fn = self.snapshot_filenames(desc)
                 else:
-                    fn_bankid = bankid + "_noninj"
-                desc = "%s_SGNL_TRIGGERS" % fn_bankid
-                fn = self.snapshot_filenames(desc)
+                    # offline uses predefined output filenames
+                    fn = self.trigger_output[bankid]
                 sdict = {
                     "snapshot": {
                         "fn": fn,
