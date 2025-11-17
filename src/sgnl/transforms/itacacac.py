@@ -191,6 +191,9 @@ class Itacacac(TSTransform):
             i: bankid for bankid, ids in self.bankids_map.items() for i in ids
         }
 
+        # Initialize max_snr_histories
+        self.max_snr_histories = {}
+
     def find_peaks_and_calculate_chisqs(
         self, snr_ts: Dict[str, Array]
     ) -> Dict[str, list[Array]]:
@@ -698,7 +701,6 @@ class Itacacac(TSTransform):
             self.make_coincs(triggers)
         )
 
-        self.max_snr_histories = {}
         if self.is_online:
             for ifo, snr in triggers["snrs"].items():
                 maxsnr_id = np.unravel_index(
@@ -783,10 +785,16 @@ class Itacacac(TSTransform):
             "single_masks": single_background_masks,
         }
 
-        return {
-            "trigger_rates": EventBuffer(ts, te, data=trigger_rates),
-            "background": EventBuffer(ts, te, data=background),
-        }
+        return EventBuffer.from_span(
+            ts,
+            te,
+            data=[
+                {
+                    "trigger_rates": trigger_rates,
+                    "background": background,
+                }
+            ],
+        )
 
     def output_events(self, clustered_coinc, ts, te):
         #
@@ -912,12 +920,18 @@ class Itacacac(TSTransform):
         if len(out_triggers) == 0:
             print("out events", out_events)
 
-        return {
-            "event": EventBuffer(ts, te, data=out_events),
-            "trigger": EventBuffer(ts, te, data=out_triggers),
-            "snr_ts": EventBuffer(ts, te, data=out_snr_ts),
-            "max_snr_histories": EventBuffer(ts, te, data=self.max_snr_histories),
-        }
+        return EventBuffer.from_span(
+            ts,
+            te,
+            data=[
+                {
+                    "event": out_events,
+                    "trigger": out_triggers,
+                    "snr_ts": out_snr_ts,
+                    "max_snr_histories": self.max_snr_histories,
+                }
+            ],
+        )
 
     def internal(self):
         super().internal()
@@ -946,17 +960,29 @@ class Itacacac(TSTransform):
         ) + int(self.trigger_finding_overlap_samples / self.sample_rate * 1e9)
 
         if len(snr_ts.keys()) == 0:
-            events = {
-                "event": EventBuffer(ts, te, data=None),
-                "trigger": EventBuffer(ts, te, data=None),
-                "snr_ts": EventBuffer(ts, te, data=None),
-                "max_snr_histories": EventBuffer(ts, te, data=None),
-            }
+            events = EventBuffer.from_span(
+                ts,
+                te,
+                data=[
+                    {
+                        "event": None,
+                        "trigger": None,
+                        "snr_ts": None,
+                        "max_snr_histories": None,
+                    }
+                ],
+            )
             if self.strike_pad is not None:
-                background_events = {
-                    "background": EventBuffer(ts, te, data=None),
-                    "trigger_rates": EventBuffer(ts, te, data=None),
-                }
+                background_events = EventBuffer.from_span(
+                    ts,
+                    te,
+                    data=[
+                        {
+                            "background": None,
+                            "trigger_rates": None,
+                        }
+                    ],
+                )
         else:
             snr_ts = OrderedDict(sorted(snr_ts.items()))
             (
@@ -968,14 +994,18 @@ class Itacacac(TSTransform):
             ) = self.itacacac(snr_ts)
             if len(clustered_coinc) == 0:
                 # There are no coincs
-                events = {
-                    "event": EventBuffer(ts, te, data=None),
-                    "trigger": EventBuffer(ts, te, data=None),
-                    "snr_ts": EventBuffer(ts, te, data=None),
-                    "max_snr_histories": EventBuffer(
-                        ts, te, data=self.max_snr_histories
-                    ),
-                }
+                events = EventBuffer.from_span(
+                    ts,
+                    te,
+                    data=[
+                        {
+                            "event": None,
+                            "trigger": None,
+                            "snr_ts": None,
+                            "max_snr_histories": self.max_snr_histories,
+                        }
+                    ],
+                )
             else:
                 events = self.output_events(clustered_coinc, ts, te)
 
@@ -985,11 +1015,11 @@ class Itacacac(TSTransform):
                 )
 
         self.output_frames[self.stillsuit_pad] = EventFrame(
-            events=events, EOS=frame.EOS
+            data=[events], EOS=frame.EOS
         )
         if self.strike_pad is not None:
             self.output_frames[self.strike_pad] = EventFrame(
-                events=background_events, EOS=frame.EOS
+                data=[background_events], EOS=frame.EOS
             )
 
     def new(self, pad):

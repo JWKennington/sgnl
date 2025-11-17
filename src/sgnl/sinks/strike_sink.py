@@ -125,59 +125,63 @@ class StrikeSink(SnapShotControlSinkElement, ParallelizeSinkElement):
             self.mark_eos(pad)
 
         if self.rsnks[pad] == self.background_pad:
-            background = frame["background"].data
-            if background is None:
-                return
+            # Iterate through all events in the frame
+            for event in frame.events:
+                background = event["background"]
+                if background is None:
+                    continue
 
-            #
-            # Background triggers
-            #
-            self.strike_object.train_noise(
-                frame["background"].ts / 1e9,
-                background["snrs"],
-                background["chisqs"],
-                background["single_masks"],
-            )
+                #
+                # Background triggers
+                #
+                self.strike_object.train_noise(
+                    frame.start / 1e9,
+                    background["snrs"],
+                    background["chisqs"],
+                    background["single_masks"],
+                )
 
-            #
-            # Trigger rates
-            #
-            # FIXME : come up with a way to make populating the trigger rate
-            # object as part of train_noise
-            trigger_rates = frame["trigger_rates"].data
-            for ifo, trigger_rate in trigger_rates.items():
-                for bankid in self.bankids_map:
-                    buf_seg, count = trigger_rate[bankid]
-                    self.strike_object.likelihood_ratios[bankid].terms[
-                        "P_of_tref_Dh"
-                    ].triggerrates[ifo].add_ratebin(list(buf_seg), count)
+                #
+                # Trigger rates
+                #
+                # FIXME : come up with a way to make populating the trigger rate
+                # object as part of train_noise
+                trigger_rates = event["trigger_rates"]
+                if trigger_rates is not None:
+                    for ifo, trigger_rate in trigger_rates.items():
+                        for bankid in self.bankids_map:
+                            buf_seg, count = trigger_rate[bankid]
+                            self.strike_object.likelihood_ratios[bankid].terms[
+                                "P_of_tref_Dh"
+                            ].triggerrates[ifo].add_ratebin(list(buf_seg), count)
 
         elif self.rsnks[pad] in self.horizon_pads:
-            data = frame["data"]
-            if data.ts - data.te == 0:
+            if frame.start - frame.end == 0:
                 return
 
-            ifo = data.data["ifo"]
-            horizon = data.data["horizon"]
-            horizon_time = data.data["epoch"] / 1_000_000_000
-            # Epoch is the mid point of the most recent FFT
-            # interval used to obtain this PSD
-            if (
-                horizon is not None
-                and float(data.data["n_samples"] / data.data["navg"]) > 0.3
-            ):
-                # n_samples / navg is the "stability", which is a measure of the
-                # fraction of the configured averaging timescale used to obtain this
-                # measurement.
-                for bankid in self.bankids_map:
-                    self.strike_object.likelihood_ratios[bankid].terms[
-                        "P_of_tref_Dh"
-                    ].horizon_history[ifo][horizon_time] = horizon[bankid]
-            else:
-                for bankid in self.bankids_map:
-                    self.strike_object.likelihood_ratios[bankid].terms[
-                        "P_of_tref_Dh"
-                    ].horizon_history[ifo][horizon_time] = 0
+            # Iterate through all events in the frame
+            for event in frame.events:
+                ifo = event["ifo"]
+                horizon = event["horizon"]
+                horizon_time = event["epoch"] / 1_000_000_000
+                # Epoch is the mid point of the most recent FFT
+                # interval used to obtain this PSD
+                if (
+                    horizon is not None
+                    and float(event["n_samples"] / event["navg"]) > 0.3
+                ):
+                    # n_samples / navg is the "stability", which is a measure of the
+                    # fraction of the configured averaging timescale used to obtain this
+                    # measurement.
+                    for bankid in self.bankids_map:
+                        self.strike_object.likelihood_ratios[bankid].terms[
+                            "P_of_tref_Dh"
+                        ].horizon_history[ifo][horizon_time] = horizon[bankid]
+                else:
+                    for bankid in self.bankids_map:
+                        self.strike_object.likelihood_ratios[bankid].terms[
+                            "P_of_tref_Dh"
+                        ].horizon_history[ifo][horizon_time] = 0
 
     def process_outqueue(self, sdict):
         # FIXME This reduces the ram, but is a mess
