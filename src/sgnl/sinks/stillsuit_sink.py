@@ -12,7 +12,7 @@ from typing import Any, Sequence
 import igwn_segments as segments
 import stillsuit
 import yaml
-from sgn.subprocess import Parallelize, ParallelizeSinkElement, WorkerContext
+from sgn.subprocess import ParallelizeSinkElement, WorkerContext
 from sgnligo.base import now
 from sgnts.base import Offset
 
@@ -451,8 +451,8 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
                             sdict["snapshot"]["in_lr_file"] = in_lr_file
                         self.in_queue.put(sdict)
 
-    @staticmethod
     def worker_process(
+        self,
         context: WorkerContext,
         ifos: list,
         config_name: str,
