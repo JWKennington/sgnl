@@ -299,8 +299,7 @@ class StrikeSink(SnapShotControlSinkElement, ParallelizeSinkElement):
 
         self.state_dict["count_tracker"] = 0
 
-    @staticmethod
-    def worker_process(context: WorkerContext):
+    def worker_process(self, context: WorkerContext):
         try:
             data = context.input_queue.get(timeout=2)
             sdict = on_snapshot(data, context.should_shutdown(), True)

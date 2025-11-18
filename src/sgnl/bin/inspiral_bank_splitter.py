@@ -30,11 +30,13 @@ from sgnl.psd import HorizonDistance, harmonic_mean, read_psd
 class LIGOLWContentHandler(ligolw.LIGOLWContentHandler):
     pass
 
+
 DEFAULT_GROUP_BY_CHI = 1
 DEFAULT_GROUP_BY_MU = 20
 DEFAULT_OVERLAP = 0
 DEFAULT_SORT_BY = "mu"
 DEFAULT_OUTPUT_PATH = "."
+
 
 def T050017_filename(instruments, description, seg, extension, path=None):
     """
@@ -203,7 +205,8 @@ def parse_command_line():
         type=int,
         metavar="N",
         default=DEFAULT_GROUP_BY_CHI,
-        help=f"group templates into N groups of chi - helps with SVD. Default {DEFAULT_GROUP_BY_CHI}",
+        help="group templates into N groups of chi - helps with SVD. "
+        f"Default {DEFAULT_GROUP_BY_CHI}",
     )
     parser.add_argument(
         "--group-by-mu",

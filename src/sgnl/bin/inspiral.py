@@ -624,7 +624,7 @@ def inspiral(
         input_likelihood_file=input_likelihood_file if input_likelihood_file else [],
         is_online=IS_ONLINE,
         min_instruments=min_instruments_candidates,
-        output_likelihood_file=output_likelihood_file,
+        output_likelihood_file=output_likelihood_file if output_likelihood_file else [],
         rank_stat_pdf_file=rank_stat_pdf_file[0] if rank_stat_pdf_file else "",
         verbose=verbose,
         zerolag_rank_stat_pdf_file=(
