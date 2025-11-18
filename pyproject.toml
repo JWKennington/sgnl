@@ -104,6 +104,8 @@ lint = [
     "isort",
     "mypy",
     "mypy-extensions",
+    "types-requests",
+    "types-PyYAML",
 ]
 dev = [
     "sgnl[docs]",

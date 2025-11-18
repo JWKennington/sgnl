@@ -73,7 +73,32 @@ python_test:
     - echo "Setting up strike data"
     - |
       strike-config set --setup
-    
+
+
+check_makefile:
+  image: python:3.11
+  stage: test
+  script:
+    - echo "Installing system dependencies"
+    - |
+      apt-get update
+      apt-get install -yqq make git-lfs
+    - echo "Installing Python dependencies"
+    - |
+      pip install lalsuite
+      pip install --no-cache-dir torch
+      pip install --no-cache-dir gwpy
+    - echo "Installing SGN Family libraries"
+    - |
+      pip install --no-cache-dir -r build_requirements.txt
+    - echo "Setting up strike data"
+    - |
+      strike-config set --setup
+    - echo "Installing package with dev dependencies"
+    - |
+      pip install ".[dev]"
+    - echo "Running make all"
+    - make all
 
 mkdocs:
   before_script:
