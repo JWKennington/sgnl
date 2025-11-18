@@ -951,12 +951,12 @@ class Itacacac(TSTransform):
         self.rate = frame.sample_rate
         self.offset = frame.offset
 
-        offset0 = self.preparedoutoffsets[self.sink_pads[0]][0]["offset"]
+        offset0 = self.preparedoutoffsets["offset"]
         ts = Offset.tons(offset0) - int(
             self.trigger_finding_overlap_samples / self.sample_rate * 1e9
         )
         te = Offset.tons(
-            offset0 + self.preparedoutoffsets[self.sink_pads[0]][0]["noffset"]
+            offset0 + self.preparedoutoffsets["noffset"]
         ) + int(self.trigger_finding_overlap_samples / self.sample_rate * 1e9)
 
         if len(snr_ts.keys()) == 0:
