@@ -141,7 +141,7 @@ class TestInspiralOnline:
                     str(output_lr)
                 ],  # In online mode, input and output must be the same
                 output_likelihood_file=[str(output_lr)],
-                rank_stat_pdf_file=[str(rank_stat_file)],
+                rank_stat_pdf_file=str(rank_stat_file),
                 zerolag_rank_stat_pdf_file=[str(zlg_file)],
                 trigger_output=[str(trigger_db)],
                 torch_device="cpu",

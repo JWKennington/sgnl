@@ -370,6 +370,7 @@ def parse_command_line():
     group.add_argument(
         "--job-tag",
         metavar="tag",
+        default="",
         help="Set the string to identify this job and register the resources it"
         "provides on a node.  Should be 4 digits of the form 0001, 0002, etc.;  may not"
         'contain "." nor "-".',
@@ -412,14 +413,14 @@ def inspiral(
     injections: bool = False,
     injection_file: str | None = None,
     input_likelihood_file: List[str] | None = None,
-    job_tag: str | None = None,
+    job_tag: str = "",
     min_instruments_candidates: int = 1,
     nslice: int = -1,
     nsubbank_pretend: int | None = None,
     output_kafka_server: str | None = None,
     output_likelihood_file: List[str] | None = None,
     process_params: dict | None = None,
-    rank_stat_pdf_file: List[str] | None = None,
+    rank_stat_pdf_file: str | None = None,
     reconstruct_inj_segments: bool = False,
     # snapshot_delay: float = 0,
     snapshot_interval: int = 14400,
@@ -621,15 +622,13 @@ def inspiral(
         FAR_trialsfactor=far_trials_factor,
         ifos=data_source_info.all_analysis_ifos,
         injections=injections,
-        input_likelihood_file=input_likelihood_file if input_likelihood_file else [],
+        input_likelihood_file=input_likelihood_file,
         is_online=IS_ONLINE,
         min_instruments=min_instruments_candidates,
-        output_likelihood_file=output_likelihood_file if output_likelihood_file else [],
-        rank_stat_pdf_file=rank_stat_pdf_file[0] if rank_stat_pdf_file else "",
+        output_likelihood_file=output_likelihood_file,
+        rank_stat_pdf_file=rank_stat_pdf_file,
         verbose=verbose,
-        zerolag_rank_stat_pdf_file=(
-            zerolag_rank_stat_pdf_file if zerolag_rank_stat_pdf_file else []
-        ),
+        zerolag_rank_stat_pdf_file=zerolag_rank_stat_pdf_file,
         nsubbank_pretend=bool(nsubbank_pretend),
         dtype=dtype,
         device=torch_device,
@@ -788,7 +787,7 @@ def inspiral(
                     spectrum_pads=list(ifo for ifo in ifos),
                     template_sngls=sorted_bank.sngls,
                     analysis_ifos=ifos,
-                    process_params=process_params if process_params else {},
+                    process_params=process_params,
                     output_kafka_server=output_kafka_server,
                     far_thresh=gracedb_far_threshold,
                     aggregator_far_thresh=aggregator_far_threshold,
@@ -796,10 +795,8 @@ def inspiral(
                     gracedb_group=gracedb_group,
                     gracedb_pipeline=gracedb_pipeline,
                     gracedb_search=gracedb_search,
-                    gracedb_label=gracedb_label if gracedb_label else [],
-                    gracedb_service_url=(
-                        gracedb_service_url if gracedb_service_url else ""
-                    ),
+                    gracedb_label=gracedb_label,
+                    gracedb_service_url=gracedb_service_url,
                     analysis_tag=analysis_tag,
                     job_type=job_tag.split("_")[-1] if job_tag else "",
                     delta_t=coincidence_threshold,
@@ -884,17 +881,17 @@ def inspiral(
                         (k, trigger_output[i])
                         for i, k in enumerate(sorted_bank.bankids_map.keys())
                     )
-                    if trigger_output is not None
-                    else {}  # type: ignore[arg-type]
+                    if trigger_output
+                    else None  # type: ignore[arg-type]
                 ),
                 template_ids=sorted_bank.template_ids.numpy(),
                 template_sngls=sorted_bank.sngls,
                 subbankids=sorted_bank.subbankids,
                 itacacac_pad_name="trigs",
                 segments_pad_map={"segments_" + ifo: ifo for ifo in ifos},
-                process_params=process_params if process_params else {},
+                process_params=process_params,
                 program="sgnl-inspiral",
-                injection_list=injection_list if injection_list else [],
+                injection_list=injection_list,
                 is_online=IS_ONLINE,
                 multiprocess=snapshot_multiprocess,
                 nsubbank_pretend=bool(nsubbank_pretend),
