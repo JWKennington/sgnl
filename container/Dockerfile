@@ -5,12 +5,12 @@ FROM  containers.ligo.org/greg/sgnl-base-container:0.0.1
 WORKDIR /src
 
 COPY . sgnl/
-RUN git clone --depth 1 https://git.ligo.org/greg/strike.git && \
-    git clone --depth 1 https://git.ligo.org/greg/stillsuit.git && \
-    git clone --depth 1 https://git.ligo.org/greg/sgn.git && \
-    git clone --depth 1 https://git.ligo.org/greg/sgn-ts.git && \
-    git clone --depth 1 https://git.ligo.org/greg/sgn-ligo.git && \
-    git clone --depth 1 https://git.ligo.org/greg/sgn-event.git && \
+RUN git clone https://git.ligo.org/greg/strike.git && \
+    git clone https://git.ligo.org/greg/stillsuit.git && \
+    git clone https://git.ligo.org/greg/sgn.git && \
+    git clone https://git.ligo.org/greg/sgn-ts.git && \
+    git clone https://git.ligo.org/greg/sgn-ligo.git && \
+    git clone https://git.ligo.org/greg/sgn-event.git && \
     (cd stillsuit && pip3 --no-cache-dir install .) && \
     (cd strike && pip3 --no-cache-dir install .) && \
     (cd sgn && pip3 --no-cache-dir install .) && \
