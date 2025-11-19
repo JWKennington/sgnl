@@ -153,9 +153,9 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
     itacacac_pad_name: str = None  # type: ignore[assignment]
     segments_pad_map: dict[str, str] = None  # type: ignore[assignment]
     trigger_output: dict[str, str] = None  # type: ignore[assignment]
-    process_params: dict = None  # type: ignore[assignment]
+    process_params: dict | None = None  # type: ignore[assignment]
     program: str = ""
-    injection_list: list = None  # type: ignore[assignment]
+    injection_list: list | None = None  # type: ignore[assignment]
     is_online: bool = False
     multiprocess: bool = False
     jobid: int = 0
