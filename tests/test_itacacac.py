@@ -34,6 +34,7 @@ def test_itacacac_output_events_structure():
         "sngls": {
             "H1": {
                 "time": torch.tensor([1000000000]),
+                "shifted_time": torch.tensor([1000000]),
                 "snr": torch.tensor([5.0]),
                 "chisq": torch.tensor([1.0]),
                 "phase": torch.tensor([0.0]),

@@ -130,7 +130,7 @@ def insert_event(data, dbs):
             {"event": event, "trigger": trigger},
             ignore_cols={
                 "event": ["network_snr_subthresh", "time_subthresh", "bankid"],
-                "trigger": ["template_duration"],
+                "trigger": ["template_duration", "shifted_time"],
             },
         )
 
