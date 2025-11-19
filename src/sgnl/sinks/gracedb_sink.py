@@ -6,6 +6,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass
+from time import asctime
 
 import lal
 import numpy
@@ -21,6 +22,7 @@ from lal import LIGOTimeGPS
 from lal import series as lalseries
 from ligo.gracedb.rest import GraceDb
 from sgn.control import HTTPControlSinkElement
+from sgnligo.base import now
 
 from sgnl.strike_object import StrikeObject
 from sgnl.transforms.itacacac import light_travel_time
@@ -474,45 +476,91 @@ def event_trigs_to_coinc_xmldoc(
 
                 if idx0 < 0 or idxf > length:
                     # FIXME: should we actually skip if we don't have enough samples?
-                    print("warning: not enougth samples to find coincidence")
-                    idx0 = max(0, idx0)
-                    idxf = min(idxf, length)
+                    print(
+                        f"{asctime()} now={now()} subthresh-warning:",
+                        "not enough samples to find coincidence ",
+                        f"{ifo=} {filter_id=} {idx0=} {idxf=} {length=} ",
+                        f"{coinc_segment=} {t0=} ",
+                        file=sys.stderr,
+                    )
+                    # idx0 = max(0, idx0)
+                    # idxf = min(idxf, length)
+                    continue
 
                 seq = abs(snr_ts_this_ifo_array[idx0:idxf])
 
                 maxid = numpy.argmax(seq)
+                peak_idx = idx0 + maxid
 
-                maxsnr = abs(snr_ts_this_ifo_array[idx0 + maxid])
+                maxsnr = abs(snr_ts_this_ifo_array[peak_idx])
                 if maxsnr == 0:
                     # FIXME: why does this happen? Because of gaps?
-                    print("warning: maxsnr = 0")
+                    print(
+                        f"{asctime()} now={now()} subthresh-warning: maxsnr = 0 ",
+                        f"{ifo=} {filter_id=} {maxid=} {idx0=} {idxf=} ",
+                        f"{coinc_segment=}",
+                        file=sys.stderr,
+                    )
                     continue
                 phase = math.atan2(
-                    snr_ts_this_ifo_array[idx0 + maxid].imag,
-                    snr_ts_this_ifo_array[idx0 + maxid].real,
+                    snr_ts_this_ifo_array[peak_idx].imag,
+                    snr_ts_this_ifo_array[peak_idx].real,
                 )
-                peakt = float(t0) + (idx0 + maxid) * dt
+                peakt = float(t0) + peak_idx * dt
 
                 deltaT = snr_ts_this_ifo.deltaT
 
-                snip0 = idx0 + maxid - half_autocorr_length
-                snipf = idx0 + maxid + half_autocorr_length + 1
                 sniplength = snr_ts_this_ifo_array.shape[-1]
 
-                if snip0 < 0 or snipf > sniplength:
+                min_num_samps = int(math.ceil(0.0263 / dt)) + 1
+                if peak_idx < min_num_samps or sniplength - peak_idx < min_num_samps:
                     # FIXME: in gstlal it says Bayestar needs at least 26.3ms
                     print(
-                        ifo,
-                        "not enough samples to produce snr snippet",
-                        f"{snip0=} {snipf=} {sniplength=}",
+                        f"{asctime()} now={now()} subthresh-warning: not enough ",
+                        "samples to produce snr snippet",
+                        f"{ifo=} {filter_id=} {peak_idx=} {sniplength=}",
+                        file=sys.stderr,
                     )
                     continue
 
-                snr_ts_snippet = snr_ts_this_ifo_array[snip0:snipf]
+                snip0 = peak_idx - half_autocorr_length
+                snipf = peak_idx + half_autocorr_length + 1
+                if snip0 < 0:
+                    snr_ts_snippet = numpy.pad(
+                        snr_ts_this_ifo_array[:snipf],
+                        (-snip0, 0),
+                        "constant",
+                        constant_values=(0),
+                    )
+                    print(
+                        f"{asctime()} now={now()} {ifo=} {filter_id=} ",
+                        f"subthresh-warning: padding snr with {-snip0} zeros from ",
+                        f"the front {snr_ts_snippet.shape=}",
+                        file=sys.stderr,
+                    )
+                elif snipf > sniplength:
+                    snr_ts_snippet = numpy.pad(
+                        snr_ts_this_ifo_array[snip0:],
+                        (0, snipf - sniplength),
+                        "constant",
+                        constant_values=(0),
+                    )
+                    print(
+                        f"{asctime()} now={now()} {ifo=} {filter_id=} ",
+                        f"subthresh-warning: padding snr with {snipf-sniplength} ",
+                        f"zeros to the end {snr_ts_snippet.shape=}",
+                        file=sys.stderr,
+                    )
+                else:
+                    snr_ts_snippet = snr_ts_this_ifo_array[snip0:snipf]
+
                 if snr_ts_snippet.shape[-1] == 0:
                     print(
-                        f"{ifo=} {idx0=} {idxf=} {maxid=} {half_autocorr_length=}",
-                        f"{coinc_segment=} {trigger_time=} {coincidence_window=} {t0=}",
+                        f"{asctime()} now={now()} {ifo=} {filter_id=} ",
+                        "subthresh-warning: snr_ts_snippet length zero ",
+                        f"{idx0=} {idxf=} {maxid=} {half_autocorr_length=} ",
+                        f"{coinc_segment=} {trigger_time=} {coincidence_window=} ",
+                        f"{t0=} ",
                         f"{dt=} {snr_ts_this_ifo_array.shape=}",
                         file=sys.stderr,
                     )
@@ -542,7 +590,12 @@ def event_trigs_to_coinc_xmldoc(
 
             trigs.extend(subthresh_trigs)
         except Exception as e:
-            print(f"Subthreshold search failed with error:\n{e}")
+            print(
+                f"{asctime()} now={now()} {ifo=} {filter_id=} ",
+                "subthresh-warning: Subthreshold search failed with ",
+                f"error:\n{e}",
+                file=sys.stderr,
+            )
     event["network_snr_subthresh"] = sum(trig["snr"] ** 2 for trig in trigs) ** 0.5
     event["time_subthresh"] = max([trig for trig in trigs], key=lambda d: d["snr"])[
         "time"
@@ -562,7 +615,6 @@ def event_trigs_to_coinc_xmldoc(
     for n, row in enumerate(sngl_inspiral_table):
         sngl_map(row, sngls_dict, trigs[n]["_filter_id"], exclude=())
         row.event_id = n
-        row.channel = channel_dict[row.ifo]
         row.chisq_dof = 1
         row.eff_distance = float("nan")
         row.process_id = process_id
@@ -578,6 +630,7 @@ def event_trigs_to_coinc_xmldoc(
             },
             {"time": ns_to_gps},
         )
+        row.channel = channel_dict[row.ifo]
         coinc_map_table[n].event_id = row.event_id
         coinc_map_table[n].table_name = "sngl_inspiral"
         found_ifos.append(row.ifo)

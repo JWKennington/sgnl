@@ -645,6 +645,7 @@ class Itacacac(TSTransform):
             sngls[ifo]["time"] = (
                 total_time + Offset.offset_ref_t0 + self.end_time_delta
             )[mask]
+            sngls[ifo]["shifted_time"] = (self.end_time_delta)[mask]
             sngls[ifo]["snr"] = sngl_snr[mask]
             sngls[ifo]["chisq"] = sngl_chisq[mask]
 
@@ -813,7 +814,7 @@ class Itacacac(TSTransform):
                 if str(ifo_num) in str(c):
                     trig = {
                         col: sngl[col][j].item()
-                        for col in ["time", "snr", "chisq", "phase"]
+                        for col in ["time", "shifted_time", "snr", "chisq", "phase"]
                     }
                     trig["_filter_id"] = clustered_coinc["clustered_template_ids"][
                         j
@@ -875,9 +876,15 @@ class Itacacac(TSTransform):
                             .astype(np.float32, copy=False)
                         )
                         assert snr_ts_snippet.shape[-1] > 0, f"{ifo}"
+                        shifted_time = sngl["shifted_time"][j].item()
                         snr_ts_snippet_out = lal.CreateCOMPLEX8TimeSeries(
                             name="snr",
-                            epoch=Offset.tosec(self.offset),
+                            epoch=(
+                                Offset.tons(self.offset)
+                                + shifted_time
+                                + Offset.offset_ref_t0
+                            )
+                            / 1_000_000_000,
                             f0=0.0,
                             deltaT=1 / self.sample_rate,
                             sampleUnits=lal.DimensionlessUnit,
@@ -955,9 +962,9 @@ class Itacacac(TSTransform):
         ts = Offset.tons(offset0) - int(
             self.trigger_finding_overlap_samples / self.sample_rate * 1e9
         )
-        te = Offset.tons(
-            offset0 + self.preparedoutoffsets["noffset"]
-        ) + int(self.trigger_finding_overlap_samples / self.sample_rate * 1e9)
+        te = Offset.tons(offset0 + self.preparedoutoffsets["noffset"]) + int(
+            self.trigger_finding_overlap_samples / self.sample_rate * 1e9
+        )
 
         if len(snr_ts.keys()) == 0:
             events = EventBuffer.from_span(

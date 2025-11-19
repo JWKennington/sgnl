@@ -413,7 +413,7 @@ class EventUploader(events.EventProcessor):
         """
         for key, event in sorted(self.events.items(), reverse=True):
             if (
-                event["num_sent"] == 0
+                (event["num_sent"] == 0 and len(event["candidates"]) > 0)
                 or event["candidates"]
                 and (
                     (utils.gps_now() >= self.next_event_upload(event))
@@ -439,16 +439,17 @@ class EventUploader(events.EventProcessor):
         current_time = utils.gps_now()
         for key in list(self.events.keys()):
             if current_time - key[0] >= self.max_event_time:
-                self.logger.info(
-                    "sending final trigger history for event [%.1f, %.1f]", *key
-                )
-                self.upload_file(
-                    "Trigger history file for RTPE",
-                    "trigger_history.json",
-                    "trigger_history",
-                    json.dumps(self.events[key]["trigger_history"]),
-                    self.events[key]["gid"],
-                )
+                if self.events[key]["gid"]:
+                    self.logger.info(
+                        "sending final trigger history for event [%.1f, %.1f]", *key
+                    )
+                    self.upload_file(
+                        "Trigger history file for RTPE",
+                        "trigger_history.json",
+                        "trigger_history",
+                        json.dumps(self.events[key]["trigger_history"]),
+                        self.events[key]["gid"],
+                    )
                 self.logger.info("removing stale event [%.1f, %.1f]", *key)
                 self.events.pop(key)
 
@@ -687,6 +688,8 @@ class EventUploader(events.EventProcessor):
                 )
             except HTTPError:
                 self.logger.exception("upload_event:HTTPError")
+            except Exception:
+                self.logger.exception("upload_event:Exception")
             else:
                 resp_json = resp.json()
                 if resp.status == httplib.CREATED:
