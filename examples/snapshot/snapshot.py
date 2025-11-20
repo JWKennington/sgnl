@@ -95,8 +95,8 @@ class FakeItacacacSrc(SourceElement, SignalEOS):
                 trigger_rates[ifo][bankid] = (seg, 500)
         return EventFrame(
             events={
-                "trigger_rates": EventBuffer(tsns, tens, data=trigger_rates),
-                "background": EventBuffer(tsns, tens, data=background),
+                "trigger_rates": EventBuffer(tsns, tens, data=[trigger_rates]),
+                "background": EventBuffer(tsns, tens, data=[background]),
             },
             EOS=self.signaled_eos(),
         )
@@ -115,7 +115,7 @@ class FakeHorizon(SourceElement):
         tens = int(ts * 1e9)
         ifo = self.rsrcs[pad]
         data = {"ifo": ifo, "horizon": self.horizons[ifo]}
-        return EventFrame(events={"data": EventBuffer(tsns, tens, data)})
+        return EventFrame(events={"data": EventBuffer(tsns, tens, [data])})
 
 
 pipeline = Pipeline()

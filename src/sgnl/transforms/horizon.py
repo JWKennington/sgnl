@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Optional
 
 import lal
 from sgnts.base import EventBuffer, EventFrame, Offset, TSTransform
@@ -17,8 +18,8 @@ class HorizonDistanceTracker(TSTransform):
     Compute horizon distance for an incoming PSD and a given waveform model
     """
 
-    horizon_distance_funcs: Callable | dict[str, Callable] | None = None
-    ifo: str | None = None
+    horizon_distance_funcs: Optional[Callable | dict[str, Callable]] = None
+    ifo: Optional[str] = None
     range: bool = False
 
     def __post_init__(self):
@@ -66,17 +67,18 @@ class HorizonDistanceTracker(TSTransform):
                 data["n_samples"] = metadata["n_samples"]
                 data["epoch"] = metadata["epoch"]
         else:
-            data = {}
-            data["horizon"] = None
-            data["time"] = ts
-            data["ifo"] = self.ifo
-            data["navg"] = None
-            data["n_samples"] = None
-            data["epoch"] = metadata["epoch"]
-
-        events = EventBuffer.from_span(ts, te, data=[data])
+            if self.range is True:
+                data = None
+            else:
+                data = {}
+                data["horizon"] = None
+                data["time"] = ts
+                data["ifo"] = self.ifo
+                data["navg"] = None
+                data["n_samples"] = None
+                data["epoch"] = metadata["epoch"]
 
         return EventFrame(
-            data=[events],
+            data=[EventBuffer.from_span(ts, te, [data])],
             EOS=EOS,
         )
