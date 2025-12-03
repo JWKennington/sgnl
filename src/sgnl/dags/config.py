@@ -19,7 +19,7 @@ from sgnl.dags.util import (
 )
 
 
-def build_config(config_path, dag_dir):
+def build_config(config_path, dag_dir, force_segments=False):
     # Load default config
     path_to_dags = pathlib.Path(__file__).parent
     default_config_file = path_to_dags / "default_config.yml"
@@ -64,7 +64,7 @@ def build_config(config_path, dag_dir):
     if not config.min_instruments_segments:
         config.min_instruments_segments = 1
 
-    config = create_segments(config)
+    config = create_segments(config, force_segments=force_segments)
 
     if not config.paths:
         config.paths = DotDict({})
@@ -76,20 +76,76 @@ def build_config(config_path, dag_dir):
     return config
 
 
-def create_segments(config):
+def create_segments(config, force_segments=False):
     # Load segments and create time bins.
-    if config.source and config.source.frame_segments_file:
+    # check for segments file, create one if it doesn't exist
+    # OR create one even if it exists but force_segments has been passed
+    segfile = pathlib.Path(config.source.frame_segments_file)
+
+    if config.source and segfile.exists() and not force_segments:
+
+        print(f"Loading segments from {segfile}")
         xmldoc = ligolw_utils.load_filename(
-            config.source.frame_segments_file,
+            segfile,
             contenthandler=ligolw_segments.LIGOLWContentHandler,
         )
         config.segments = ligolw_segments.segmenttable_get_by_name(
             xmldoc, "datasegments"
         ).coalesce()
+
     else:
-        config.segments = segmentlistdict(
-            (ifo, segmentlist([config.span])) for ifo in config.ifos
-        )
+        if config.source.flags is not None:
+            flags = {
+                ifo: f"{ifo}:{flag}"
+                for ifo, flag in config.source.flags.items()
+                if flag is not None
+            }
+        else:
+            flags = {}
+
+        # check for conflict between use-gwosc-segments and provided flags
+        has_flags = any(flag is not None for flag in flags.values())
+        use_gwosc = config.source.use_gwosc_segments
+
+        if use_gwosc and has_flags:
+            raise ValueError(
+                    "Config sets 'use-gwosc-segments: True' but also provides 'flags'. "
+                    "Flags are only used for DQSegDB queries; remove the 'flags' "
+                    "section when using GWOSC segments."
+                )
+
+        print(f"Creating segments.xml.gz over interval {config.start} .. {config.stop}")
+
+        if use_gwosc:
+            # query gwosc segments
+            print("Querying GWOSC segments")
+            segdict = segments.query_gwosc_segments(
+                config.instruments,
+                config.start,
+                config.stop,
+                verify_certs=True,
+            )
+
+        else:
+            # query dqsegdb segments
+            print(f"Querying DQSEGDB segments with flags {flags}")
+            segdict = segments.query_dqsegdb_segments(
+                config.instruments,
+                config.start,
+                config.stop,
+                flags,
+            )
+
+        # write to disk
+        segments.write_segments(segdict, config.source.frame_segments_file)
+
+        sdict = segmentlistdict()
+        for ifo, segs in segdict.items():
+            if not isinstance(segs, segmentlist):
+                segs = segmentlist(segs)
+            sdict[ifo] = segs.coalesce()
+
+        config.segments = sdict
 
     if config.span != segment(0, 0):
         config = create_time_bins(
