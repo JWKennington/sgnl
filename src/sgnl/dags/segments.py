@@ -18,6 +18,7 @@ from igwn_ligolw import ligolw, lsctables
 from igwn_ligolw import utils as ligolw_utils
 from igwn_ligolw.array import use_in as array_use_in
 from igwn_ligolw.param import use_in as param_use_in
+from igwn_ligolw.utils import segments as ligolw_segments
 from igwn_segments import utils as segutils
 from lal import LIGOTimeGPS
 
@@ -170,7 +171,7 @@ def query_gwosc_segments(
 
     """
     if isinstance(instruments, str):
-        instruments = [instruments]
+        instruments = [instruments[i:i+2] for i in range(0, len(instruments), 2)]
 
     # Set up SSL context
     context = ssl.create_default_context()
@@ -274,6 +275,62 @@ def query_gwosc_veto_segments(
         segs[instrument] = segments.segmentlist([span]) & ~segs[instrument]
 
     return segs
+
+
+def write_segments(
+    seglistdict: segments.segmentlistdict,
+    output: str = "segments.xml.gz",
+    segment_name: str = "datasegments",
+    process_name: str = "sgnl-write-segments",
+    verbose: bool = False,
+) -> None:
+    """Save a segmentlistdict to disk in LIGO-LW XML format.
+
+    Automatically infers metadata (start, end, instruments) from the segments.
+
+    Args:
+        seglistdict:
+            The segmentlistdict to save.
+        output:
+            Output filename (e.g. "segments.xml.gz").
+        segment_name:
+            Name of the segment table in the XML file.
+        process_name:
+            Name to register as the process in the XML header.
+        verbose:
+            Print progress messages if True.
+    """
+    # parse save info from seg dict
+    instruments = list(seglistdict.keys())
+    all_segments = segments.segmentlist()
+
+    for seglist in seglistdict.values():
+        all_segments.extend(seglist)
+
+    if not all_segments:
+        raise ValueError("No segments found in seglistdict; nothing to save.")
+
+    span = all_segments.extent()
+    start, end = float(span[0]), float(span[1])
+
+    # creat xml
+    xmldoc = ligolw.Document()
+    xmldoc.appendChild(ligolw.LIGO_LW())
+
+    process_params = {
+        "start": start,
+        "end": end,
+        "instruments": ",".join(instruments),
+        "segment_name": segment_name,
+        "output": output,
+    }
+    process = xmldoc.register_process(process_name, process_params)
+
+    with ligolw_segments.LigolwSegments(xmldoc, process) as lwseglists:
+        lwseglists.insert_from_segmentlistdict(seglistdict, segment_name)
+
+    process.set_end_time_now()
+    ligolw_utils.write_filename(xmldoc, output)
 
 
 def analysis_segments(
@@ -415,7 +472,7 @@ def _gwosc_segment_url(start, end, flag):
     span = segments.segment(LIGOTimeGPS(start), LIGOTimeGPS(end))
 
     # determine GWOSC URL to query from
-    urlbase = "https://gw-openscience.org/timeline/segments"
+    urlbase = "https://gwosc.org/timeline/segments/"
     if start in segments.segment(1126051217, 1137254417):
         query_url = f"{urlbase}/O1"
     elif start in segments.segment(1164556817, 1187733618):
@@ -424,6 +481,8 @@ def _gwosc_segment_url(start, end, flag):
         query_url = f"{urlbase}/O3a_16KHZ_R1"
     elif start in segments.segment(1256655618, 1269363618):
         query_url = f"{urlbase}/O3b_16KHZ_R1"
+    elif start in segments.segment(1368975618, 1389456018):
+        query_url = f"{urlbase}/O4a_16KHZ_R1"
     else:
         raise ValueError("GPS times requested not in GWOSC")
 

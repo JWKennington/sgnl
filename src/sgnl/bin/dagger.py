@@ -62,6 +62,11 @@ def parse_command_line(args: list[str] | None = None) -> argparse.Namespace:
         help="The directory in which to write the dag",
     )
     parser.add_argument("--dag-name", type=str, default=None, help="A name for the dag")
+    parser.add_argument(
+        "--force-segments",
+        action="store_true",
+        help="Force overwrite of segments file.",
+    )
     parsed_args = parser.parse_args(args)
 
     if parsed_args.dag_name:
@@ -114,7 +119,7 @@ def prepare_osdf_support(config, dag_dir):
 
 def main():
     args = parse_command_line()
-    config = build_config(args.config, args.dag_dir)
+    config = build_config(args.config, args.dag_dir, force_segments=args.force_segments)
     if args.init:
         # NOTE bank_name, output_full_bank_file, psd, psd_xml, and
         # psdinterp bank-splitter options are currently not implemented

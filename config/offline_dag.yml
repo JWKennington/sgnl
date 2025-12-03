@@ -34,6 +34,11 @@ source:
   sample-rate: 16384
   frame-segments-file: # FIXME
   frame-segments-name: datasegments
+  use-gwosc-segments: False
+  flags:
+    H1: # FIXME 
+    L1: # FIXME
+    V1: # FIXME
 
 ##--------------------------------
 # psd options
