@@ -336,6 +336,9 @@ class PAstroUploader(events.EventProcessor):
             template_id = lsctables.SnglInspiralTable.get_table(coinc).getColumnByName(
                 "Gamma0"
             )[0]
+            fhigh = lsctables.SnglInspiralTable.get_table(coinc).getColumnByName(
+                "f_final"
+            )[0]
         except Exception:
             self.logger.exception("Failed to parse coinc file.")
 
@@ -345,6 +348,7 @@ class PAstroUploader(events.EventProcessor):
                 "likelihood": likelihood,
                 "template_id": template_id,
                 "snr": snr,
+                "fhigh": fhigh
             }
 
     def upload_file(self, graceid, message, filename, contents, tag, retries=3):
