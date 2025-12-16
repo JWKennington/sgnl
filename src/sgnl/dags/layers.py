@@ -344,6 +344,10 @@ def filter(
 
     common_opts.append(Option("torch-device", torch_device))
 
+    # Add gstlal CPU upsampling option if enabled
+    if filter_config.use_gstlal_cpu_upsample:
+        common_opts.append(Option("use-gstlal-cpu-upsample"))
+
     # Set trigger-finding-duration
     if filter_config.trigger_finding_duration:
         trigger_finding_duration = filter_config.trigger_finding_duration
@@ -506,6 +510,10 @@ def injection_filter(
     common_opts.append(Option("torch-dtype", torch_dtype))
 
     common_opts.append(Option("torch-device", torch_device))
+
+    # Add gstlal CPU upsampling option if enabled
+    if filter_config.use_gstlal_cpu_upsample:
+        common_opts.append(Option("use-gstlal-cpu-upsample"))
 
     # Set trigger-finding-duration
     if filter_config.trigger_finding_duration:
@@ -1333,6 +1341,10 @@ def filter_online(
 
     common_opts.append(Option("torch-device", torch_device))
 
+    # Add gstlal CPU upsampling option if enabled
+    if filter_config.use_gstlal_cpu_upsample:
+        common_opts.append(Option("use-gstlal-cpu-upsample"))
+
     # Set trigger-finding-duration
     if filter_config.trigger_finding_duration:
         trigger_finding_duration = filter_config.trigger_finding_duration
@@ -1531,6 +1543,10 @@ def injection_filter_online(
     common_opts.append(Option("torch-dtype", torch_dtype))
 
     common_opts.append(Option("torch-device", torch_device))
+
+    # Add gstlal CPU upsampling option if enabled
+    if filter_config.use_gstlal_cpu_upsample:
+        common_opts.append(Option("use-gstlal-cpu-upsample"))
 
     # Set trigger-finding-duration
     if filter_config.trigger_finding_duration:

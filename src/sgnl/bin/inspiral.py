@@ -44,6 +44,8 @@ from sgnl.transforms import (
 logger = logging.getLogger("sgn.sgnl")
 
 torch.set_num_threads(1)
+#  NOTE: experiment with this to see if it helps with performance.
+#torch.set_grad_enabled(False) 
 
 
 @array_use_in
@@ -334,6 +336,13 @@ def parse_command_line():
         help="The data type to run LLOID and Trigger generation with.",
     )
     group.add_argument(
+        "--use-gstlal-cpu-upsample",
+        action="store_true",
+        help="Use fast gstlal C implementation for upsampling when device is CPU. "
+        "Provides ~6x speedup over PyTorch for CPU upsampling. Only effective when "
+        "--torch-device=cpu.",
+    )
+    group.add_argument(
         "--injections",
         action="store_true",
         help="Whether to run this as an injection job. If data-source = 'frames', "
@@ -431,6 +440,7 @@ def inspiral(
     torch_dtype: str = "float32",
     trigger_output: List[str] | None = None,
     trigger_finding_duration: float = 1,
+    use_gstlal_cpu_upsample: bool = False,
     verbose: bool = False,
     zerolag_rank_stat_pdf_file: List[str] | None = None,
 ):
@@ -660,6 +670,7 @@ def inspiral(
         torch_device,
         dtype,
         reconstruction_segment_list,
+        use_gstlal_cpu_upsample,
     )
     if output_kafka_server is not None:
         for ifo, link in lloid_output_source_link.items():
@@ -784,7 +795,7 @@ def inspiral(
                 gracedb_sink = GraceDBSink(
                     name="gracedb",
                     event_pad="event",
-                    spectrum_pads=list(ifo for ifo in ifos),
+                    spectrum_pads=list(ifos),
                     template_sngls=sorted_bank.sngls,
                     analysis_ifos=ifos,
                     process_params=process_params,
@@ -1137,6 +1148,7 @@ def main():
         torch_dtype=options.torch_dtype,
         trigger_finding_duration=options.trigger_finding_duration,
         trigger_output=options.trigger_output,
+        use_gstlal_cpu_upsample=options.use_gstlal_cpu_upsample,
         verbose=options.verbose,
         zerolag_rank_stat_pdf_file=options.zerolag_rank_stat_pdf_file,
     )
