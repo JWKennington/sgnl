@@ -16,7 +16,7 @@ dependencies = [
     # LIGO dependencies
     "ligo-gracedb==2.14.1",
     "lalsuite>=7.26",
-    "igwn-ligolw",
+    "igwn-ligolw<2.1.0",
     "igwn-segments",
     # SGN dependencies
     "sgn",
