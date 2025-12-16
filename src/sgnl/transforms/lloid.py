@@ -27,9 +27,14 @@ def lloid(
     device,
     dtype,
     reconstruction_segment_list=None,
+    use_gstlal_cpu_upsample: bool = False,
 ):
     TorchBackend.set_device(device)
     TorchBackend.set_dtype(dtype)
+
+    # Determine whether to use gstlal CPU upsampling
+    # Only use gstlal if device is CPU and option is enabled
+    use_gstlal_for_upsample = use_gstlal_cpu_upsample and device == "cpu"
 
     output_source_links = {}
 
@@ -173,7 +178,7 @@ def lloid(
                 if from_rate != maxrate:
                     upname = f"{ifo}_up_{from_rate}_{to_rate}"
 
-                    # upsample
+                    # upsample - use gstlal C implementation for CPU (~6x faster)
                     pipeline.insert(
                         Resampler(
                             name=upname,
@@ -182,6 +187,7 @@ def lloid(
                             backend=TorchBackend,
                             inrate=from_rate,
                             outrate=to_rate[-1],
+                            use_gstlal_cpu_upsample=use_gstlal_for_upsample,
                         ),
                     )
 
