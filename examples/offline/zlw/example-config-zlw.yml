@@ -1,0 +1,166 @@
+# Sample config showing how to use zero latency whitening
+##--------------------------------
+# general options
+
+# O3 Chunk 06
+start: 1241725020
+stop: 1242485126
+
+instruments: H1L1V1
+min-instruments: 1
+getenv: True
+zero-latency: True
+
+##--------------------------------
+# data product options
+
+paths:
+  input-data: /home/james.kennington/data/zlw/run/common/input_data_zlw_010
+  filter-dir: /home/james.kennington/data/zlw/run/zlw010/filter_data
+  injection-dir: /home/james.kennington/data/zlw/run/zlw010/injection_data
+  rank-dir: /home/james.kennington/data/zlw/run/zlw010/rank_data
+  template-bank: /home/james.kennington/data/zlw/run/common/H1L1V1-GSTLAL_BBH_TEMPLATE_BANK-0-0.xml.gz
+
+##-----------------------------
+# data source options
+
+source:
+    #data-find-server: datafind.gw-openscience.org
+  frame-cache: /home/james.kennington/data/zlw/run/common/frame_local.cache
+  #frame-type:
+  #  H1: H1_GWOSC_O3a_16KHZ_R1
+  #  L1: L1_GWOSC_O3a_16KHZ_R1
+  #  V1: V1_GWOSC_O3a_16KHZ_R1
+  channel-name:
+    H1: DCS-CALIB_STRAIN_CLEAN_C01
+    L1: DCS-CALIB_STRAIN_CLEAN_C01
+    V1: Hrec_hoft_16384Hz
+      #H1: GWOSC-16KHZ_R1_STRAIN
+      #L1: GWOSC-16KHZ_R1_STRAIN
+      #V1: GWOSC-16KHZ_R1_STRAIN
+  # provide frame-cache if data-find-server is not provided
+#  frame-cache: frame.cache
+  # provide inj-frame-cache and inj-channel-name if injections have already been made in detector noise or in zero-noise, and are available as frame files.
+  inj-frame-cache: /home/james.kennington/data/zlw/run/common/injection-frames.cache
+  inj-channel-name:
+    H1: RPO4_OFFLINE_v1
+    L1: RPO4_OFFLINE_v1
+    V1: RPO4_OFFLINE_v1
+  sample-rate: 16384
+  frame-segments-file: /home/james.kennington/data/zlw/run/common/segments.xml.gz
+  frame-segments-name: datasegments
+
+##--------------------------------
+# segment options
+
+segments:
+  backend: gwosc
+  vetoes:
+    category: CAT1
+
+##--------------------------------
+# psd options
+
+psd:
+  fft-length: 8
+  sample-rate: 4096
+
+##--------------------------------
+## svd bank options
+
+svd:
+  f-low: 15.0
+  num-chi-bins: 1
+  approximant:
+    - 0:1.73:TaylorF2
+    - 1.73:1000:SEOBNRv4_ROM
+  tolerance: 0.99999
+  max-f-final: 1024.0
+  num-split-templates: 500
+  overlap: 50
+  num-banks: 2
+  samples-min: 2048
+  samples-max-64: 2048
+  samples-max-256: 2048
+  samples-max: 4096
+  autocorrelation-length: 351
+  sort-by: mchirp
+  option-file: /home/james.kennington/data/zlw/run/common/svd_manifest_zlw.json
+
+##--------------------------------
+## filtering options
+
+filter:
+    #group-svd-num: 5
+  coincidence-threshold: 0.01
+#  ht-gate-threshold: 0.8:15.0-45.0:100.0
+  ht-gate-threshold: 50.0
+  #veto-segments-file: vetoes.xml.gz
+  #time-slide-file: tisi.xml
+  #time-slides:
+  #  H1: 0:0:0
+  #  L1: 0.62831:0.62831:0.62831
+  #  V1: 0.31415:0.31415:0.31415
+  snr-min: 4
+  torch-dtype: float32
+  torch-device: cpu
+  event-config-file: /home/james.kennington/data/zlw/run/zlw010/fake_cbc.yaml
+  min-instruments-candidates: 1
+
+##--------------------------------
+## injection options
+injections:
+  time_slide_file: inj_tisi.xml
+  filter:
+    BBH:
+      file: /home/james.kennington/data/zlw/run/common/injections.xml.gz
+      pregenerated: True
+      noiseless_inj_frames: True
+      range: 6.00:200.0 ## mchirp range of injections (should be adapted to best-fit injection range)
+
+##--------------------------------
+## prior options
+
+prior:
+  mass-model: /home/james.kennington/data/zlw/run/common/H1L1V1-GSTLAL_BBH_SALPETER_MASS_MODEL-0-0.h5
+
+##--------------------------------
+## ranking options
+
+rank:
+  ranking-stat-samples: 1048576
+  calc-pdf-jobs: 4
+  calc-pdf-cores: 1
+  marg-pdf-files: 64
+  merge-level-one-max-files: 50
+  merge-level-two-max-files: 10
+  add-level-one-max-files: 500
+  add-level-two-max-files: 100
+  # the following options should be true for online reranks
+  #discover-online: False
+  #allow-impossible-inj-candidates: False
+  #delete-triggers: False
+
+##--------------------------------
+## summary options
+
+summary:
+  webdir: /home/james.kennington/data/zlw/run/zlw010/summary
+
+##--------------------------------
+## condor options
+
+condor:
+  accounting-group: ligo.dev.o4.cbc.uber.gstlaloffline
+  accounting-group-user: james.kennington
+  container: /home/james.kennington/builds/sgn-dev
+  directives:
+    use_oauth_services: "scitokens"
+  requirements:
+    - 'has_avx2'
+    - '(CpuFamily =?= 6)'
+  #- HAS_CVMFS_LIGO_STORAGE
+  environment:
+    LAL_DATA_PATH: /cvmfs/software.igwn.org/pycbc/lalsuite-extra/current/share/lalsimulation
+    STRIKE_CONFIG_PATH: /home/james.kennington/data/zlw/run/common/strike_data/strike_config.yml
+    STRIKE_DATA_SCOPE: "common"
