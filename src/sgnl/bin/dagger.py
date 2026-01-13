@@ -273,6 +273,9 @@ def main():
         ref_psd_cache = DataCache.find(
             DataType.REFERENCE_PSD, root=config.paths.input_data
         )
+        median_psd_cache = DataCache.find(
+            DataType.MEDIAN_PSD, root=config.paths.input_data
+        )
         svd_bank_cache = DataCache.find(
             DataType.SVD_BANK, root=config.paths.input_data, svd_bins="*"
         )
@@ -300,6 +303,7 @@ def main():
             source_config=config.source,
             condor_config=config.condor,
             ref_psd_cache=ref_psd_cache,
+            median_psd_cache=median_psd_cache,
             svd_bank_cache=svd_bank_cache,
             lr_cache=lr_cache,
             trigger_cache=trigger_cache,
@@ -338,6 +342,9 @@ def main():
         ref_psd_cache = DataCache.find(
             DataType.REFERENCE_PSD, root=config.paths.input_data
         )
+        median_psd_cache = DataCache.find(
+            DataType.MEDIAN_PSD, root=config.paths.input_data
+        )
         svd_bank_cache = DataCache.find(
             DataType.SVD_BANK, root=config.paths.input_data, svd_bins="*"
         )
@@ -364,6 +371,7 @@ def main():
             source_config=config.source,
             condor_config=config.condor,
             ref_psd_cache=ref_psd_cache,
+            median_psd_cache=median_psd_cache,
             svd_bank_cache=svd_bank_cache,
             trigger_cache=trigger_cache,
             svd_stats=svd_stats,
