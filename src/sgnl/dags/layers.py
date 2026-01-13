@@ -273,14 +273,20 @@ def svd_bank(
         if zero_latency:
             arguments.append(Option("zero-latency"))
 
-        layer += Node(
-            arguments=arguments,
-            inputs=[
-                Option("reference-psd", median_psd_cache.files),
-                Option("template-banks", sorted(split_banks[svd_bin].files)),
-            ],
-            outputs=Option("write-svd", svd_banks.files),
-        )
+        try:
+            layer += Node(
+                arguments=arguments,
+                inputs=[
+                    Option("reference-psd", median_psd_cache.files),
+                    Option("template-banks", sorted(split_banks[svd_bin].files)),
+                ],
+                outputs=Option("write-svd", svd_banks.files),
+            )
+        except KeyError as e:
+            raise KeyError(
+                f"SVD bin {svd_bin} not found in split bank cache. "
+                f"Available bins: {split_banks.keys()}"
+            ) from e
 
     return layer
 
