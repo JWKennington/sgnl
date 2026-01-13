@@ -118,7 +118,7 @@ def reference_psd(
     executable = "sgnl-reference-psd"
     resource_requests = {
         "request_cpus": 2,
-        "request_memory": "2GB",
+        "request_memory": "4GB",
         "request_disk": "2GB",
     }
     layer = create_layer(executable, condor_config, resource_requests)
@@ -173,7 +173,7 @@ def median_psd(psd_config, condor_config, ref_psd_cache, median_psd_cache):
     executable = "sgnl-median-of-psds"
     resource_requests = {
         "request_cpus": 2,
-        "request_memory": "2GB",
+        "request_memory": "4GB",
         "request_disk": "2GB",
     }
     layer = create_layer(executable, condor_config, resource_requests)
@@ -562,7 +562,7 @@ def injection_filter(
             filter_opts.extend([Option("zero-latency")])
         if not drift_correction:
             filter_opts.extend([Option("no-drift-correction")])
-        
+
         inputs = [
             Option("frame-segments-file", source_config.frame_segments_file),
             Option("reference-psd", ref_psds[(ifo_combo, span)].files),
