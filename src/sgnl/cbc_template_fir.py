@@ -12,7 +12,8 @@ from lal import LIGOTimeGPS
 from scipy.linalg import svd as scipy_svd
 
 from sgnl import chirptime, kernels, spawaveform, templates
-from sgnl.psd import condition_psd, taperzero_fseries
+from sgnligo.psd import condition_psd, taperzero_fseries
+from zlw.kernels import MPWhiteningFilter
 
 
 def tukeywindow(data, samps=200.0):
@@ -155,7 +156,7 @@ class templates_workspace:
     sample_rate_max: float | None = None
     duration: float | None = None
     length_max: int | None = None
-    FIR_WHITENER: int = 0
+    zero_latency: bool = False
 
     def __post_init__(self):
         if self.sample_rate_max is None:
@@ -208,19 +209,49 @@ class templates_workspace:
                 1.0 / self.working_duration,
                 minfs=(self.working_f_low, self.f_low),
                 maxfs=(self.sample_rate_max / 2.0 * 0.90, self.sample_rate_max / 2.0),
-                fir_whiten=self.FIR_WHITENER,
+                zero_latency=self.zero_latency,
             )
 
-        if self.FIR_WHITENER:
-            # Compute a frequency response of the time-domain whitening kernel and
-            # effectively taper the psd by zero-ing some elements for a FIR kernel
+        if self.zero_latency:
+            assert self.psd is not None, (
+                "PSD must be provided for " "zero latency whitening"
+            )
+            assert isinstance(self.psd, lal.REAL8FrequencySeries), (
+                "expected self.psd to be type REAL8FrequencySeries, "
+                f"got type {type(self.psd)}: {self.psd}"
+            )
+
+            # Compute MP kernel from PSD
+            fs = numpy.arange(self.psd.data.data.size) * self.psd.deltaF + self.psd.f0
+            mp = kernels.MPWhiteningFilter(
+                psd=self.psd.data.data,
+                fs=fs,
+            )
+
+            # Rewrap as LAL COMPLEX16 series for compatibility with existing sgnl tapering
+            kernel_fseries = lal.CreateCOMPLEX16FrequencySeries(
+                name="freqseries of whitening kernel",
+                epoch=LIGOTimeGPS(0),
+                f0=0.0,
+                deltaF=1.0 / self.working_duration,
+                length=self.working_length,
+                sampleUnits=lal.Unit("strain s"),
+            )
+
+            # Construct two-sided spectrum for tapering
+            kernel_arr = mp.frequency_response()
+            n = kernel_fseries.data.length
+            one_sided = numpy.asarray(kernel_arr, dtype="cdouble")
+            buf = kernel_fseries.data.data
+            buf[:] = 0.0
+            # Positive freqs
+            buf[n // 2 - 1 :] = one_sided
+            # Negative freqs (Hermitian symmetry)
+            if len(one_sided) > 2:
+                buf[: n // 2 - 1] = numpy.conj(one_sided[1:-1])[::-1]
+
             self.kernel_fseries = taperzero_fseries(
-                kernels.fir_whitener_kernel(
-                    self.working_length,
-                    self.working_duration,
-                    self.sample_rate_max,
-                    self.psd,
-                ),
+                kernel_fseries,
                 minfs=(self.working_f_low, self.f_low),
                 maxfs=(self.sample_rate_max / 2.0 * 0.90, self.sample_rate_max / 2.0),
             )
@@ -299,7 +330,7 @@ class templates_workspace:
             fworkspace=self.fworkspace,
         )
 
-        if self.FIR_WHITENER:
+        if self.zero_latency:
             #
             # Compute a product of freq series of the whitening kernel and the template
             # (convolution in time domain) then add quadrature phase

@@ -120,6 +120,12 @@ def parse_command_line():
         nargs="*",  # This allows capturing zero or more template bank files
         help="Provide the split bank files to svd.",
     )
+    parser.add_argument(
+        "--zero-latency",
+        dest="zero_latency",
+        action="store_true",
+        help="Enable zero-latency mode (optional). Defaults to false.",
+    )
 
     options = parser.parse_args()
 
@@ -195,6 +201,7 @@ def main():
             contenthandler=svd_bank.DefaultContentHandler,
             sample_rate=options.sample_rate,
             instrument_override=options.instrument_override,
+            zero_latency=options.zero_latency,
         )
         banks.append(bank)
 

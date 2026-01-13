@@ -120,6 +120,7 @@ def prepare_osdf_support(config, dag_dir):
 def main():
     args = parse_command_line()
     config = build_config(args.config, args.dag_dir, force_segments=args.force_segments)
+
     if args.init:
         # NOTE bank_name, output_full_bank_file, psd, psd_xml, and
         # psdinterp bank-splitter options are currently not implemented
@@ -182,6 +183,11 @@ def main():
         dag_name = args.dag_name
     else:
         dag_name = f"sgnl_{args.workflow}"
+
+    # Extract flags with defaults
+    zero_latency = getattr(config, "zero_latency", False)
+    # Default drift_correction to True if not specified
+    drift_correction = getattr(config, "drift_correction", True)
 
     # Start building the dag
     dag = DAG(dag_name)
@@ -256,6 +262,7 @@ def main():
                 svd_cache=svd_cache,
                 svd_bins=svd_bins,
                 svd_stats=svd_stats,
+                zero_latency=zero_latency,
             )
         )
 
@@ -298,6 +305,8 @@ def main():
             trigger_cache=trigger_cache,
             svd_stats=svd_stats,
             min_instruments=config.filter.min_instruments_candidates,
+            zero_latency=zero_latency,
+            drift_correction=drift_correction,
         )
 
         # Add OSDF support if needed
@@ -359,6 +368,8 @@ def main():
             trigger_cache=trigger_cache,
             svd_stats=svd_stats,
             min_instruments=config.filter.min_instruments_candidates,
+            zero_latency=zero_latency,
+            drift_correction=drift_correction,
         )
 
         # Add OSDF support if needed

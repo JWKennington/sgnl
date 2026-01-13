@@ -45,7 +45,7 @@ logger = logging.getLogger("sgn.sgnl")
 
 torch.set_num_threads(1)
 #  NOTE: experiment with this to see if it helps with performance.
-#torch.set_grad_enabled(False) 
+# torch.set_grad_enabled(False)
 
 
 @array_use_in
@@ -443,6 +443,7 @@ def inspiral(
     use_gstlal_cpu_upsample: bool = False,
     verbose: bool = False,
     zerolag_rank_stat_pdf_file: List[str] | None = None,
+    zero_latency: bool = False,
 ):
     #
     # Decide if we are online or offline
@@ -656,6 +657,7 @@ def inspiral(
             whiten_sample_rate=template_maxrate,
             whiten_latency=output_kafka_server is not None,
             highpass_filter=config["highpass_filter"],
+            zero_latency=zero_latency,
         )
     else:
         spectrum_out_links = None
@@ -1151,6 +1153,7 @@ def main():
         use_gstlal_cpu_upsample=options.use_gstlal_cpu_upsample,
         verbose=options.verbose,
         zerolag_rank_stat_pdf_file=options.zerolag_rank_stat_pdf_file,
+        zero_latency=options.zero_latency,
     )
 
 

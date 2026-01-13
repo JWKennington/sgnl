@@ -168,6 +168,7 @@ class Bank:
     verbose: bool = False
     bank_id: int | None = None
     fhigh: float | None = None
+    zero_latency: bool = False
 
     def __post_init__(self):
         self.template_bank_filename = None
@@ -337,6 +338,7 @@ def build_bank(
     contenthandler=None,
     sample_rate=None,
     instrument_override=None,
+    zero_latency: bool = False,
 ):
     bank_xmldoc = ligolw_utils.load_url(
         template_bank_url, contenthandler=contenthandler, verbose=verbose
@@ -390,6 +392,7 @@ def build_bank(
         snr_threshold=snr_threshold,
         bank_id=bank_id,
         fhigh=fhigh,
+        zero_latency=zero_latency,
     )
 
     bank.set_template_bank_filename(ligolw_utils.local_path_from_url(template_bank_url))

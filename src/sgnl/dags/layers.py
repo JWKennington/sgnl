@@ -195,6 +195,7 @@ def svd_bank(
     svd_cache,
     svd_bins,
     svd_stats,
+    zero_latency: bool = False,
 ):
     executable = "sgnl-inspiral-svd-bank"
     resource_requests = {
@@ -269,6 +270,8 @@ def svd_bank(
         # FIXME figure out where this option should live
         # if 'use_bankchisq' in config.rank and config.rank.use_bankchisq:
         #    arguments.append(Option("use-bankchisq"))
+        if zero_latency:
+            arguments.append(Option("zero-latency"))
 
         layer += Node(
             arguments=arguments,
@@ -294,6 +297,8 @@ def filter(
     trigger_cache,
     svd_stats,
     min_instruments,
+    zero_latency: bool = False,
+    drift_correction: bool = True,
 ):
     executable = "sgnl-inspiral"
     resource_requests = {
@@ -373,6 +378,14 @@ def filter(
             Option("gps-end-time", int(end)),
             Option("channel-name", format_ifo_args(ifos, source_config.channel_name)),
         ]
+
+        # Whitening options
+        if zero_latency:
+            filter_opts.append(Option("zero-latency"))
+        # Only pass flag if disabled, since default is True in sgnligo
+        if not drift_correction:
+            filter_opts.append(Option("no-drift-correction"))
+
         inputs = [
             Option("frame-segments-file", source_config.frame_segments_file),
             # Option("veto-segments-file", filter_config.veto_segments_file),
@@ -462,6 +475,8 @@ def injection_filter(
     trigger_cache,
     svd_stats,
     min_instruments,
+    zero_latency: bool = False,
+    drift_correction: bool = True,
 ):
     executable = "sgnl-inspiral"
     resource_requests = {
@@ -541,6 +556,13 @@ def injection_filter(
             Option("gps-start-time", int(start)),
             Option("gps-end-time", int(end)),
         ]
+
+        # Whitening options
+        if zero_latency:
+            filter_opts.extend([Option("zero-latency")])
+        if not drift_correction:
+            filter_opts.extend([Option("no-drift-correction")])
+        
         inputs = [
             Option("frame-segments-file", source_config.frame_segments_file),
             Option("reference-psd", ref_psds[(ifo_combo, span)].files),
