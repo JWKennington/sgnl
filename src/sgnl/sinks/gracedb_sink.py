@@ -148,9 +148,7 @@ class GraceDBSink(HTTPControlSinkElement):
                 )
 
                 # add psd frequeny series
-                lal.series.make_psd_xmldoc(
-                    self.psds, xmldoc.childNodes[-1]
-                )
+                lal.series.make_psd_xmldoc(self.psds, xmldoc.childNodes[-1])
 
                 if self.output_kafka_server:
                     publish_kafka(

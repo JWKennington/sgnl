@@ -177,7 +177,7 @@ def parse_command_line():
                             getattr(row, col) for row in bank.sngl_inspiral_table
                         ]
                         if numpy.all(
-                            numpy.array(lambda_eta_list == 0)
+                            numpy.array(lambda_eta_list) == 0
                         ) and col_index in ("2", "3", "4", "5"):
                             raise ValueError(
                                 "Column '%s' in %s is all zero. Check the svd bank "

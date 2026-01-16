@@ -475,16 +475,14 @@ def main():
         )
 
         # add zerolag counts url to marginalized data
-        if data:
-            data += far.RankingStatPDF.load(
-                zerolag_counts_url,
-                verbose=options.verbose,
-            )
-        else:
-            data = far.RankingStatPDF.load(
-                zerolag_counts_url,
-                verbose=options.verbose,
-            )
+        # data should never be None here because if all bins fail, we exit at line 454
+        assert (
+            data is not None
+        ), "data should not be None - all bins failed but exit was skipped"
+        data += far.RankingStatPDF.load(
+            zerolag_counts_url,
+            verbose=options.verbose,
+        )
 
         if kafka_processor:
             kafka_processor.heartbeat()

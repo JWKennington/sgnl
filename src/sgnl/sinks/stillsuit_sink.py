@@ -287,7 +287,7 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
         #
         # Simulation
         #
-        if self.injection_list is not None:
+        if self.injection_list:
             self.sims = []
             for inj in self.injection_list:
                 sim_row = init_config_row(self.config["simulation"])
@@ -321,7 +321,7 @@ class StillSuitSink(SnapShotControlSinkElement, ParallelizeSinkElement):
         self.bankids = list(self.bankids)
         self.process = self.process_row
         self.process_params = self.params
-        self.sim = None if self.injection_list is None else self.sims
+        self.sim = self.sims
         self.config_segment = self.config["segment"]
 
         ParallelizeSinkElement.__post_init__(self)
