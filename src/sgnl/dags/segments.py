@@ -171,7 +171,7 @@ def query_gwosc_segments(
 
     """
     if isinstance(instruments, str):
-        instruments = [instruments[i:i+2] for i in range(0, len(instruments), 2)]
+        instruments = [instruments[i : i + 2] for i in range(0, len(instruments), 2)]
 
     # Set up SSL context
     context = ssl.create_default_context()

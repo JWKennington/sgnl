@@ -109,10 +109,10 @@ def create_segments(config, force_segments=False):
 
         if use_gwosc and has_flags:
             raise ValueError(
-                    "Config sets 'use-gwosc-segments: True' but also provides 'flags'. "
-                    "Flags are only used for DQSegDB queries; remove the 'flags' "
-                    "section when using GWOSC segments."
-                )
+                "Config sets 'use-gwosc-segments: True' but also provides 'flags'. "
+                "Flags are only used for DQSegDB queries; remove the 'flags' "
+                "section when using GWOSC segments."
+            )
 
         print(f"Creating segments.xml.gz over interval {config.start} .. {config.stop}")
 

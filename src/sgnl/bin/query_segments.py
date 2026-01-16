@@ -8,7 +8,7 @@ from sgnl.dags.segments import (
     DEFAULT_DQSEGDB_SERVER,
     query_dqsegdb_segments,
     query_gwosc_segments,
-    write_segments
+    write_segments,
 )
 
 VALID_IFOS = {"H1", "L1", "V1", "K1"}
@@ -114,8 +114,8 @@ def parse_command_line():
 
             if ifo not in VALID_IFOS:
                 raise ValueError(
-                        f"Invalid IFO '{ifo}' in flag '{entry}' (valid: {VALID_IFOS})"
-                    )
+                    f"Invalid IFO '{ifo}' in flag '{entry}' (valid: {VALID_IFOS})"
+                )
 
             instruments.append(ifo)
             flags[ifo] = entry  # entry is already IFO:FLAG:VERSION
