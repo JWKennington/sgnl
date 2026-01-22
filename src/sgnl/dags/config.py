@@ -64,7 +64,8 @@ def build_config(config_path, dag_dir, force_segments=False):
     if not config.min_instruments_segments:
         config.min_instruments_segments = 1
 
-    config = create_segments(config, force_segments=force_segments)
+    if config.start:
+        config = create_segments(config, force_segments=force_segments)
 
     if not config.paths:
         config.paths = DotDict({})
