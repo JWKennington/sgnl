@@ -12,7 +12,7 @@ import re
 import sys
 from argparse import ArgumentParser
 from collections import OrderedDict
-from typing import List
+from typing import List, Tuple
 
 import torch
 from igwn_ligolw import ligolw, lsctables
@@ -394,7 +394,7 @@ def parse_command_line():
     return options
 
 
-def inspiral(
+def build_pipeline(
     data_source_info: DataSourceInfo,
     condition_info: ConditionInfo,
     svd_bank: List[str],
@@ -444,7 +444,7 @@ def inspiral(
     verbose: bool = False,
     zerolag_rank_stat_pdf_file: List[str] | None = None,
     zero_latency: bool = False,
-):
+) -> Tuple[Pipeline, bool, OrderedDict]:
     #
     # Decide if we are online or offline
     #
@@ -1051,6 +1051,113 @@ def inspiral(
                             + "_snrSlice_latency:src:latency",
                         }
                     )
+
+    return pipeline, IS_ONLINE, banks
+
+def inspiral(
+    data_source_info: DataSourceInfo,
+    condition_info: ConditionInfo,
+    svd_bank: List[str],
+    aggregator_far_threshold: float = 3.84e-07,
+    aggregator_far_trials_factor: int = 1,
+    all_triggers_to_background: bool = False,
+    analysis_tag: str = "test",
+    coincidence_threshold: float = 0.005,
+    compress_likelihood_ratio: bool = False,
+    compress_likelihood_ratio_threshold: float = 0.03,
+    event_config: str | None = None,
+    fake_sink: bool = False,
+    search: str | None = None,
+    far_trials_factor: float = 1.0,
+    gracedb_far_threshold: float = -1,
+    gracedb_group: str = "Test",
+    gracedb_label: list[str] | None = None,
+    gracedb_pipeline: str = "SGNL",
+    gracedb_search: str = "MOCK",
+    gracedb_service_url: str | None = None,
+    graph_name: str | None = None,
+    impulse_bank: str | None = None,
+    impulse_bankno: int | None = None,
+    impulse_ifo: str | None = None,
+    injections: bool = False,
+    injection_file: str | None = None,
+    input_likelihood_file: List[str] | None = None,
+    job_tag: str = "",
+    min_instruments_candidates: int = 1,
+    nslice: int = -1,
+    nsubbank_pretend: int | None = None,
+    output_kafka_server: str | None = None,
+    output_likelihood_file: List[str] | None = None,
+    process_params: dict | None = None,
+    rank_stat_pdf_file: str | None = None,
+    reconstruct_inj_segments: bool = False,
+    # snapshot_delay: float = 0,
+    snapshot_interval: int = 14400,
+    snapshot_multiprocess: bool = False,
+    snr_min: float = 4,
+    snr_timeseries_output: str | None = None,
+    torch_device: str = "cpu",
+    torch_dtype: str = "float32",
+    trigger_output: List[str] | None = None,
+    trigger_finding_duration: float = 1,
+    use_gstlal_cpu_upsample: bool = False,
+    verbose: bool = False,
+    zerolag_rank_stat_pdf_file: List[str] | None = None,
+    zero_latency: bool = False,
+    ):
+    # Make pipeline properly
+    pipeline, IS_ONLINE, banks = build_pipeline(
+        data_source_info=data_source_info,
+        condition_info=condition_info,
+        svd_bank=svd_bank,
+        aggregator_far_threshold=aggregator_far_threshold,
+        aggregator_far_trials_factor=aggregator_far_trials_factor,
+        all_triggers_to_background=all_triggers_to_background,
+        analysis_tag=analysis_tag,
+        coincidence_threshold=coincidence_threshold,
+        compress_likelihood_ratio=compress_likelihood_ratio,
+        compress_likelihood_ratio_threshold=compress_likelihood_ratio_threshold,
+        event_config=event_config,
+        fake_sink=fake_sink,
+        search=search,
+        far_trials_factor=far_trials_factor,
+        gracedb_far_threshold=gracedb_far_threshold,
+        gracedb_group=gracedb_group,
+        gracedb_label=gracedb_label,
+        gracedb_pipeline=gracedb_pipeline,
+        gracedb_search=gracedb_search,
+        gracedb_service_url=gracedb_service_url,
+        graph_name=graph_name,
+        impulse_bank=impulse_bank,
+        impulse_bankno=impulse_bankno,
+        impulse_ifo=impulse_ifo,
+        injections=injections,
+        injection_file=injection_file,
+        input_likelihood_file=input_likelihood_file,
+        job_tag=job_tag,
+        min_instruments_candidates=min_instruments_candidates,
+        nslice=nslice,
+        nsubbank_pretend=nsubbank_pretend,
+        output_kafka_server=output_kafka_server,
+        output_likelihood_file=output_likelihood_file,
+        process_params=process_params,
+        rank_stat_pdf_file=rank_stat_pdf_file,
+        reconstruct_inj_segments=reconstruct_inj_segments,
+            # snapshot_delay: float = 0,
+        snapshot_interval=snapshot_interval,
+        snapshot_multiprocess=snapshot_multiprocess,
+        snr_min=snr_min,
+        snr_timeseries_output=snr_timeseries_output,
+        torch_device=torch_device,
+        torch_dtype=torch_dtype,
+        trigger_output=trigger_output,
+        trigger_finding_duration=trigger_finding_duration,
+        use_gstlal_cpu_upsample=use_gstlal_cpu_upsample,
+        verbose=verbose,
+        zerolag_rank_stat_pdf_file=zerolag_rank_stat_pdf_file,
+        zero_latency=zero_latency,
+    )
+
 
     # Plot pipeline
     if graph_name:
