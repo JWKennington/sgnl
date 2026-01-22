@@ -37,7 +37,7 @@ class GraceDBSink(HTTPControlSinkElement):
 
     strike_object: StrikeObject = None  # type: ignore[assignment]
     event_pad: str = None  # type: ignore[assignment]
-    spectrum_pads: list[str] = None  # type: ignore[assignment]
+    spectrum_pads: tuple[str] = None  # type: ignore[assignment]
     far_thresh: float = -1
     aggregator_far_thresh: float = 3.84e-07
     aggregator_far_trials_factor: int = 1
