@@ -487,6 +487,99 @@ class TestCreateSegments:
         assert isinstance(result.segments["H1"], segmentlist)
 
 
+class TestApplyCat1Vetoes:
+    """Tests for apply_cat1_vetoes function."""
+
+    def test_apply_cat1_vetoes_no_file_specified(self, tmp_path):
+        """Test that no vetoes file returns segments unchanged."""
+        from sgnl.dags.util import DotDict
+
+        segdict = segmentlistdict()
+        segdict["H1"] = segmentlist([segment(0, 1000)])
+
+        cfg = DotDict({"source": DotDict({})})
+
+        result = config.apply_cat1_vetoes(segdict, cfg)
+
+        assert result is segdict
+
+    def test_apply_cat1_vetoes_file_not_found_raises(self, tmp_path):
+        """Test that missing vetoes file raises FileNotFoundError."""
+        from sgnl.dags.util import DotDict
+
+        segdict = segmentlistdict()
+        segdict["H1"] = segmentlist([segment(0, 1000)])
+
+        cfg = DotDict(
+            {"source": DotDict({"cat1_vetoes_file": str(tmp_path / "nonexistent.xml")})}
+        )
+
+        with pytest.raises(FileNotFoundError) as exc_info:
+            config.apply_cat1_vetoes(segdict, cfg)
+
+        assert "not found" in str(exc_info.value)
+
+    def test_apply_cat1_vetoes_subtracts_vetoes(self, tmp_path):
+        """Test that vetoes are properly subtracted from segments."""
+        from sgnl.dags.util import DotDict
+
+        # Create science segments
+        segdict = segmentlistdict()
+        segdict["H1"] = segmentlist([segment(0, 1000)])
+        segdict["L1"] = segmentlist([segment(0, 1000)])
+
+        # Create veto segments
+        veto_dict = segmentlistdict()
+        veto_dict["H1"] = segmentlist([segment(200, 400)])
+        veto_dict["L1"] = segmentlist([segment(500, 700)])
+
+        # Write vetoes to file
+        vetoes_file = tmp_path / "vetoes.xml.gz"
+        config.segments.write_segments(veto_dict, output=str(vetoes_file))
+
+        cfg = DotDict({"source": DotDict({"cat1_vetoes_file": str(vetoes_file)})})
+
+        result = config.apply_cat1_vetoes(segdict, cfg)
+
+        # H1: [0, 1000] - [200, 400] = [0, 200] + [400, 1000]
+        assert len(result["H1"]) == 2
+        assert result["H1"][0] == segment(0, 200)
+        assert result["H1"][1] == segment(400, 1000)
+
+        # L1: [0, 1000] - [500, 700] = [0, 500] + [700, 1000]
+        assert len(result["L1"]) == 2
+        assert result["L1"][0] == segment(0, 500)
+        assert result["L1"][1] == segment(700, 1000)
+
+    def test_apply_cat1_vetoes_missing_ifo_in_vetoes(self, tmp_path):
+        """Test vetoes with missing IFO are handled correctly."""
+        from sgnl.dags.util import DotDict
+
+        # Create science segments for H1 and L1
+        segdict = segmentlistdict()
+        segdict["H1"] = segmentlist([segment(0, 1000)])
+        segdict["L1"] = segmentlist([segment(0, 1000)])
+
+        # Create veto segments only for H1
+        veto_dict = segmentlistdict()
+        veto_dict["H1"] = segmentlist([segment(200, 400)])
+
+        # Write vetoes to file
+        vetoes_file = tmp_path / "vetoes.xml.gz"
+        config.segments.write_segments(veto_dict, output=str(vetoes_file))
+
+        cfg = DotDict({"source": DotDict({"cat1_vetoes_file": str(vetoes_file)})})
+
+        result = config.apply_cat1_vetoes(segdict, cfg)
+
+        # H1 should have vetoes applied
+        assert len(result["H1"]) == 2
+
+        # L1 should be unchanged (no vetoes for L1)
+        assert len(result["L1"]) == 1
+        assert result["L1"][0] == segment(0, 1000)
+
+
 class TestCreateTimeBins:
     """Tests for create_time_bins function."""
 

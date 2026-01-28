@@ -601,6 +601,485 @@ class TestSplitSegment:
         assert "maxextent must be positive" in str(exc_info.value)
 
 
+class TestFilterShortSegments:
+    """Tests for filter_short_segments function."""
+
+    def test_filters_short_segments(self):
+        """Test that segments shorter than min_duration are removed."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist(
+            [
+                segments.segment(0, 100),  # too short
+                segments.segment(200, 800),  # 600s, long enough
+                segments.segment(1000, 1100),  # too short
+            ]
+        )
+
+        result = seg_module.filter_short_segments(segs, min_duration=512)
+
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(200, 800)
+
+    def test_default_min_duration(self):
+        """Test default min_duration of 512 seconds."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist(
+            [
+                segments.segment(0, 511),  # just under 512
+                segments.segment(1000, 1512),  # exactly 512
+            ]
+        )
+
+        result = seg_module.filter_short_segments(segs)
+
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(1000, 1512)
+
+    def test_multiple_ifos(self):
+        """Test filtering with multiple IFOs."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+        segs["L1"] = segments.segmentlist([segments.segment(0, 100)])
+
+        result = seg_module.filter_short_segments(segs, min_duration=500)
+
+        assert len(result["H1"]) == 1
+        assert len(result["L1"]) == 0
+
+    def test_empty_result(self):
+        """Test that empty segmentlist is returned when all filtered."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 100)])
+
+        result = seg_module.filter_short_segments(segs, min_duration=500)
+
+        assert "H1" in result
+        assert len(result["H1"]) == 0
+
+
+class TestBoundSegments:
+    """Tests for bound_segments function."""
+
+    def test_bound_both_ends(self):
+        """Test bounding segments at both start and end."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+
+        result = seg_module.bound_segments(segs, start=100, end=900)
+
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(100, 900)
+
+    def test_bound_start_only(self):
+        """Test bounding at start only."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+
+        result = seg_module.bound_segments(segs, start=500, end=None)
+
+        assert result["H1"][0] == segments.segment(500, 1000)
+
+    def test_bound_end_only(self):
+        """Test bounding at end only."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+
+        result = seg_module.bound_segments(segs, start=None, end=500)
+
+        assert result["H1"][0] == segments.segment(0, 500)
+
+    def test_no_bounds_returns_original(self):
+        """Test that no bounds returns original segments."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+
+        result = seg_module.bound_segments(segs, start=None, end=None)
+
+        assert result is segs
+
+    def test_multiple_segments(self):
+        """Test bounding multiple segments."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist(
+            [
+                segments.segment(0, 500),
+                segments.segment(600, 1000),
+            ]
+        )
+
+        result = seg_module.bound_segments(segs, start=100, end=800)
+
+        assert len(result["H1"]) == 2
+        assert result["H1"][0] == segments.segment(100, 500)
+        assert result["H1"][1] == segments.segment(600, 800)
+
+    def test_segment_outside_bounds_removed(self):
+        """Test that segments outside bounds are removed."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist(
+            [
+                segments.segment(0, 100),  # before bounds
+                segments.segment(500, 600),  # inside bounds
+                segments.segment(900, 1000),  # after bounds
+            ]
+        )
+
+        result = seg_module.bound_segments(segs, start=400, end=700)
+
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(500, 600)
+
+    def test_multiple_ifos(self):
+        """Test bounding with multiple IFOs."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+        segs["L1"] = segments.segmentlist([segments.segment(200, 800)])
+
+        result = seg_module.bound_segments(segs, start=100, end=900)
+
+        assert result["H1"][0] == segments.segment(100, 900)
+        assert result["L1"][0] == segments.segment(200, 800)
+
+
+class TestContractSegments:
+    """Tests for contract_segments function."""
+
+    def test_contract_segments(self):
+        """Test basic segment contraction."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+
+        result = seg_module.contract_segments(segs, trim=100)
+
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(100, 900)
+
+    def test_contract_removes_short_segments(self):
+        """Test that segments too short for contraction are removed."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist(
+            [
+                segments.segment(0, 100),  # too short (100 < 2*100)
+                segments.segment(500, 1500),  # long enough
+            ]
+        )
+
+        result = seg_module.contract_segments(segs, trim=100)
+
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(600, 1400)
+
+    def test_zero_trim_returns_original(self):
+        """Test that zero trim returns original segments."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+
+        result = seg_module.contract_segments(segs, trim=0)
+
+        assert result is segs
+
+    def test_negative_trim_returns_original(self):
+        """Test that negative trim returns original segments."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+
+        result = seg_module.contract_segments(segs, trim=-50)
+
+        assert result is segs
+
+    def test_multiple_ifos(self):
+        """Test contraction with multiple IFOs."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+        segs["L1"] = segments.segmentlist([segments.segment(0, 500)])
+
+        result = seg_module.contract_segments(segs, trim=50)
+
+        assert result["H1"][0] == segments.segment(50, 950)
+        assert result["L1"][0] == segments.segment(50, 450)
+
+
+class TestUnionSegmentlistdicts:
+    """Tests for union_segmentlistdicts function."""
+
+    def test_union_basic(self):
+        """Test basic union of two segmentlistdicts."""
+        a = segments.segmentlistdict()
+        a["H1"] = segments.segmentlist([segments.segment(0, 500)])
+
+        b = segments.segmentlistdict()
+        b["H1"] = segments.segmentlist([segments.segment(400, 1000)])
+
+        result = seg_module.union_segmentlistdicts(a, b)
+
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(0, 1000)
+
+    def test_union_disjoint_segments(self):
+        """Test union of disjoint segments."""
+        a = segments.segmentlistdict()
+        a["H1"] = segments.segmentlist([segments.segment(0, 100)])
+
+        b = segments.segmentlistdict()
+        b["H1"] = segments.segmentlist([segments.segment(200, 300)])
+
+        result = seg_module.union_segmentlistdicts(a, b)
+
+        assert len(result["H1"]) == 2
+
+    def test_union_different_ifos(self):
+        """Test union with different IFOs."""
+        a = segments.segmentlistdict()
+        a["H1"] = segments.segmentlist([segments.segment(0, 100)])
+
+        b = segments.segmentlistdict()
+        b["L1"] = segments.segmentlist([segments.segment(0, 100)])
+
+        result = seg_module.union_segmentlistdicts(a, b)
+
+        assert "H1" in result
+        assert "L1" in result
+
+    def test_union_missing_key_treated_as_empty(self):
+        """Test that missing keys are treated as empty segmentlists."""
+        a = segments.segmentlistdict()
+        a["H1"] = segments.segmentlist([segments.segment(0, 100)])
+        a["L1"] = segments.segmentlist([segments.segment(0, 100)])
+
+        b = segments.segmentlistdict()
+        b["H1"] = segments.segmentlist([segments.segment(50, 150)])
+
+        result = seg_module.union_segmentlistdicts(a, b)
+
+        assert result["L1"] == a["L1"]
+
+
+class TestIntersectionSegmentlistdicts:
+    """Tests for intersection_segmentlistdicts function."""
+
+    def test_intersection_basic(self):
+        """Test basic intersection of two segmentlistdicts."""
+        a = segments.segmentlistdict()
+        a["H1"] = segments.segmentlist([segments.segment(0, 500)])
+
+        b = segments.segmentlistdict()
+        b["H1"] = segments.segmentlist([segments.segment(300, 1000)])
+
+        result = seg_module.intersection_segmentlistdicts(a, b)
+
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(300, 500)
+
+    def test_intersection_disjoint_segments(self):
+        """Test intersection of disjoint segments."""
+        a = segments.segmentlistdict()
+        a["H1"] = segments.segmentlist([segments.segment(0, 100)])
+
+        b = segments.segmentlistdict()
+        b["H1"] = segments.segmentlist([segments.segment(200, 300)])
+
+        result = seg_module.intersection_segmentlistdicts(a, b)
+
+        assert len(result["H1"]) == 0
+
+    def test_intersection_only_common_keys(self):
+        """Test that intersection only includes common keys."""
+        a = segments.segmentlistdict()
+        a["H1"] = segments.segmentlist([segments.segment(0, 100)])
+        a["L1"] = segments.segmentlist([segments.segment(0, 100)])
+
+        b = segments.segmentlistdict()
+        b["H1"] = segments.segmentlist([segments.segment(0, 100)])
+        b["V1"] = segments.segmentlist([segments.segment(0, 100)])
+
+        result = seg_module.intersection_segmentlistdicts(a, b)
+
+        assert "H1" in result
+        assert "L1" not in result
+        assert "V1" not in result
+
+
+class TestDiffSegmentlistdicts:
+    """Tests for diff_segmentlistdicts function."""
+
+    def test_diff_basic(self):
+        """Test basic difference of two segmentlistdicts."""
+        a = segments.segmentlistdict()
+        a["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+
+        b = segments.segmentlistdict()
+        b["H1"] = segments.segmentlist([segments.segment(300, 700)])
+
+        result = seg_module.diff_segmentlistdicts(a, b)
+
+        assert len(result["H1"]) == 2
+        assert result["H1"][0] == segments.segment(0, 300)
+        assert result["H1"][1] == segments.segment(700, 1000)
+
+    def test_diff_missing_key_treated_as_empty(self):
+        """Test that missing keys in b are treated as empty."""
+        a = segments.segmentlistdict()
+        a["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+        a["L1"] = segments.segmentlist([segments.segment(0, 1000)])
+
+        b = segments.segmentlistdict()
+        b["H1"] = segments.segmentlist([segments.segment(300, 700)])
+
+        result = seg_module.diff_segmentlistdicts(a, b)
+
+        # L1 should be unchanged since it's not in b
+        assert result["L1"] == a["L1"]
+
+    def test_diff_complete_subtraction(self):
+        """Test difference where b completely covers a."""
+        a = segments.segmentlistdict()
+        a["H1"] = segments.segmentlist([segments.segment(100, 500)])
+
+        b = segments.segmentlistdict()
+        b["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+
+        result = seg_module.diff_segmentlistdicts(a, b)
+
+        assert len(result["H1"]) == 0
+
+
+class TestCombineSegmentlistdicts:
+    """Tests for combine_segmentlistdicts function."""
+
+    def test_combine_union(self):
+        """Test combining with union operation."""
+        segdicts = [
+            segments.segmentlistdict(
+                {"H1": segments.segmentlist([segments.segment(0, 100)])}
+            ),
+            segments.segmentlistdict(
+                {"H1": segments.segmentlist([segments.segment(50, 150)])}
+            ),
+            segments.segmentlistdict(
+                {"H1": segments.segmentlist([segments.segment(100, 200)])}
+            ),
+        ]
+
+        result = seg_module.combine_segmentlistdicts(segdicts, "union")
+
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(0, 200)
+
+    def test_combine_intersection(self):
+        """Test combining with intersection operation."""
+        segdicts = [
+            segments.segmentlistdict(
+                {"H1": segments.segmentlist([segments.segment(0, 500)])}
+            ),
+            segments.segmentlistdict(
+                {"H1": segments.segmentlist([segments.segment(100, 400)])}
+            ),
+            segments.segmentlistdict(
+                {"H1": segments.segmentlist([segments.segment(200, 300)])}
+            ),
+        ]
+
+        result = seg_module.combine_segmentlistdicts(segdicts, "intersection")
+
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(200, 300)
+
+    def test_combine_diff(self):
+        """Test combining with diff operation."""
+        segdicts = [
+            segments.segmentlistdict(
+                {"H1": segments.segmentlist([segments.segment(0, 1000)])}
+            ),
+            segments.segmentlistdict(
+                {"H1": segments.segmentlist([segments.segment(200, 400)])}
+            ),
+        ]
+
+        result = seg_module.combine_segmentlistdicts(segdicts, "diff")
+
+        assert len(result["H1"]) == 2
+
+    def test_combine_invalid_operation_raises(self):
+        """Test that invalid operation raises ValueError."""
+        segdicts = [
+            segments.segmentlistdict(),
+            segments.segmentlistdict(),
+        ]
+
+        with pytest.raises(ValueError) as exc_info:
+            seg_module.combine_segmentlistdicts(segdicts, "invalid")
+
+        assert "must be 'union', 'intersection', or 'diff'" in str(exc_info.value)
+
+    def test_combine_less_than_two_dicts_raises(self):
+        """Test that fewer than two dicts raises ValueError."""
+        segdicts = [segments.segmentlistdict()]
+
+        with pytest.raises(ValueError) as exc_info:
+            seg_module.combine_segmentlistdicts(segdicts, "union")
+
+        assert "at least two" in str(exc_info.value)
+
+
+class TestProcessSegments:
+    """Tests for process_segments function."""
+
+    def test_process_all_operations(self):
+        """Test processing with all operations."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist(
+            [
+                segments.segment(0, 100),  # will be filtered by min_length
+                segments.segment(1000, 3000),  # will be bounded and contracted
+            ]
+        )
+
+        result = seg_module.process_segments(
+            segs,
+            gps_start=500,
+            gps_end=2500,
+            min_length=512,
+            trim=100,
+        )
+
+        # After bounding: [1000, 2500]
+        # After filtering (>= 512): [1000, 2500]
+        # After contracting by 100: [1100, 2400]
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(1100, 2400)
+
+    def test_process_no_operations(self):
+        """Test processing with no operations."""
+        segs = segments.segmentlistdict()
+        segs["H1"] = segments.segmentlist([segments.segment(0, 1000)])
+
+        result = seg_module.process_segments(segs)
+
+        assert result["H1"] == segs["H1"]
+
+
+class TestLoadSegmentFile:
+    """Tests for load_segment_file function."""
+
+    def test_load_segment_file(self, tmp_path):
+        """Test loading segments from file."""
+        # First write a segment file
+        seglistdict = segments.segmentlistdict()
+        seglistdict["H1"] = segments.segmentlist([segments.segment(100, 200)])
+        seglistdict["L1"] = segments.segmentlist([segments.segment(100, 200)])
+
+        output_file = str(tmp_path / "segments.xml.gz")
+        seg_module.write_segments(seglistdict, output=output_file)
+
+        # Now load it back
+        result = seg_module.load_segment_file(output_file)
+
+        assert "H1" in result
+        assert "L1" in result
+        assert len(result["H1"]) == 1
+        assert result["H1"][0] == segments.segment(100, 200)
+
+
 class TestGwoscSegmentUrl:
     """Tests for _gwosc_segment_url function."""
 

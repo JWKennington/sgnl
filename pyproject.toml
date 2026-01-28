@@ -74,6 +74,7 @@ sgnl-query-segments = "sgnl.bin.query_segments:main"
 sgnl-reference-psd = "sgnl.bin.reference_psd:main"
 sgnl-results-page = "sgnl.bin.results_page:main"
 sgnl-sim-page = "sgnl.bin.sim_page:main"
+sgnl-segment-operations = "sgnl.bin.segment_ops:main"
 
 [project.optional-dependencies]
 test = [
