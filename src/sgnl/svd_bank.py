@@ -306,7 +306,7 @@ def cal_higher_f_low(bank_sngl_table, f_high, flow, approximant, max_duration):
                 args=(max_duration, m1_SI, m2_SI, spin1, spin2, f_max),
             )
         )
-    f_low = float(max(flow, max(time_constrained_f_low)))
+    f_low = float(max(flow, numpy.max(time_constrained_f_low)))
     if f_high is not None and f_high < f_low:
         raise ValueError(
             "Lower frequency must be lower than higher frequency cut off! Input "

@@ -348,7 +348,7 @@ class PAstroUploader(events.EventProcessor):
                 "likelihood": likelihood,
                 "template_id": template_id,
                 "snr": snr,
-                "fhigh": fhigh
+                "fhigh": fhigh,
             }
 
     def upload_file(self, graceid, message, filename, contents, tag, retries=3):

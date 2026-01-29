@@ -118,6 +118,20 @@ class TestParseCommandLine:
                 ["-c", "config.yaml", "-w", "setup", "--dag-name", "my_dag.dag"]
             )
 
+    def test_init_and_workflow_raises(self):
+        """Test that specifying both --init and --workflow raises ValueError."""
+        from sgnl.bin import ll_dagger
+
+        with pytest.raises(ValueError, match="Cannot specify both"):
+            ll_dagger.parse_command_line(["-c", "config.yaml", "--init", "-w", "setup"])
+
+    def test_neither_init_nor_workflow_raises(self):
+        """Test that specifying neither --init nor --workflow raises ValueError."""
+        from sgnl.bin import ll_dagger
+
+        with pytest.raises(ValueError, match="Must specify either"):
+            ll_dagger.parse_command_line(["-c", "config.yaml"])
+
     def test_uses_sys_argv_when_args_none(self):
         """Test that sys.argv is used when args is None."""
         from sgnl.bin import ll_dagger
@@ -135,6 +149,7 @@ class MockConfig:
         # Set default attributes
         self.tag = "test_tag"
         self.ifos = ["H1", "L1"]
+        self.instruments = ["H1", "L1"]
         self.all_ifos = {"H1", "L1"}
         self.span = (1000000000, 1000001000)
 
@@ -187,6 +202,7 @@ class TestMain:
                 workflow="setup",
                 dag_dir="/output",
                 dag_name=None,
+                init=False,
             )
             with mock.patch.object(ll_dagger, "build_config", return_value=mock_config):
                 with mock.patch.object(ll_dagger, "DAG", return_value=mock_dag):
@@ -198,7 +214,13 @@ class TestMain:
                         with mock.patch.object(ll_dagger.DataCache, "from_files"):
                             with mock.patch.object(ll_dagger.DataCache, "find"):
                                 with mock.patch.object(ll_dagger.DataCache, "generate"):
-                                    ll_dagger.main()
+                                    with mock.patch.object(
+                                        ll_dagger, "inspiral_bank_splitter"
+                                    ):
+                                        with mock.patch.object(
+                                            ll_dagger, "inspiral_set_svdbin_option"
+                                        ):
+                                            ll_dagger.main()
 
         # Verify DAG operations
         mock_dag.attach.assert_called()
@@ -220,6 +242,7 @@ class TestMain:
                 workflow="setup",
                 dag_dir="/output",
                 dag_name="custom_name",
+                init=False,
             )
             with mock.patch.object(ll_dagger, "build_config", return_value=mock_config):
                 with mock.patch.object(
@@ -233,7 +256,13 @@ class TestMain:
                         with mock.patch.object(ll_dagger.DataCache, "from_files"):
                             with mock.patch.object(ll_dagger.DataCache, "find"):
                                 with mock.patch.object(ll_dagger.DataCache, "generate"):
-                                    ll_dagger.main()
+                                    with mock.patch.object(
+                                        ll_dagger, "inspiral_bank_splitter"
+                                    ):
+                                        with mock.patch.object(
+                                            ll_dagger, "inspiral_set_svdbin_option"
+                                        ):
+                                            ll_dagger.main()
 
         # Verify DAG was created with custom name
         dag_constructor.assert_called_once_with("custom_name")
@@ -253,6 +282,7 @@ class TestMain:
                 workflow="setup-prior",
                 dag_dir="/output",
                 dag_name=None,
+                init=False,
             )
             with mock.patch.object(ll_dagger, "build_config", return_value=mock_config):
                 with mock.patch.object(ll_dagger, "DAG", return_value=mock_dag):
@@ -263,7 +293,13 @@ class TestMain:
                     ):
                         with mock.patch.object(ll_dagger.DataCache, "find"):
                             with mock.patch.object(ll_dagger.DataCache, "generate"):
-                                ll_dagger.main()
+                                with mock.patch.object(
+                                    ll_dagger, "inspiral_bank_splitter"
+                                ):
+                                    with mock.patch.object(
+                                        ll_dagger, "inspiral_set_svdbin_option"
+                                    ):
+                                        ll_dagger.main()
 
         mock_dag.attach.assert_called()
         mock_dag.write.assert_called_once()
@@ -289,6 +325,7 @@ class TestMain:
                 workflow="inspiral",
                 dag_dir="/output",
                 dag_name=None,
+                init=False,
             )
             with mock.patch.object(ll_dagger, "build_config", return_value=mock_config):
                 with mock.patch.object(ll_dagger, "DAG", return_value=mock_dag):
@@ -308,7 +345,13 @@ class TestMain:
                             ],
                         ):
                             with mock.patch.object(ll_dagger.DataCache, "generate"):
-                                ll_dagger.main()
+                                with mock.patch.object(
+                                    ll_dagger, "inspiral_bank_splitter"
+                                ):
+                                    with mock.patch.object(
+                                        ll_dagger, "inspiral_set_svdbin_option"
+                                    ):
+                                        ll_dagger.main()
 
         mock_dag.attach.assert_called()
         mock_dag.write.assert_called_once()
@@ -332,6 +375,7 @@ class TestMain:
                 workflow="inspiral",
                 dag_dir="/output",
                 dag_name=None,
+                init=False,
             )
             with mock.patch.object(ll_dagger, "build_config", return_value=mock_config):
                 with mock.patch.object(ll_dagger, "DAG", return_value=mock_dag):
@@ -351,7 +395,13 @@ class TestMain:
                             ],
                         ):
                             with mock.patch.object(ll_dagger.DataCache, "generate"):
-                                ll_dagger.main()
+                                with mock.patch.object(
+                                    ll_dagger, "inspiral_bank_splitter"
+                                ):
+                                    with mock.patch.object(
+                                        ll_dagger, "inspiral_set_svdbin_option"
+                                    ):
+                                        ll_dagger.main()
 
         # With injections, should have more attach calls
         assert mock_dag.attach.call_count >= 3
@@ -375,6 +425,7 @@ class TestMain:
                 workflow="inspiral",
                 dag_dir="/output",
                 dag_name=None,
+                init=False,
             )
             with mock.patch.object(ll_dagger, "build_config", return_value=mock_config):
                 with mock.patch.object(ll_dagger, "DAG", return_value=mock_dag):
@@ -394,7 +445,13 @@ class TestMain:
                             ],
                         ):
                             with mock.patch.object(ll_dagger.DataCache, "generate"):
-                                ll_dagger.main()
+                                with mock.patch.object(
+                                    ll_dagger, "inspiral_bank_splitter"
+                                ):
+                                    with mock.patch.object(
+                                        ll_dagger, "inspiral_set_svdbin_option"
+                                    ):
+                                        ll_dagger.main()
 
         # With kafka, should have many more attach calls for event handling
         assert mock_dag.attach.call_count >= 6
@@ -418,6 +475,7 @@ class TestMain:
                 workflow="inspiral",
                 dag_dir="/output",
                 dag_name=None,
+                init=False,
             )
             with mock.patch.object(ll_dagger, "build_config", return_value=mock_config):
                 with mock.patch.object(ll_dagger, "DAG", return_value=mock_dag):
@@ -437,7 +495,13 @@ class TestMain:
                             ],
                         ):
                             with mock.patch.object(ll_dagger.DataCache, "generate"):
-                                ll_dagger.main()
+                                with mock.patch.object(
+                                    ll_dagger, "inspiral_bank_splitter"
+                                ):
+                                    with mock.patch.object(
+                                        ll_dagger, "inspiral_set_svdbin_option"
+                                    ):
+                                        ll_dagger.main()
 
         # With both injections and kafka, should have the most attach calls
         assert mock_dag.attach.call_count >= 8
@@ -454,8 +518,84 @@ class TestMain:
                 workflow="invalid_workflow",
                 dag_dir="/output",
                 dag_name=None,
+                init=False,
             )
             with mock.patch.object(ll_dagger, "build_config", return_value=mock_config):
                 with mock.patch.object(ll_dagger, "DAG"):
-                    with pytest.raises(ValueError, match="Unrecognized workflow"):
+                    with mock.patch.object(ll_dagger, "inspiral_bank_splitter"):
+                        with mock.patch.object(ll_dagger, "inspiral_set_svdbin_option"):
+                            with pytest.raises(
+                                ValueError, match="Unrecognized workflow"
+                            ):
+                                ll_dagger.main()
+
+    def test_main_init_workflow(self, mock_dependencies):
+        """Test main function with --init flag."""
+        from sgnl.bin import ll_dagger
+
+        mock_config = MockConfig()
+        # Set up SVD config attributes needed for init workflow
+        mock_config.svd.max_f_final = 1024
+        mock_config.svd.f_low = 15
+        mock_config.svd.num_split_templates = 100
+        mock_config.svd.num_banks = 4
+        mock_config.svd.sort_by = "chi"
+        mock_config.svd.num_chi_bins = 10
+        mock_config.svd.num_mu_bins = 5
+        mock_config.svd.overlap = 0.1
+        mock_config.svd.approximant = "IMRPhenomD"
+        mock_config.paths.template_bank = "/path/to/bank.xml"
+
+        with mock.patch.object(ll_dagger, "parse_command_line") as mock_parse:
+            mock_parse.return_value = mock.MagicMock(
+                config="config.yaml",
+                workflow=None,
+                dag_dir="/output",
+                dag_name=None,
+                init=True,
+            )
+            with mock.patch.object(ll_dagger, "build_config", return_value=mock_config):
+                with mock.patch.object(
+                    ll_dagger, "inspiral_bank_splitter"
+                ) as mock_splitter:
+                    with mock.patch.object(
+                        ll_dagger, "inspiral_set_svdbin_option"
+                    ) as mock_svdbin:
                         ll_dagger.main()
+
+        # Verify the init workflow called the right functions
+        mock_splitter.split_bank.assert_called_once()
+        mock_svdbin.set_svdbin_option.assert_called_once_with(mock_config)
+
+    def test_main_init_workflow_with_mu_sort(self, mock_dependencies):
+        """Test main function with --init flag and mu sorting."""
+        from sgnl.bin import ll_dagger
+
+        mock_config = MockConfig()
+        mock_config.svd.max_f_final = 1024
+        mock_config.svd.f_low = 15
+        mock_config.svd.num_split_templates = 100
+        mock_config.svd.num_banks = [2, 4]
+        mock_config.svd.sort_by = "mu"
+        mock_config.svd.num_chi_bins = 10
+        mock_config.svd.num_mu_bins = 5
+        mock_config.svd.overlap = None
+        mock_config.svd.approximant = "IMRPhenomD"
+        mock_config.paths.template_bank = "/path/to/bank.xml"
+
+        with mock.patch.object(ll_dagger, "parse_command_line") as mock_parse:
+            mock_parse.return_value = mock.MagicMock(
+                config="config.yaml",
+                workflow=None,
+                dag_dir="/output",
+                dag_name=None,
+                init=True,
+            )
+            with mock.patch.object(ll_dagger, "build_config", return_value=mock_config):
+                with mock.patch.object(
+                    ll_dagger, "inspiral_bank_splitter"
+                ) as mock_splitter:
+                    with mock.patch.object(ll_dagger, "inspiral_set_svdbin_option"):
+                        ll_dagger.main()
+
+        mock_splitter.split_bank.assert_called_once()

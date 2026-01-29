@@ -460,3 +460,50 @@ class TestMain:
         # After trimming by 100: [1100, 2400]
         assert len(result["H1"]) == 1
         assert result["H1"][0] == segments.segment(1100, 2400)
+
+    def test_main_verbose_with_all_operations(self, tmp_path, capsys):
+        """Test verbose output for all operations."""
+        segs1 = segments.segmentlistdict()
+        segs1["H1"] = segments.segmentlist([segments.segment(0, 5000)])
+
+        segs2 = segments.segmentlistdict()
+        segs2["H1"] = segments.segmentlist([segments.segment(1000, 4000)])
+
+        input_file1 = tmp_path / "input1.xml.gz"
+        input_file2 = tmp_path / "input2.xml.gz"
+        output_file = tmp_path / "output.xml.gz"
+
+        from sgnl.dags.segments import write_segments
+
+        write_segments(segs1, output=str(input_file1))
+        write_segments(segs2, output=str(input_file2))
+
+        with mock.patch.object(
+            sys,
+            "argv",
+            [
+                "segment_ops",
+                str(input_file1),
+                str(input_file2),
+                "-o",
+                str(output_file),
+                "-v",
+                "--operation",
+                "union",
+                "--gps-start",
+                "500",
+                "--gps-end",
+                "4500",
+                "--min-length",
+                "100",
+                "--trim",
+                "50",
+            ],
+        ):
+            segment_ops.main()
+
+        captured = capsys.readouterr()
+        assert "Applying set operation: union" in captured.out
+        assert "Applying GPS bounding" in captured.out
+        assert "Filtering segments shorter than" in captured.out
+        assert "Contracting segments by" in captured.out

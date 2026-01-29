@@ -14,13 +14,13 @@ class TestQueryDqsegdbSegments:
 
     def test_single_instrument_str_flag(self):
         """Test with single instrument and string flag."""
-        mock_result = {"active": segments.segmentlist([segments.segment(100, 200)])}
+        mock_result = {"active": segments.segmentlist([segments.segment(100, 700)])}
 
         with mock.patch("dqsegdb2.query.query_segments", return_value=mock_result):
             result = seg_module.query_dqsegdb_segments(
                 instruments="H1",
                 start=100,
-                end=200,
+                end=700,
                 flags="H1:DMT-SCIENCE:1",
             )
 
@@ -29,13 +29,13 @@ class TestQueryDqsegdbSegments:
 
     def test_multiple_instruments_with_dict_flags(self):
         """Test with multiple instruments and dict flags."""
-        mock_result = {"active": segments.segmentlist([segments.segment(100, 200)])}
+        mock_result = {"active": segments.segmentlist([segments.segment(100, 700)])}
 
         with mock.patch("dqsegdb2.query.query_segments", return_value=mock_result):
             result = seg_module.query_dqsegdb_segments(
                 instruments=["H1", "L1"],
                 start=100,
-                end=200,
+                end=700,
                 flags={"H1": "H1:DMT-SCIENCE:1", "L1": "L1:DMT-SCIENCE:1"},
             )
 
@@ -48,7 +48,7 @@ class TestQueryDqsegdbSegments:
             seg_module.query_dqsegdb_segments(
                 instruments=["H1", "L1"],
                 start=100,
-                end=200,
+                end=700,
                 flags="H1:DMT-SCIENCE:1",
             )
 
@@ -56,13 +56,13 @@ class TestQueryDqsegdbSegments:
 
     def test_with_ligo_time_gps(self):
         """Test with LIGOTimeGPS arguments."""
-        mock_result = {"active": segments.segmentlist([segments.segment(100, 200)])}
+        mock_result = {"active": segments.segmentlist([segments.segment(100, 700)])}
 
         with mock.patch("dqsegdb2.query.query_segments", return_value=mock_result):
             result = seg_module.query_dqsegdb_segments(
                 instruments="H1",
                 start=LIGOTimeGPS(100),
-                end=LIGOTimeGPS(200),
+                end=LIGOTimeGPS(700),
                 flags="H1:DMT-SCIENCE:1",
             )
 
@@ -70,7 +70,7 @@ class TestQueryDqsegdbSegments:
 
     def test_custom_server(self):
         """Test with custom server URL."""
-        mock_result = {"active": segments.segmentlist([segments.segment(100, 200)])}
+        mock_result = {"active": segments.segmentlist([segments.segment(100, 700)])}
 
         with mock.patch(
             "dqsegdb2.query.query_segments", return_value=mock_result
@@ -78,7 +78,7 @@ class TestQueryDqsegdbSegments:
             seg_module.query_dqsegdb_segments(
                 instruments="H1",
                 start=100,
-                end=200,
+                end=700,
                 flags="H1:DMT-SCIENCE:1",
                 server="https://custom.server.org",
             )
@@ -86,7 +86,7 @@ class TestQueryDqsegdbSegments:
         mock_query.assert_called_once_with(
             "H1:DMT-SCIENCE:1",
             100,
-            200,
+            700,
             host="https://custom.server.org",
             coalesce=True,
         )
