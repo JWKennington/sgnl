@@ -46,3 +46,36 @@ class TestInspiral:
             trigger_finding_duration=1,
             fake_sink=True,
         )
+
+
+class TestInspiralZLW:
+    """Unit test for inspiral pipeline with zero latency"""
+
+    def test_inspiral_whitenoise(self):
+        """Test inspiral pipeline
+
+        Based on input from: /home/yun-jing.huang/phd/greg/sgn-runs/runmewhite.sh
+        """
+
+        data_source_info = DataSourceInfo(
+            data_source="white",
+            channel_name=["H1=FAKE", "L1=FAKE", "V1=FAKE"],
+            input_sample_rate=4096,
+            gps_start_time=0,
+            gps_end_time=100,
+        )
+
+        condition_info = ConditionInfo(
+            psd_fft_length=4,
+        )
+
+        inspiral.inspiral(
+            data_source_info=data_source_info,
+            condition_info=condition_info,
+            svd_bank=[p.as_posix() for p in PATHS_SVD_BANK],
+            torch_device="cpu",
+            torch_dtype="float32",
+            trigger_finding_duration=1,
+            fake_sink=True,
+            zero_latency=True,
+        )
