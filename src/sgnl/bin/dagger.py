@@ -177,7 +177,8 @@ def main():
     # Prepare OSDF support once for all workflows
     # FIXME We're planning to handle OSDF support better later, this function
     # can be replaced or removed then
-    prepare_osdf_support(config, args.dag_dir)
+    if not args.workflow == "rank":
+        prepare_osdf_support(config, args.dag_dir)
 
     if args.dag_name:
         dag_name = args.dag_name

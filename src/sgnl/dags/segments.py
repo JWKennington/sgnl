@@ -76,6 +76,8 @@ def query_dqsegdb_segments(
         )["active"]
         segs[ifo] = segments.segmentlist([span]) & active
 
+    segs = filter_short_segments(segs)
+
     return segs
 
 
@@ -171,7 +173,7 @@ def query_gwosc_segments(
 
     """
     if isinstance(instruments, str):
-        instruments = [instruments[i:i+2] for i in range(0, len(instruments), 2)]
+        instruments = [instruments[i : i + 2] for i in range(0, len(instruments), 2)]
 
     # Set up SSL context
     context = ssl.create_default_context()
@@ -190,6 +192,10 @@ def query_gwosc_segments(
                 urldata.splitlines(),
                 coltype=lsctables.LIGOTimeGPS,
             )
+    segs.coalesce()
+
+    segs = filter_short_segments(segs)
+
     segs.coalesce()
 
     return segs
@@ -333,6 +339,18 @@ def write_segments(
     ligolw_utils.write_filename(xmldoc, output)
 
 
+def load_segment_file(filename: str):
+    """Load a segmentlistdict from a LIGO-LW XML file."""
+    print(f"Loading segments from {filename}")
+    xmldoc = ligolw_utils.load_filename(
+        filename,
+        contenthandler=ligolw_segments.LIGOLWContentHandler,
+    )
+    segs = ligolw_segments.segmenttable_get_by_name(xmldoc, "datasegments").coalesce()
+
+    return segs
+
+
 def analysis_segments(
     ifos: Iterable[str],
     allsegs: segments.segmentlistdict,
@@ -465,6 +483,281 @@ def split_segment(
             break
 
     return seglist
+
+
+def filter_short_segments(
+    segs: segments.segmentlistdict,
+    min_duration: float = 512,
+) -> segments.segmentlistdict:
+    """
+    Filter a segmentlistdict by removing segments shorter than `min_duration`.
+
+    Parameters
+    ----------
+    segs : segmentlistdict
+        Dictionary mapping IFO → segmentlist.
+    min_duration : float, default 512
+        Minimum allowed segment duration in seconds.
+
+    Returns
+    -------
+    segmentlistdict
+        A new segmentlistdict containing only segments of sufficient length.
+    """
+    trimmed = segments.segmentlistdict()
+
+    for ifo, seglist in segs.items():
+        trimmed_segments = segments.segmentlist(
+            [seg for seg in seglist if abs(seg) >= min_duration]
+        )
+        trimmed[ifo] = trimmed_segments
+
+    return trimmed
+
+
+def bound_segments(
+    segs: segments.segmentlistdict,
+    start: float | None = None,
+    end: float | None = None,
+) -> segments.segmentlistdict:
+    """
+    Restrict all segments in a ``segmentlistdict`` to a GPS time range.
+
+    Parameters
+    ----------
+    segs : segmentlistdict
+        Dictionary mapping IFO → segmentlist.
+    start : float or None, optional
+        GPS start time. If ``None``, no lower bound is applied.
+    end : float or None, optional
+        GPS end time. If ``None``, no upper bound is applied.
+
+    Returns
+    -------
+    segmentlistdict
+        A new dictionary where each IFO's segments have been intersected
+        with the interval ``[start, end]``.
+    """
+    if start is None and end is None:
+        return segs
+
+    start = LIGOTimeGPS(start) if start is not None else segments.NegInfinity
+    stop = LIGOTimeGPS(end) if end is not None else segments.PosInfinity
+
+    boundaries = segments.segmentlist([segments.segment(start, stop)])
+
+    bounded = segments.segmentlistdict()
+    for ifo, seglist in segs.items():
+        bounded[ifo] = seglist & boundaries
+
+    return bounded
+
+
+def contract_segments(
+    segs: segments.segmentlistdict,
+    trim: float,
+) -> segments.segmentlistdict:
+    """
+    Contract each segment by removing ``trim`` seconds from both ends,
+    optionally discarding segments too short to survive contraction.
+
+    Parameters
+    ----------
+    segs : segmentlistdict
+        Dictionary mapping IFO → segmentlist.
+    trim : float
+        Amount in seconds to contract from each segment edge. If ``trim <= 0``,
+        the input is returned unchanged.
+
+    Returns
+    -------
+    segmentlistdict
+        A new dictionary of contracted segments. Segments shorter than
+        ``2 * trim`` are discarded.
+    """
+    if trim <= 0:
+        return segs
+
+    safe = segments.segmentlistdict()
+
+    for ifo, seglist in segs.items():
+        safe[ifo] = segments.segmentlist(
+            [seg for seg in seglist if abs(seg) > 2 * trim]
+        )
+
+    safe.contract(trim)
+    return safe
+
+
+def process_segments(
+    segs: segments.segmentlistdict,
+    gps_start: float | None = None,
+    gps_end: float | None = None,
+    min_length: float = 0,
+    trim: float = 0,
+) -> segments.segmentlistdict:
+    """
+    Apply bounding, minimum length filtering, and contraction to
+    a ``segmentlistdict``.
+
+    Parameters
+    ----------
+    segs : segmentlistdict
+        Dictionary mapping IFO → segmentlist.
+    gps_start : float or None
+        Optional GPS start bound.
+    gps_end : float or None
+        Optional GPS end bound.
+    min_length : float, default 0
+        Minimum allowed segment duration in seconds.
+    trim : float, default 0
+        Contraction length in seconds.
+
+    Returns
+    -------
+    segmentlistdict
+        Processed segment dictionary after applying all requested operations.
+    """
+    segs = bound_segments(segs, gps_start, gps_end)
+
+    if min_length > 0:
+        segs = filter_short_segments(segs, min_length)
+
+    if trim > 0:
+        segs = contract_segments(segs, trim)
+
+    return segs
+
+
+def union_segmentlistdicts(
+    a: segments.segmentlistdict,
+    b: segments.segmentlistdict,
+) -> segments.segmentlistdict:
+    """
+    Compute the union of two ``segmentlistdict`` objects.
+
+    Parameters
+    ----------
+    a, b : segmentlistdict
+        Dictionaries mapping IFO → segmentlist.
+
+    Returns
+    -------
+    segmentlistdict
+        Dictionary whose values are the unions of corresponding segmentlists.
+        Missing keys are treated as empty segmentlists.
+    """
+    out = segments.segmentlistdict()
+
+    all_keys = set(a.keys()) | set(b.keys())
+    for key in all_keys:
+        segs_a = a.get(key, segments.segmentlist())
+        segs_b = b.get(key, segments.segmentlist())
+        out[key] = (segs_a | segs_b).coalesce()
+
+    return out
+
+
+def intersection_segmentlistdicts(
+    a: segments.segmentlistdict,
+    b: segments.segmentlistdict,
+) -> segments.segmentlistdict:
+    """
+    Compute the intersection of two ``segmentlistdict`` objects.
+
+    Parameters
+    ----------
+    a, b : segmentlistdict
+        Dictionaries mapping IFO → segmentlist.
+
+    Returns
+    -------
+    segmentlistdict
+        Dictionary whose keys are the IFOs present in both inputs, and
+        whose values are the intersections of the corresponding segmentlists.
+    """
+    out = segments.segmentlistdict()
+
+    common_keys = set(a.keys()) & set(b.keys())
+    for key in common_keys:
+        out[key] = (a[key] & b[key]).coalesce()
+
+    return out
+
+
+def diff_segmentlistdicts(
+    a: segments.segmentlistdict,
+    b: segments.segmentlistdict,
+) -> segments.segmentlistdict:
+    """
+    Compute the difference between two ``segmentlistdict`` objects,
+    defined as segments in ``a`` that are not in ``b``.
+
+    Parameters
+    ----------
+    a : segmentlistdict
+        The minuend (segments to keep).
+    b : segmentlistdict
+        The subtrahend (segments to remove). Missing keys are treated
+        as empty segmentlists.
+
+    Returns
+    -------
+    segmentlistdict
+        Dictionary whose values are ``a[key] - b[key]`` for each key in ``a``.
+    """
+    out = segments.segmentlistdict()
+
+    for key in a.keys():
+        segs_a = a[key]
+        segs_b = b.get(key, segments.segmentlist())
+        out[key] = (segs_a - segs_b).coalesce()
+
+    return out
+
+
+def combine_segmentlistdicts(
+    segdicts: list[segments.segmentlistdict],
+    operation: str,
+) -> segments.segmentlistdict:
+    """
+    Combine multiple ``segmentlistdict`` objects using a specified set
+    operation.
+
+    Parameters
+    ----------
+    segdicts : list of segmentlistdict
+        Sequence of dictionaries to combine. Must contain at least two entries.
+    operation : {"union", "intersection", "diff"}
+        Set-like operation to apply cumulatively across the list.
+
+    Returns
+    -------
+    segmentlistdict
+        The cumulative result of applying the chosen operation.
+
+    Raises
+    ------
+    ValueError
+        If ``operation`` is invalid or fewer than two dictionaries are provided.
+    """
+    if operation not in {"union", "intersection", "diff"}:
+        raise ValueError("operation must be 'union', 'intersection', or 'diff'")
+
+    if len(segdicts) < 2:
+        raise ValueError("Need at least two segmentlistdicts")
+
+    result = segdicts[0]
+
+    for other in segdicts[1:]:
+        if operation == "union":
+            result = union_segmentlistdicts(result, other)
+        elif operation == "intersection":
+            result = intersection_segmentlistdicts(result, other)
+        elif operation == "diff":
+            result = diff_segmentlistdicts(result, other)
+
+    return result
 
 
 def _gwosc_segment_url(start, end, flag):

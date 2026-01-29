@@ -797,7 +797,7 @@ def build_pipeline(
                 gracedb_sink = GraceDBSink(
                     name="gracedb",
                     event_pad="event",
-                    spectrum_pads=list(ifos),
+                    spectrum_pads=tuple(ifos),
                     template_sngls=sorted_bank.sngls,
                     analysis_ifos=ifos,
                     process_params=process_params,

@@ -99,7 +99,7 @@ def parse_command_line():
 
     if options.input_database_cache:
         options.input_database_file += [
-            CacheEntry(line).path for line in open(options.input_database_cache)
+            [CacheEntry(line).path] for line in open(options.input_database_cache)
         ]
     options.input_database_file = [
         url for sublist in options.input_database_file for url in sublist
@@ -107,7 +107,7 @@ def parse_command_line():
 
     if options.output_database_cache:
         options.output_database_file += [
-            CacheEntry(line).path for line in open(options.output_database_cache)
+            [CacheEntry(line).path] for line in open(options.output_database_cache)
         ]
     options.output_database_file = [
         url for sublist in options.output_database_file for url in sublist

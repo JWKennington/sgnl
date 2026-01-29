@@ -37,7 +37,7 @@ class GraceDBSink(HTTPControlSinkElement):
 
     strike_object: StrikeObject = None  # type: ignore[assignment]
     event_pad: str = None  # type: ignore[assignment]
-    spectrum_pads: list[str] = None  # type: ignore[assignment]
+    spectrum_pads: tuple[str] = None  # type: ignore[assignment]
     far_thresh: float = -1
     aggregator_far_thresh: float = 3.84e-07
     aggregator_far_trials_factor: int = 1
@@ -127,57 +127,58 @@ class GraceDBSink(HTTPControlSinkElement):
         # send event data to kafka or gracedb
         if self.client and self.state["far-threshold"] >= 0:
 
-            event, trigs, snr_ts = best_event(
-                self.events["event"].data,
-                self.events["trigger"].data,
-                self.events["snr_ts"].data,
-                self.state["far-threshold"],
-                self.public_far_threshold,
-            )
-            if event is not None:
-                xmldoc = event_trigs_to_coinc_xmldoc(
-                    event,
-                    trigs,
-                    snr_ts,
-                    self.sngls_dict,
-                    self.analysis_ifos,
-                    self.process_params,
-                    self.delta_t,
-                    self.channel_dict,
-                    self.autocorrelation_lengths,
+            for buf in self.events.events:
+                if buf is None or buf["event"] is None:
+                    continue
+                event, trigs, snr_ts = best_event(
+                    buf["event"],
+                    buf["trigger"],
+                    buf["snr_ts"],
+                    self.state["far-threshold"],
+                    self.public_far_threshold,
                 )
-
-                # add psd frequeny series
-                lal.series.make_psd_xmldoc(
-                    self.psds, xmldoc.childNodes[-1]
-                )
-
-                if self.output_kafka_server:
-                    publish_kafka(
-                        self.client,
-                        xmldoc,
-                        self.job_type,
-                        self.analysis_tag,
-                        "".join(sorted(self.analysis_ifos)),
-                        self.gracedb_group,
-                        self.gracedb_search,
-                        self.strike_object,
-                    )
-                else:
-                    publish_gracedb(
-                        self.client,
-                        xmldoc,
-                        self.gracedb_group,
-                        self.gracedb_pipeline,
-                        self.gracedb_search,
-                        self.gracedb_label,
+                if event is not None:
+                    xmldoc = event_trigs_to_coinc_xmldoc(
+                        event,
+                        trigs,
+                        snr_ts,
+                        self.sngls_dict,
+                        self.analysis_ifos,
+                        self.process_params,
+                        self.delta_t,
+                        self.channel_dict,
+                        self.autocorrelation_lengths,
                     )
 
-                # count tracker
-                gracedb_times = [event["time_subthresh"] / 1e9]
-                self.strike_object.store_counts(gracedb_times)
+                    # add psd frequeny series
+                    lal.series.make_psd_xmldoc(self.psds, xmldoc.childNodes[-1])
 
-                self.start_time = time.time()
+                    if self.output_kafka_server:
+                        publish_kafka(
+                            self.client,
+                            xmldoc,
+                            self.job_type,
+                            self.analysis_tag,
+                            "".join(sorted(self.analysis_ifos)),
+                            self.gracedb_group,
+                            self.gracedb_search,
+                            self.strike_object,
+                        )
+                    else:
+                        publish_gracedb(
+                            self.client,
+                            xmldoc,
+                            self.gracedb_group,
+                            self.gracedb_pipeline,
+                            self.gracedb_search,
+                            self.gracedb_label,
+                        )
+
+                    # count tracker
+                    gracedb_times = [event["time_subthresh"] / 1e9]
+                    self.strike_object.store_counts(gracedb_times)
+
+                    self.start_time = time.time()
 
         if self.at_eos and self.output_kafka_server is not None:
             print("shutdown: flush kafka client", flush=True, file=sys.stderr)

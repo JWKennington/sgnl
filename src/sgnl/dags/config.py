@@ -64,7 +64,8 @@ def build_config(config_path, dag_dir, force_segments=False):
     if not config.min_instruments_segments:
         config.min_instruments_segments = 1
 
-    config = create_segments(config, force_segments=force_segments)
+    if config.start:
+        config = create_segments(config, force_segments=force_segments)
 
     if not config.paths:
         config.paths = DotDict({})
@@ -109,10 +110,10 @@ def create_segments(config, force_segments=False):
 
         if use_gwosc and has_flags:
             raise ValueError(
-                    "Config sets 'use-gwosc-segments: True' but also provides 'flags'. "
-                    "Flags are only used for DQSegDB queries; remove the 'flags' "
-                    "section when using GWOSC segments."
-                )
+                "Config sets 'use-gwosc-segments: True' but also provides 'flags'. "
+                "Flags are only used for DQSegDB queries; remove the 'flags' "
+                "section when using GWOSC segments."
+            )
 
         print(f"Creating segments.xml.gz over interval {config.start} .. {config.stop}")
 
@@ -136,6 +137,9 @@ def create_segments(config, force_segments=False):
                 flags,
             )
 
+        # apply CAT1 vetoes if file is specified and exists
+        segdict = apply_cat1_vetoes(segdict, config)
+
         # write to disk
         segments.write_segments(segdict, config.source.frame_segments_file)
 
@@ -153,6 +157,49 @@ def create_segments(config, force_segments=False):
         )
 
     return config
+
+
+def apply_cat1_vetoes(segdict, config):
+    """Apply CAT1 vetoes to segments if a vetoes file is specified.
+
+    If config.source.cat1_vetoes_file is set and the file exists,
+    load the veto segments and subtract them from the science segments.
+
+    Args:
+        segdict: The science segments (segmentlistdict).
+        config: The configuration object.
+
+    Returns:
+        segmentlistdict with CAT1 veto times removed.
+    """
+    vetoes_file = getattr(config.source, "cat1_vetoes_file", None)
+
+    if vetoes_file is None:
+        return segdict
+
+    vetoes_path = pathlib.Path(vetoes_file)
+    if not vetoes_path.exists():
+        raise FileNotFoundError(
+            f"CAT1 vetoes file specified but not found: {vetoes_file}"
+        )
+
+    print(f"Applying CAT1 vetoes from {vetoes_file}")
+    vetoes = segments.load_segment_file(vetoes_file)
+
+    # compute livetime before vetoes
+    total_before = sum(float(abs(segs)) for segs in segdict.values())
+
+    # apply diff: science - vetoes
+    result = segments.diff_segmentlistdicts(segdict, vetoes)
+
+    # compute livetime after vetoes
+    total_after = sum(float(abs(segs)) for segs in result.values())
+    removed = total_before - total_after
+
+    print(f"CAT1 vetoes removed {removed:.1f}s of livetime")
+    print(f"Before: {total_before:.1f}s, After: {total_after:.1f}s")
+
+    return result
 
 
 def create_time_bins(

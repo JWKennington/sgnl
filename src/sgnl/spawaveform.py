@@ -15,7 +15,7 @@ def bkl_isco(m1, m2):
     return (0.8 * q**3 - 2.6 * q**2 + 2.8 * q + 1.0) * schwarz_isco(m1, m2)
 
 
-def light_ring(m1, m2, chi):
+def light_ring(m1, m2, chi=None):
     m = lal.MTSUN_SI * (m1 + m2)
     return 1.0 / (3.0**1.5) / m / lal.PI
 

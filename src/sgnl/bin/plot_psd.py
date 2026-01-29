@@ -25,7 +25,7 @@ matplotlib.rcParams.update(
         "legend.fontsize": 8.0,
         "figure.dpi": 300,
         "savefig.dpi": 300,
-        "text.usetex": True,
+        "text.usetex": False,
         "path.simplify": True,
     }
 )

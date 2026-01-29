@@ -1,0 +1,25 @@
+# Include essential files
+include LICENSE
+include README.md
+include pyproject.toml
+
+# Include source code
+recursive-include src *.py
+include src/sgnl/py.typed
+include src/sgnl/dags/default_config.yml
+
+# Exclude large data files from sdist
+prune tests/data
+prune examples/online/svd_bank
+prune examples/online/likelihood_ratio
+prune examples/online/mass_model
+prune examples/online/rank_stat_pdfs
+prune examples/online/zerolag_rank_stat_pdfs
+prune ew
+
+# Exclude build artifacts
+prune dist
+prune build
+prune *.egg-info
+global-exclude *.pyc
+global-exclude __pycache__

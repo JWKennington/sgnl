@@ -139,13 +139,13 @@ def svd_bin_to_dtdphi_file(config, svd_bin, stats_bin, aggregate="mean"):
             elif "others" in dtdphi_files:
                 # pick the default dtdphi file from 'others' category
                 dtdphi_file = dtdphi_files.pop("others")
-            if len(dtdphi_files) >= 2:
-                raise ValueError(
-                    "SVD bin id %s falls onto the multiple categories (%s). "
-                    "It needs to be assigned to only one or none."
-                    % (svd_bin, ",".join([tpl[0] for tpl in dtdphi_files]))
-                )
-            elif len(dtdphi_files):
+            # With current category_condition (only IMBH + others), at most 1 non-others
+            # category can match. This assert guards against future category additions.
+            assert len(dtdphi_files) < 2, (
+                f"SVD bin {svd_bin} matches multiple categories: "
+                f"{','.join(dtdphi_files.keys())}. Add logic to handle this."
+            )
+            if len(dtdphi_files):
                 # pick the dtdphi file specified in the config
                 dtdphi_file = [*dtdphi_files.values()][0]
             assert (
