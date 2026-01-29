@@ -45,7 +45,7 @@ logger = logging.getLogger("sgn.sgnl")
 
 torch.set_num_threads(1)
 #  NOTE: experiment with this to see if it helps with performance.
-#torch.set_grad_enabled(False) 
+# torch.set_grad_enabled(False)
 
 
 @array_use_in

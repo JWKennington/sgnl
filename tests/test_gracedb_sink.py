@@ -718,11 +718,14 @@ class TestGraceDBSink:
         sink.state = {"far-threshold": 1.0}
         sink.client = mock.MagicMock()
         sink.output_kafka_server = ""
-        sink.events = {
-            "event": mock.MagicMock(),
-            "trigger": mock.MagicMock(),
-            "snr_ts": mock.MagicMock(),
-        }
+        sink.events = mock.MagicMock()
+        sink.events.events = [
+            {
+                "event": mock.MagicMock(),
+                "trigger": mock.MagicMock(),
+                "snr_ts": mock.MagicMock(),
+            }
+        ]
         sink.public_far_threshold = 1e-6
         sink.sngls_dict = {}
         sink.analysis_ifos = ["H1", "L1"]
@@ -775,11 +778,14 @@ class TestGraceDBSink:
         sink.state = {"far-threshold": 1.0}
         sink.client = mock.MagicMock()
         sink.output_kafka_server = "localhost:9092"
-        sink.events = {
-            "event": mock.MagicMock(),
-            "trigger": mock.MagicMock(),
-            "snr_ts": mock.MagicMock(),
-        }
+        sink.events = mock.MagicMock()
+        sink.events.events = [
+            {
+                "event": mock.MagicMock(),
+                "trigger": mock.MagicMock(),
+                "snr_ts": mock.MagicMock(),
+            }
+        ]
         sink.public_far_threshold = 1e-6
         sink.sngls_dict = {}
         sink.analysis_ifos = ["H1", "L1"]
@@ -822,11 +828,14 @@ class TestGraceDBSink:
         sink.state = {"far-threshold": 1.0}
         sink.client = mock.MagicMock()
         sink.output_kafka_server = "localhost:9092"
-        sink.events = {
-            "event": mock.MagicMock(),
-            "trigger": mock.MagicMock(),
-            "snr_ts": mock.MagicMock(),
-        }
+        sink.events = mock.MagicMock()
+        sink.events.events = [
+            {
+                "event": mock.MagicMock(),
+                "trigger": mock.MagicMock(),
+                "snr_ts": mock.MagicMock(),
+            }
+        ]
         sink.public_far_threshold = 1e-6
 
         mock_best_event.return_value = (None, None, None)
@@ -838,6 +847,30 @@ class TestGraceDBSink:
 
         # Should not attempt to publish
         # Just check no errors
+
+    @mock.patch("sgnl.sinks.gracedb_sink.HTTPControlSinkElement.exchange_state")
+    def test_internal_skips_none_buffer(self, mock_exchange_state):
+        """Test internal method skips None buffers and buffers with None event."""
+        with mock.patch.object(gracedb_sink.GraceDBSink, "__post_init__"):
+            sink = object.__new__(gracedb_sink.GraceDBSink)
+
+        sink.name = "test"
+        sink.state = {"far-threshold": 1.0}
+        sink.client = mock.MagicMock()
+        sink.output_kafka_server = "localhost:9092"
+        sink.events = mock.MagicMock()
+        # Include None buffer and buffer with None event
+        sink.events.events = [
+            None,  # Should be skipped
+            {"event": None, "trigger": mock.MagicMock(), "snr_ts": mock.MagicMock()},
+        ]
+        sink.public_far_threshold = 1e-6
+
+        with mock.patch.object(
+            type(sink), "at_eos", new_callable=mock.PropertyMock, return_value=False
+        ):
+            # Should not raise any errors - just skip the None buffers
+            sink.internal()
 
     @mock.patch("sgnl.sinks.gracedb_sink.HTTPControlSinkElement.exchange_state")
     def test_internal_negative_far_threshold(self, mock_exchange_state):

@@ -16,12 +16,13 @@ dependencies = [
     # LIGO dependencies
     "ligo-gracedb==2.14.1",
     "lalsuite>=7.26",
-    "igwn-ligolw<2.1.0",
+    "igwn-ligolw>=2.1.0",
     "igwn-segments",
     # SGN dependencies
     "sgn",
     "sgn-ts",
     "sgn-ligo",
+    "gw-strike",
     "flask",# FIXME remove this once we move the gracedb mock server out of here.
     "ligo-scald",
 ]
@@ -135,11 +136,12 @@ write_to = "src/sgnl/_version.py"
 [tool.coverage.run]
 source = ["sgnl"]
 omit = [
-    "*/site-packages/*",
-    "*/dist-packages/*",
     "*/_version.py",
     "*/tests/*",
     "*/__init__.py",
+    "*/sgnts/*",
+    "*/sgnligo/*",
+    "*/sgn/*",
 ]
 
 [tool.coverage.paths]

@@ -346,12 +346,9 @@ def load_segment_file(filename: str):
         filename,
         contenthandler=ligolw_segments.LIGOLWContentHandler,
     )
-    segs = ligolw_segments.segmenttable_get_by_name(
-        xmldoc, "datasegments"
-    ).coalesce()
+    segs = ligolw_segments.segmenttable_get_by_name(xmldoc, "datasegments").coalesce()
 
     return segs
-
 
 
 def analysis_segments(

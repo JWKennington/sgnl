@@ -935,7 +935,7 @@ class TestReadBanks:
         ):
             # read_banks doesn't handle empty banks well - it crashes
             # in horizon_distance_func when there are no banks
-            with pytest.raises(ValueError, match="min\\(\\) arg is an empty sequence"):
+            with pytest.raises(ValueError, match="min\\(\\).*empty"):
                 svd_bank.read_banks("test.xml", contenthandler=TestContentHandler)
 
         mock_load.assert_called_once()
